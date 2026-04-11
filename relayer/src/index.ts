@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Relayer Service
+ * The White Protocol Relayer Service
  *
  * HTTP service that relays withdrawal transactions for users.
  * Users submit proofs to the relayer, which submits them on-chain
@@ -52,7 +52,7 @@ interface RelayerConfig {
   rpcEndpoint: string;
   /** Relayer wallet keypair */
   walletKeypair: Keypair;
-  /** pSOL program ID */
+  /** The White Protocol program ID */
   programId: PublicKey;
   /** Pool configuration account */
   poolConfig: PublicKey;
@@ -147,7 +147,7 @@ interface SubmitWithdrawalParams {
 // =============================================================================
 
 /**
- * pSOL v2 Relayer Service
+ * The White Protocol Relayer Service
  */
 export class RelayerService {
   private config: RelayerConfig;
@@ -794,7 +794,7 @@ export class RelayerService {
     
     this.app.listen(this.config.port, () => {
       console.log("========================================");
-      console.log("pSOL v2 Relayer Service Started");
+      console.log("The White Protocol Relayer Service Started");
       console.log("========================================");
       console.log(`Port: ${this.config.port}`);
       console.log(`Operator: ${this.config.walletKeypair.publicKey.toBase58()}`);
@@ -936,7 +936,7 @@ export async function main(): Promise<void> {
     walletKeypair: Keypair.fromSecretKey(
       Uint8Array.from(JSON.parse(process.env.RELAYER_KEYPAIR || '[]'))
     ),
-    programId: new PublicKey(process.env.PROGRAM_ID || 'pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'),
+    programId: new PublicKey(process.env.PROGRAM_ID || 'BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb'),
     poolConfig: new PublicKey(process.env.POOL_CONFIG || '11111111111111111111111111111111'),
     feeBps: parseInt(process.env.FEE_BPS || '50', 10),
     minWithdrawalAmount: BigInt(process.env.MIN_WITHDRAWAL || '1000000'),

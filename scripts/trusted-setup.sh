@@ -1,11 +1,11 @@
 #!/bin/bash
-# pSOL v2 Trusted Setup Ceremony Script
+# White Protocol Trusted Setup Ceremony Script
 # For production deployment, this ceremony must be performed with multiple participants
 
 set -e
 
 echo "============================================"
-echo "pSOL v2 Trusted Setup Ceremony"
+echo "White Protocol Trusted Setup Ceremony
 echo "============================================"
 echo ""
 echo "WARNING: This is a multi-party computation ceremony."
@@ -113,7 +113,7 @@ echo ""
 echo "Output files in: $CEREMONY_DIR/"
 echo ""
 echo "For production:"
-echo "1. Upload *_vkey.rs to programs/psol-privacy-v2/src/crypto/"
+echo "1. Upload *_vkey.rs to programs/white-protocol/src/crypto/"
 echo "2. Run set_verification_key for each proof type"
 echo "3. Lock verification keys when ready"
 echo ""

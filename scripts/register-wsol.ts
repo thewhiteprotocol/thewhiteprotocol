@@ -21,7 +21,7 @@ async function main() {
   console.log('Authority:', keypair.publicKey.toString());
   
   // Load IDL
-  const idl = JSON.parse(fs.readFileSync('target/idl/psol_privacy_v2.json', 'utf-8'));
+  const idl = JSON.parse(fs.readFileSync('target/idl/white_protocol.json', 'utf-8'));
   
   const provider = new AnchorProvider(
     connection,
@@ -33,7 +33,7 @@ async function main() {
   
   // Compute asset ID (matches relayer: prefix + mint, first byte = 0)
   const mintBuffer = WSOL_MINT.toBuffer();
-  const prefix = Buffer.from('psol:asset_id:v1');
+  const prefix = Buffer.from('white:asset_id:v1');
   const combined = Buffer.concat([prefix, mintBuffer]);
   const hashHex = keccak256(combined);
   const hashBuffer = Buffer.from(hashHex, 'hex');

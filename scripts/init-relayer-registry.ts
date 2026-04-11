@@ -1,7 +1,7 @@
 import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
 import { AnchorProvider, Program, Wallet } from '@coral-xyz/anchor';
 import * as fs from 'fs';
-import IDL from '../target/idl/psol_privacy_v2.json';
+import IDL from '../target/idl/white_protocol.json';
 
 const RPC_URL = 'https://devnet.helius-rpc.com/?api-key=2f0116cb-6972-4a3d-bb9e-43de29619343';
 const PROGRAM_ID = new PublicKey('BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb');

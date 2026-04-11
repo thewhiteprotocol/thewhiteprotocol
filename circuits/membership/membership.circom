@@ -1,4 +1,4 @@
-// pSOL v2 Membership Proof Circuit
+// The White Protocol Membership Proof Circuit
 // Proves:
 // 1. User has a commitment in the Merkle tree
 // 2. The commitment amount >= threshold

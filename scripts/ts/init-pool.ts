@@ -8,7 +8,7 @@ async function main() {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const idl = JSON.parse(readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(readFileSync("target/idl/white_protocol.json", "utf8"));
   const program = new anchor.Program(idl, provider);
   const authority = provider.wallet.publicKey;
 
@@ -26,7 +26,7 @@ async function main() {
   const treeDepth = 20;
   const rootHistorySize = 30;
 
-  console.log("=== pSOL v2 Pool Initialization ===");
+  console.log("=== The White Protocol v2 Pool Initialization ===");
   console.log("Depth:", treeDepth, "=", Math.pow(2, treeDepth), "notes");
 
   try {

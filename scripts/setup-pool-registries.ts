@@ -11,9 +11,9 @@ import * as fs from "fs";
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
 const POOL_CONFIG = new PublicKey("73MzPg5UFz869CA5XWaEFUYDoS8ezzmjtvARJDMkNSgw");
 
-// Compute asset_id matching Rust: 0x00 || keccak256("psol:asset_id:v1" || mint)[0..31]
+// Compute asset_id matching Rust: 0x00 || keccak256("white:asset_id:v1" || mint)[0..31]
 function computeAssetId(mint: PublicKey): Buffer {
-  const prefix = Buffer.from("psol:asset_id:v1");
+  const prefix = Buffer.from("white:asset_id:v1");
   const mintBytes = mint.toBuffer();
   const combined = Buffer.concat([prefix, mintBytes]);
   
@@ -43,7 +43,7 @@ async function main() {
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   anchor.setProvider(provider);
 
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
   const program = new anchor.Program(idl, provider);
 
   console.log("Authority:", authority.publicKey.toString());

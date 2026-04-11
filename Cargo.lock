@@ -1290,23 +1290,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "psol-privacy-v2"
-version = "2.0.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "ark-bn254",
- "ark-ec",
- "ark-ff",
- "hex",
- "light-poseidon",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sha3",
-]
-
-[[package]]
 name = "qstring"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3139,6 +3122,23 @@ checksum = "9b32828d774c412041098d182a8b38b16ea816958e07cf40eec2bc080ae137ac"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "white-protocol"
+version = "2.0.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "hex",
+ "light-poseidon",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sha3",
 ]
 
 [[package]]

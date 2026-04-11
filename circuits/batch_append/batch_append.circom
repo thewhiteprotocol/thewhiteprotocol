@@ -1,4 +1,4 @@
-// pSOL v2 Batch Append Circuit
+// The White Protocol Batch Append Circuit
 // Proves correct sequential insertion of N commitments into the Merkle tree
 // Permissionless: anyone can generate this proof from on-chain pending buffer data
 

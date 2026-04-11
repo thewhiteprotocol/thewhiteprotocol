@@ -1,5 +1,5 @@
 /**
- * Provision Verification Keys for pSOL v2
+ * Provision Verification Keys for The White Protocol v2
  * 
  * Uses chunked upload for large VKs (Withdraw, JoinSplit)
  */
@@ -102,7 +102,7 @@ async function main() {
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   anchor.setProvider(provider);
 
-  const idl = JSON.parse(readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(readFileSync("target/idl/white_protocol.json", "utf8"));
   const program = new anchor.Program(idl, provider);
   const authority = wallet.publicKey;
 
@@ -111,7 +111,7 @@ async function main() {
     PROGRAM_ID
   );
 
-  console.log("=== pSOL v2 VK Provisioning ===");
+  console.log("=== The White Protocol v2 VK Provisioning ===");
   console.log("Authority:", authority.toString());
   console.log("Pool Config:", poolConfig.toString());
   console.log("Proof Types:", proofTypes.map(t => ProofType[t]).join(", "));

@@ -1,4 +1,4 @@
-// pSOL v2 Merkle Batch Update Circuit (Production Grade - Fixed)
+// The White Protocol Merkle Batch Update Circuit (Production Grade - Fixed)
 // 
 // Uses conditional verification to handle variable batch sizes correctly.
 pragma circom 2.1.6;

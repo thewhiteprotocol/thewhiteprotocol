@@ -1,10 +1,10 @@
-// pSOL v2 Deposit Circuit
+// The White Protocol Deposit Circuit
 // Proves:
 // 1. commitment = Poseidon(secret, nullifier, amount, asset_id)
 // 2. amount > 0
 // 3. commitment is non-zero
 //
-// Note: Deposit proofs are optional in pSOL v2. The on-chain program
+// Note: Deposit proofs are optional in The White Protocol. The on-chain program
 // can accept deposits without proof verification for simplicity.
 // This circuit is provided for complete ZK coverage if desired.
 

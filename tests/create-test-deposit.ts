@@ -6,7 +6,7 @@ import { TOKEN_PROGRAM_ID, NATIVE_MINT, getOrCreateAssociatedTokenAccount, creat
 import * as anchor from '@coral-xyz/anchor';
 import * as fs from 'fs';
 import * as path from 'path';
-import IDL from '../target/idl/psol_privacy_v2.json';
+import IDL from '../target/idl/white_protocol.json';
 
 const circomlibjs = require('circomlibjs');
 
@@ -34,7 +34,7 @@ function poseidonHash(inputs: bigint[]): bigint {
 
 function computeAssetId(mint: PublicKey): Buffer {
   const keccak = require('js-sha3').keccak256;
-  const prefix = Buffer.from('psol:asset_id:v1');
+  const prefix = Buffer.from('white:asset_id:v1');
   const combined = Buffer.concat([prefix, mint.toBuffer()]);
   const hash = Buffer.from(keccak(combined), 'hex');
   const assetId = Buffer.alloc(32);

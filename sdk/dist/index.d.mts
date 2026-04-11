@@ -1,17 +1,15 @@
-import { PublicKey, Connection, Keypair, TransactionSignature } from '@solana/web3.js';
+import { PublicKey, Connection, Keypair, TransactionSignature, VersionedTransaction } from '@solana/web3.js';
 import BN from 'bn.js';
 import { Program, AnchorProvider, BN as BN$1 } from '@coral-xyz/anchor';
-export { Poseidon } from 'circomlibjs';
 
 /**
- * pSOL v2 SDK - Poseidon Hash Implementation
+ * The White Protocol SDK - Poseidon Hash Implementation
  *
  * Circomlib-compatible Poseidon hash for BN254 scalar field.
  * Uses the same parameters as circomlib for circuit compatibility.
  *
  * @module crypto/poseidon
  */
-
 /**
  * Initialize the Poseidon hasher
  * Must be called before using hash functions
@@ -82,14 +80,14 @@ declare function isValidFieldElement(value: bigint): boolean;
 declare function fieldMod(value: bigint): bigint;
 
 /**
- * pSOL v2 SDK - Note Management
+ * The White Protocol SDK - Note Management
  *
  * Handles creation, encryption, decryption, and storage of shielded notes.
  *
  * @module note/note
  */
 /**
- * Represents a shielded note in pSOL v2
+ * Represents a shielded note in The White Protocol
  */
 interface Note {
     /** Random blinding factor */
@@ -219,7 +217,7 @@ declare class NoteStore {
 }
 
 /**
- * pSOL v2 SDK - Merkle Tree
+ * The White Protocol SDK - Merkle Tree
  *
  * Client-side Merkle tree for proof generation.
  * Mirrors the on-chain incremental Merkle tree.
@@ -314,7 +312,7 @@ declare class MerkleTree {
 declare function syncTreeWithChain(tree: MerkleTree, onChainLeaves: bigint[]): Promise<void>;
 
 /**
- * pSOL v2 SDK - Proof Generation
+ * The White Protocol SDK - Proof Generation
  *
  * Generates ZK proofs for deposits, withdrawals, and transfers.
  * Uses snarkjs for Groth16 proof generation.
@@ -452,9 +450,9 @@ declare function verifyProofLocally(proofType: ProofType$1, proof: Groth16Proof,
 declare function exportVerificationKey(zkeyPath: string): Promise<any>;
 
 /**
- * pSOL v2 SDK Type Definitions
+ * The White Protocol SDK Type Definitions
  *
- * Types for interacting with the pSOL v2 MASP (Multi-Asset Shielded Pool)
+ * Types for interacting with the The White Protocol MASP (Multi-Asset Shielded Pool)
  */
 
 /** 32-byte asset identifier (keccak256(mint_address)) */
@@ -466,7 +464,7 @@ type NullifierHash = Uint8Array;
 /** 32-byte Merkle root */
 type MerkleRoot = Uint8Array;
 /**
- * Proof types supported by pSOL v2
+ * Proof types supported by The White Protocol
  * Must match on-chain ProofType enum
  */
 declare enum ProofType {
@@ -477,7 +475,9 @@ declare enum ProofType {
     /** Join-Split proof - proves value conservation in internal transfer */
     JoinSplit = 2,
     /** Membership proof - proves stake >= threshold without spending */
-    Membership = 3
+    Membership = 3,
+    /** Withdraw V2 proof - proves join-split with change output */
+    WithdrawV2 = 5
 }
 /**
  * Returns the seed bytes for a proof type (for PDA derivation)
@@ -1069,29 +1069,31 @@ declare function isValidNullifier(nullifier: Uint8Array): boolean;
 declare function isValidProofLength(proofData: Uint8Array): boolean;
 
 /**
- * Default program ID for pSOL v2
+ * Default program ID for The White Protocol
  */
 declare const PROGRAM_ID: PublicKey;
 /** Seed for PoolConfigV2 PDA */
-declare const POOL_V2_SEED: Buffer<ArrayBuffer>;
+declare const POOL_SEED: Buffer<ArrayBuffer>;
 /** Seed for MerkleTreeV2 PDA */
-declare const MERKLE_TREE_V2_SEED: Buffer<ArrayBuffer>;
+declare const MERKLE_TREE_SEED: Buffer<ArrayBuffer>;
 /** Seed for AssetVault PDA */
-declare const VAULT_V2_SEED: Buffer<ArrayBuffer>;
+declare const VAULT_SEED: Buffer<ArrayBuffer>;
 /** Seed for SpentNullifierV2 PDA */
-declare const NULLIFIER_V2_SEED: Buffer<ArrayBuffer>;
+declare const NULLIFIER_SEED: Buffer<ArrayBuffer>;
 /** Seed for RelayerRegistry PDA */
 declare const RELAYER_REGISTRY_SEED: Buffer<ArrayBuffer>;
 /** Seed for RelayerNode PDA */
 declare const RELAYER_SEED: Buffer<ArrayBuffer>;
 /** Seed for ComplianceConfig PDA */
 declare const COMPLIANCE_SEED: Buffer<ArrayBuffer>;
+/** Seed for PendingDepositsBuffer PDA */
+declare const PENDING_SEED: Buffer<ArrayBuffer>;
 /**
  * Derive PoolConfigV2 PDA address
  *
  * Seeds: ["pool_v2", authority]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param authority - Pool authority public key
  * @returns [PDA address, bump seed]
  */
@@ -1101,7 +1103,7 @@ declare function findPoolConfigPda(programId: PublicKey, authority: PublicKey): 
  *
  * Seeds: ["merkle_tree_v2", pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @returns [PDA address, bump seed]
  */
@@ -1111,7 +1113,7 @@ declare function findMerkleTreePda(programId: PublicKey, poolConfig: PublicKey):
  *
  * Seeds: ["vault_v2", pool_config, asset_id]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @param assetId - 32-byte asset identifier
  * @returns [PDA address, bump seed]
@@ -1122,7 +1124,7 @@ declare function findAssetVaultPda(programId: PublicKey, poolConfig: PublicKey, 
  *
  * Seeds: [proof_type_seed, pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @param proofType - Type of proof
  * @returns [PDA address, bump seed]
@@ -1133,7 +1135,7 @@ declare function findVerificationKeyPda(programId: PublicKey, poolConfig: Public
  *
  * Seeds: ["nullifier_v2", pool_config, nullifier_hash]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @param nullifierHash - 32-byte nullifier hash
  * @returns [PDA address, bump seed]
@@ -1144,17 +1146,27 @@ declare function findSpentNullifierPda(programId: PublicKey, poolConfig: PublicK
  *
  * Seeds: ["relayer_registry", pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @returns [PDA address, bump seed]
  */
 declare function findRelayerRegistryPda(programId: PublicKey, poolConfig: PublicKey): [PublicKey, number];
 /**
+ * Derive PendingDepositsBuffer PDA address
+ *
+ * Seeds: ["pending_deposits", pool_config]
+ *
+ * @param programId - The White Protocol program ID
+ * @param poolConfig - Pool configuration public key
+ * @returns [PDA address, bump seed]
+ */
+declare function findPendingBufferPda(programId: PublicKey, poolConfig: PublicKey): [PublicKey, number];
+/**
  * Derive RelayerNode PDA address
  *
  * Seeds: ["relayer", registry, operator]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param registry - Relayer registry account address
  * @param operator - Relayer operator public key
  * @returns [PDA address, bump seed]
@@ -1165,7 +1177,16 @@ declare function findRelayerNodePda(programId: PublicKey, registry: PublicKey, o
  *
  * Seeds: ["compliance", pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
+ * @param poolConfig - Pool configuration account address
+ * @returns [PDA address, bump seed]
+ */
+/**
+ * Derive ComplianceConfig PDA address
+ *
+ * Seeds: ["compliance", pool_config]
+ *
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @returns [PDA address, bump seed]
  */
@@ -1173,26 +1194,19 @@ declare function findComplianceConfigPda(programId: PublicKey, poolConfig: Publi
 /**
  * Compute asset ID from mint address using keccak256
  *
- * This matches the on-chain computation: asset_id = keccak256(mint.as_ref())
+ * This matches the on-chain computation:
+ * asset_id = 0x00 || keccak256("white:asset_id:v1" || mint)[0..31]
+ *
+ * The leading zero byte ensures the value fits in BN254 Fr field.
  *
  * @param mint - SPL token mint address
  * @returns 32-byte asset identifier
  */
 declare function computeAssetId(mint: PublicKey): Uint8Array;
 /**
- * Compute keccak256 hash of input bytes
- *
- * Note: In production, use a proper keccak256 implementation.
- * This is a placeholder that should be replaced with @noble/hashes or js-sha3.
- *
- * @param input - Input bytes
- * @returns 32-byte hash
- */
-declare function computeAssetIdKeccak(input: Uint8Array): Uint8Array;
-/**
  * Derive all pool-related PDAs at once
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param authority - Pool authority
  * @returns Object containing all pool PDAs
  */
@@ -1209,7 +1223,7 @@ declare function derivePoolPdas(programId: PublicKey, authority: PublicKey): {
 /**
  * Derive asset vault PDAs for multiple assets
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account
  * @param assetIds - Array of asset IDs
  * @returns Array of [vault address, bump] tuples
@@ -1218,23 +1232,28 @@ declare function deriveAssetVaultPdas(programId: PublicKey, poolConfig: PublicKe
 /**
  * Derive verification key PDAs for all proof types
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account
  * @returns Object mapping proof type to [address, bump]
  */
 declare function deriveVerificationKeyPdas(programId: PublicKey, poolConfig: PublicKey): Record<ProofType, [PublicKey, number]>;
 
 /**
- * pSOL v2 SDK Client
+ * The White Protocol SDK Client
  *
- * Simplified client for interacting with the pSOL v2 MASP protocol
+ * Simplified client for interacting with the The White Protocol MASP protocol
  */
 
 /** Default program ID */
+/** Supported LST mints for Yield Mode */
+declare const SUPPORTED_LST_MINTS: {
+    JitoSOL: PublicKey;
+    mSOL: PublicKey;
+};
 /**
- * Options for creating a PsolV2Client
+ * Options for creating a WhiteProtocolClient
  */
-interface PsolV2ClientOptions {
+interface WhiteProtocolClientOptions {
     provider?: AnchorProvider;
     connection?: Connection;
     wallet?: Keypair;
@@ -1242,13 +1261,13 @@ interface PsolV2ClientOptions {
     idl?: any;
 }
 /**
- * Main client for interacting with the pSOL v2 MASP protocol
+ * Main client for interacting with the The White Protocol MASP protocol
  */
-declare class PsolV2Client {
+declare class WhiteProtocolClient {
     readonly program: Program;
     readonly provider: AnchorProvider;
     readonly programId: PublicKey;
-    constructor(options: PsolV2ClientOptions);
+    constructor(options: WhiteProtocolClientOptions);
     /**
      * Get authority public key
      */
@@ -1280,10 +1299,25 @@ declare class PsolV2Client {
         signature: TransactionSignature;
         leafIndex: number;
     }>;
-    /**
-     * Withdraw funds from the shielded pool
-     */
     withdraw(poolConfig: PublicKey, mint: PublicKey, recipient: PublicKey, amount: bigint | BN$1, merkleRoot: Uint8Array, nullifierHash: Uint8Array, proofData: Uint8Array, relayerFee?: bigint | BN$1): Promise<{
+        signature: TransactionSignature;
+    }>;
+    /**
+     * Withdraw V2 (join-split with change)
+     * Enables partial withdrawals with a change output
+     *
+     * @param poolConfig - Pool configuration account
+     * @param mint - Token mint address
+     * @param recipient - Recipient address for withdrawn funds
+     * @param amount - Gross withdrawal amount (includes relayer fee)
+     * @param merkleRoot - Merkle root for proof verification
+     * @param nullifierHash0 - Primary nullifier hash
+     * @param nullifierHash1 - Secondary nullifier hash (pass zeros if unused)
+     * @param changeCommitment - Change output commitment
+     * @param proofData - ZK proof bytes (256 bytes)
+     * @param relayerFee - Fee for relayer service
+     */
+    withdrawV2(poolConfig: PublicKey, mint: PublicKey, recipient: PublicKey, amount: bigint | BN$1, merkleRoot: Uint8Array, nullifierHash0: Uint8Array, nullifierHash1: Uint8Array, changeCommitment: Uint8Array, proofData: Uint8Array, relayerFee?: bigint | BN$1): Promise<{
         signature: TransactionSignature;
     }>;
     /**
@@ -1302,16 +1336,134 @@ declare class PsolV2Client {
      * Check if nullifier has been spent
      */
     isNullifierSpent(poolConfig: PublicKey, nullifierHash: Uint8Array): Promise<boolean>;
+    /**
+     * Deposit SOL with Yield Mode (swap to LST first)
+     *
+     * Flow:
+     * 1. Swap SOL -> LST using Jupiter
+     * 2. Deposit LST to pool (existing deposit flow)
+     * 3. Store note metadata with principal SOL amount
+     *
+     * @param params - Deposit parameters with yield mode options
+     * @returns Swap signature and deposit signature
+     */
+    depositYieldSol(params: {
+        poolConfig: PublicKey;
+        merkleTree: PublicKey;
+        assetVault: PublicKey;
+        mintLST: PublicKey;
+        amountSolLamports: bigint;
+        slippageBps?: number;
+    }): Promise<{
+        swapSig: string;
+        depositSig: string;
+        lstAmountDeposited: bigint;
+        principalSol: bigint;
+    }>;
+    /**
+     * Withdraw with Yield Mode (5% performance fee on positive yield)
+     *
+     * Flow:
+     * 1. Fetch current LST -> SOL quote
+     * 2. Calculate fee: max(0, current_value - principal) * 0.05
+     * 3. Generate withdraw_v2 proof with relayer_fee
+     * 4. Submit via relayer endpoint (relayer signs)
+     *
+     * @param params - Withdraw parameters with yield mode options
+     * @returns Withdraw signature and optional swap signature
+     */
+    withdrawYieldV2(params: {
+        poolConfig: PublicKey;
+        merkleTree: PublicKey;
+        assetVault: PublicKey;
+        mintLST: PublicKey;
+        recipient: PublicKey;
+        amountLstAtomic: bigint;
+        principalSolLamports: bigint;
+        swapToSol?: boolean;
+        slippageBps?: number;
+    }): Promise<{
+        withdrawSig: string;
+        lstAmount: bigint;
+        feeSol: bigint;
+        feeLst: bigint;
+        swapSig?: string;
+    }>;
 }
 /**
- * Create a PsolV2Client from IDL JSON
+ * Create a WhiteProtocolClient from IDL JSON
  */
-declare function createPsolClient(provider: AnchorProvider, idl: any, programId?: PublicKey): PsolV2Client;
+declare function createWhiteProtocolClient(provider: AnchorProvider, idl: any, programId?: PublicKey): WhiteProtocolClient;
 
 /**
- * pSOL v2 SDK
+ * Jupiter Aggregator Integration for Yield Mode
  *
- * Complete TypeScript SDK for the pSOL v2 Multi-Asset Shielded Pool.
+ * Provides SOL <-> LST swap functionality using Jupiter V6 API
+ */
+
+/**
+ * Jupiter quote response (V6 API)
+ */
+type JupiterQuote = {
+    inputMint: string;
+    outputMint: string;
+    inAmount: string;
+    outAmount: string;
+    otherAmountThreshold: string;
+    swapMode: "ExactIn" | "ExactOut";
+    slippageBps: number;
+    priceImpactPct: string;
+    routePlan: any[];
+    contextSlot?: number;
+    timeTaken?: number;
+};
+/**
+ * Jupiter swap transaction response
+ */
+type JupiterSwapResponse = {
+    swapTransaction: string;
+    lastValidBlockHeight?: number;
+    prioritizationFeeLamports?: number;
+};
+/**
+ * Get Jupiter quote for exact input swap
+ *
+ * @param params - Quote parameters
+ * @returns Jupiter quote with route and amounts
+ */
+declare function jupiterQuoteExactIn(params: {
+    inputMint: PublicKey;
+    outputMint: PublicKey;
+    amount: bigint;
+    slippageBps: number;
+}): Promise<JupiterQuote>;
+/**
+ * Execute Jupiter swap with exact input
+ *
+ * @param params - Swap execution parameters
+ * @returns Transaction signature
+ */
+declare function jupiterSwapExactIn(params: {
+    connection: Connection;
+    userPublicKey: PublicKey;
+    quote: JupiterQuote;
+    signTransaction: (tx: VersionedTransaction) => Promise<VersionedTransaction>;
+}): Promise<{
+    signature: string;
+}>;
+/**
+ * Build a no-op memo transaction (reserved for future use)
+ */
+declare function buildNoopMemoTx(params: {
+    payer: PublicKey;
+    memo: string;
+    recentBlockhash: string;
+}): VersionedTransaction;
+
+/**
+ * The White Protocol SDK
+ *
+ * Complete TypeScript SDK for The White Protocol - Privacy-preserving Multi-Asset Shielded Pool.
  *
  * @packageDocumentation
  */
@@ -1329,5 +1481,9 @@ declare const SDK_VERSION = "2.0.0";
  */
 declare const IS_PRODUCTION_READY = false;
 declare const SDK_STATUS = "alpha";
+/**
+ * Protocol name
+ */
+declare const PROTOCOL_NAME = "The White Protocol";
 
-export { type AssetId, AssetType, type AssetVault, COMPLIANCE_SEED, type CircuitPaths, type Commitment, type ComplianceConfig, type ConfigureComplianceRequest, type ConfigureRelayerRegistryRequest, DEFAULT_CIRCUIT_PATHS, DEFAULT_ROOT_HISTORY_SIZE, type DepositMaspEvent, type DepositProofInputs, type DepositRequest, type DepositResult, FEATURE_COMPLIANCE, FEATURE_JOIN_SPLIT, FEATURE_MASP, FEATURE_MEMBERSHIP, FEATURE_SHIELDED_CPI, FIELD_MODULUS, G1_POINT_SIZE, G2_POINT_SIZE, type Groth16Proof, IS_PRODUCTION_READY, type InitializePoolRequest, type InitializePoolResult, type JoinSplitProofInputs, MAX_ENCRYPTED_NOTE_SIZE, MAX_METADATA_URI_LEN, MAX_TREE_DEPTH, MERKLE_TREE_V2_SEED, MIN_ROOT_HISTORY_SIZE, MIN_TREE_DEPTH, type MerkleProof, type MerkleRoot, MerkleTree, type MerkleTreeV2, NATIVE_SOL_ASSET_ID, NULLIFIER_V2_SEED, type Note, NoteStore, type NoteWithNullifier, type NullifierHash, POOL_V2_SEED, PROGRAM_ID, PROOF_SIZE, type PoolConfigV2, type PrivateTransferRequest, ProofType, type ProofWithSignals, type ProveMembershipRequest, Prover, PsolV2Client, type PsolV2ClientOptions, RELAYER_REGISTRY_SEED, RELAYER_SEED, type RegisterAssetRequest, type RegisterRelayerRequest, type RelayerInfo, type RelayerNode, type RelayerRegistry, SDK_STATUS, SDK_VERSION, type SerializedNote, type SerializedProof, type SetVerificationKeyRequest, ShieldedActionType, SpendType, type SpentNullifierV2, type UpdateRelayerRequest, VAULT_V2_SEED, type VerificationKeyAccountV2, type WithdrawMaspEvent, type WithdrawProofInputs, type WithdrawRequest, type WithdrawResult, bigIntToBytes, bigIntToFieldBytes, bytesEqual, bytesToBigInt, bytesToCommitment, commitmentToBytes, computeAssetId, computeAssetIdKeccak, computeCommitment, computeNoteNullifier, computeNullifierHash, createNote, createNoteFromParams, createPsolClient, decryptNote, deriveAssetVaultPdas, derivePoolPdas, deriveVerificationKeyPdas, deserializeNote, encryptNote, exportVerificationKey, fieldMod, findAssetVaultPda, findComplianceConfigPda, findMerkleTreePda, findPoolConfigPda, findRelayerNodePda, findRelayerRegistryPda, findSpentNullifierPda, findVerificationKeyPda, fromHex, hashFour, hashTwo, initPoseidon, initializeSDK, isValidCommitment, isValidFieldElement, isValidNullifier, isValidProofLength, proofTypeSeed, pubkeyToScalar, randomFieldElement, serializeNote, syncTreeWithChain, toBN, toHex, verifyProofLocally };
+export { type AssetId, AssetType, type AssetVault, COMPLIANCE_SEED, type CircuitPaths, type Commitment, type ComplianceConfig, type ConfigureComplianceRequest, type ConfigureRelayerRegistryRequest, DEFAULT_CIRCUIT_PATHS, DEFAULT_ROOT_HISTORY_SIZE, type DepositMaspEvent, type DepositProofInputs, type DepositRequest, type DepositResult, FEATURE_COMPLIANCE, FEATURE_JOIN_SPLIT, FEATURE_MASP, FEATURE_MEMBERSHIP, FEATURE_SHIELDED_CPI, FIELD_MODULUS, G1_POINT_SIZE, G2_POINT_SIZE, type Groth16Proof, IS_PRODUCTION_READY, type InitializePoolRequest, type InitializePoolResult, type JoinSplitProofInputs, type JupiterQuote, type JupiterSwapResponse, MAX_ENCRYPTED_NOTE_SIZE, MAX_METADATA_URI_LEN, MAX_TREE_DEPTH, MERKLE_TREE_SEED, MIN_ROOT_HISTORY_SIZE, MIN_TREE_DEPTH, type MerkleProof, type MerkleRoot, MerkleTree, type MerkleTreeV2, NATIVE_SOL_ASSET_ID, NULLIFIER_SEED, type Note, NoteStore, type NoteWithNullifier, type NullifierHash, PENDING_SEED, POOL_SEED, PROGRAM_ID, PROOF_SIZE, PROTOCOL_NAME, type PoolConfigV2, type PrivateTransferRequest, ProofType, type ProofWithSignals, type ProveMembershipRequest, Prover, RELAYER_REGISTRY_SEED, RELAYER_SEED, type RegisterAssetRequest, type RegisterRelayerRequest, type RelayerInfo, type RelayerNode, type RelayerRegistry, SDK_STATUS, SDK_VERSION, SUPPORTED_LST_MINTS, type SerializedNote, type SerializedProof, type SetVerificationKeyRequest, ShieldedActionType, SpendType, type SpentNullifierV2, type UpdateRelayerRequest, VAULT_SEED, type VerificationKeyAccountV2, WhiteProtocolClient, type WhiteProtocolClientOptions, type WithdrawMaspEvent, type WithdrawProofInputs, type WithdrawRequest, type WithdrawResult, bigIntToBytes, bigIntToFieldBytes, buildNoopMemoTx, bytesEqual, bytesToBigInt, bytesToCommitment, commitmentToBytes, computeAssetId, computeCommitment, computeNoteNullifier, computeNullifierHash, createNote, createNoteFromParams, createWhiteProtocolClient, decryptNote, deriveAssetVaultPdas, derivePoolPdas, deriveVerificationKeyPdas, deserializeNote, encryptNote, exportVerificationKey, fieldMod, findAssetVaultPda, findComplianceConfigPda, findMerkleTreePda, findPendingBufferPda, findPoolConfigPda, findRelayerNodePda, findRelayerRegistryPda, findSpentNullifierPda, findVerificationKeyPda, fromHex, hashFour, hashTwo, initPoseidon, initializeSDK, isValidCommitment, isValidFieldElement, isValidNullifier, isValidProofLength, jupiterQuoteExactIn, jupiterSwapExactIn, proofTypeSeed, pubkeyToScalar, randomFieldElement, serializeNote, syncTreeWithChain, toBN, toHex, verifyProofLocally };

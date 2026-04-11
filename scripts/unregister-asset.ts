@@ -12,7 +12,7 @@ async function main() {
     Uint8Array.from(JSON.parse(fs.readFileSync('/home/vscode/.config/solana/pool-authority-v4.json', 'utf-8')))
   );
   
-  const idl = JSON.parse(fs.readFileSync('target/idl/psol_privacy_v2.json', 'utf-8'));
+  const idl = JSON.parse(fs.readFileSync('target/idl/white_protocol.json', 'utf-8'));
   const provider = new AnchorProvider(connection, new Wallet(keypair), { commitment: 'confirmed' });
   const program = new Program(idl, provider);
   

@@ -1,5 +1,5 @@
 /**
- * pSOL v2 SDK - Merkle Tree
+ * The White Protocol SDK - Merkle Tree
  * 
  * Client-side Merkle tree for proof generation.
  * Mirrors the on-chain incremental Merkle tree.

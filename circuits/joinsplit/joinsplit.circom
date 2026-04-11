@@ -1,4 +1,4 @@
-// pSOL v2 JoinSplit Circuit
+// The White Protocol JoinSplit Circuit
 // Proves:
 // 1. Input commitments exist in Merkle tree
 // 2. Input nullifiers are correctly derived

@@ -1,12 +1,12 @@
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { NATIVE_MINT } from '@solana/spl-token';
-import { PsolV2Client } from '../sdk/src/client';
+import { WhiteProtocolClient } from '../sdk/src/client';
 import { Prover, pubkeyToScalar } from '../sdk/src/proof/prover';
 import { MerkleTree } from '../sdk/src/merkle/tree';
 import { computeNullifierHash, hashTwo, initPoseidon } from '../sdk/src/crypto/poseidon';
 import * as fs from 'fs';
 import * as path from 'path';
-import IDL from '../target/idl/psol_privacy_v2.json';
+import IDL from '../target/idl/white_protocol.json';
 
 const RPC_URL = 'https://devnet.helius-rpc.com/?api-key=2f0116cb-6972-4a3d-bb9e-43de29619343';
 const POOL_CONFIG = new PublicKey('GZiRVMV7FjrGxjE379HiEyHyVCisHkFnjMJen95kEVEQ');
@@ -80,7 +80,7 @@ async function main() {
   console.log('🔐 Computed publicDataHash:', publicDataHash.toString(16).slice(0, 16) + '...');
   
   // Initialize SDK
-  const client = new PsolV2Client({
+  const client = new WhiteProtocolClient({
     connection,
     wallet: depositorKeypair,
     programId: PROGRAM_ID,

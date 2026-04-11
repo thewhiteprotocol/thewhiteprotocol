@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Production Batch Sequencer
+ * The White Protocol v2 Production Batch Sequencer
  * 
  * Production-grade off-chain service with:
  * - State persistence (JSON file)
@@ -504,7 +504,7 @@ async function main(): Promise<void> {
   forceMode = args.includes("--force");
 
   console.log("═══════════════════════════════════════════════════════════════");
-  console.log("           pSOL v2 Production Batch Sequencer                  ");
+  console.log("           The White Protocol v2 Production Batch Sequencer                  ");
   console.log("═══════════════════════════════════════════════════════════════");
   console.log(`Mode: ${onceMode ? "one-shot" : rebuildMode ? "rebuild" : "continuous"}`);
 
@@ -526,7 +526,7 @@ async function main(): Promise<void> {
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   anchor.setProvider(provider);
 
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
   const program = new anchor.Program(idl, provider);
 
   console.log(`✓ Authority: ${authority.publicKey.toString()}`);

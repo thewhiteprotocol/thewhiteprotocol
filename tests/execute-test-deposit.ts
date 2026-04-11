@@ -5,8 +5,8 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { NATIVE_MINT } from '@solana/spl-token';
 import * as fs from 'fs';
 import * as path from 'path';
-import { PsolV2Client, Prover, initializeSDK } from '../sdk/src';
-import IDL from '../target/idl/psol_privacy_v2.json';
+import { WhiteProtocolClient, Prover, initializeSDK } from '../sdk/src';
+import IDL from '../target/idl/white_protocol.json';
 
 // Config
 const RPC = 'https://devnet.helius-rpc.com/?api-key=2f0116cb-6972-4a3d-bb9e-43de29619343';
@@ -51,7 +51,7 @@ async function main() {
   console.log('\n👤 Depositor:', authority.publicKey.toString());
   
   // Initialize SDK client
-  const client = new PsolV2Client({
+  const client = new WhiteProtocolClient({
     connection,
     wallet: authority,
     programId: PROGRAM_ID,

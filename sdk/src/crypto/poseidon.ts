@@ -1,5 +1,5 @@
 /**
- * pSOL v2 SDK - Poseidon Hash Implementation
+ * The White Protocol SDK - Poseidon Hash Implementation
  * 
  * Circomlib-compatible Poseidon hash for BN254 scalar field.
  * Uses the same parameters as circomlib for circuit compatibility.

@@ -1,0 +1,74 @@
+[package]
+name = "white-protocol"
+version = "2.0.0"
+description = "The White Protocol - Multi-Asset Shielded Pool (MASP) on Solana"
+edition = "2021"
+license = "MIT"
+
+[lib]
+name = "white_protocol"
+crate-type = ["cdylib", "lib"]
+
+[features]
+cu-debug = []
+# Anchor IDL build
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+# IMPORTANT:
+# Default to constants-based Poseidon for BPF safety (avoids light-poseidon stack overflow).
+default = ["poseidon-constants"]
+
+devnet = []
+mainnet = []
+event-debug = []
+
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+
+# Feature expected by Anchor macros (silences cfg(feature="anchor-debug") warnings)
+anchor-debug = []
+
+custom-heap = []
+custom-panic = []
+
+# Poseidon implementations
+poseidon-constants = []
+poseidon-light = ["dep:light-poseidon"]
+
+insecure-dev = []
+
+[dependencies]
+anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
+anchor-spl  = { version = "0.32.1" }
+
+# If you are using keccak syscall via anchor_lang::solana_program, you do NOT need solana-program directly.
+sha3 = "0.10"
+sha2 = "0.10"
+
+# Arkworks: BN254 field types (needed for constants-based Poseidon and Groth16 parsing helpers)
+ark-bn254 = "0.5.0"
+ark-ff    = "0.5.0"
+ark-ec    = "0.5.0"
+
+# Hex encoding for logging
+hex = "0.4"
+
+# OPTIONAL: light-poseidon is NOT BPF-safe due to stack usage in parameter generation.
+# Keep it for host tests/dev tools only, behind feature `poseidon-light`.
+light-poseidon = { version = "0.3.0", optional = true }
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Declare expected cfg values to silence warnings.
+# - target_os = "solana": Set by new Solana toolchain (Platform Tools 2.0+)
+# - target_arch = "bpf": Set by older Solana toolchain
+# Both are unknown to native rustc, so we declare them here.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    "cfg(target_os, values(\"solana\"))",
+    "cfg(target_arch, values(\"bpf\"))"
+] }

@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Batch Sequencer
+ * The White Protocol v2 Batch Sequencer
  * 
  * Off-chain service that:
  * 1. Monitors pending deposits buffer
@@ -303,7 +303,7 @@ interface PendingDeposit {
 }
 
 async function main() {
-  console.log("🚀 pSOL v2 Batch Sequencer Starting...\n");
+  console.log("🚀 The White Protocol v2 Batch Sequencer Starting...\n");
   
   // Initialize Poseidon
   await initPoseidon();
@@ -313,7 +313,7 @@ async function main() {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
   
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
   const program = new Program(idl, provider);
   
   console.log(`✓ Connected to ${provider.connection.rpcEndpoint}`);

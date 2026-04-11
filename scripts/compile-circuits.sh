@@ -1,11 +1,11 @@
 #!/bin/bash
-# pSOL v2 Circuit Compilation Script
+# White Protocol Circuit Compilation Script
 # Compiles all Circom circuits and generates proving/verification keys
 
 set -e
 
 echo "==================================="
-echo "pSOL v2 Circuit Compilation"
+echo "White Protocol Circuit Compilation"
 echo "==================================="
 
 # Check dependencies
@@ -67,7 +67,7 @@ compile_circuit() {
     snarkjs zkey contribute \
         "$output_dir/${circuit_name}_0000.zkey" \
         "$output_dir/${circuit_name}_final.zkey" \
-        --name="pSOL Development" \
+        --name="White Protocol Development" \
         -v -e="random entropy $(date +%s)"
     
     # Export verification key

@@ -70,7 +70,7 @@ function pubkeyToScalar(pubkey: PublicKey): bigint {
 
 function computeAssetId(mint: PublicKey): Buffer {
   const keccak = require("js-sha3").keccak256;
-  const prefix = Buffer.from("psol:asset_id:v1");
+  const prefix = Buffer.from("white:asset_id:v1");
   const combined = Buffer.concat([prefix, mint.toBuffer()]);
   const hash = Buffer.from(keccak(combined), "hex");
   const assetId = Buffer.alloc(32);
@@ -140,7 +140,7 @@ class LocalMerkleTree {
 
 async function main() {
   console.log("═══════════════════════════════════════════════════════════════");
-  console.log("           pSOL v2 Withdraw-Only Test                          ");
+  console.log("           The White Protocol v2 Withdraw-Only Test                          ");
   console.log("═══════════════════════════════════════════════════════════════\n");
 
   await initPoseidon();
@@ -168,7 +168,7 @@ async function main() {
   const wallet = new anchor.Wallet(authority);
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   anchor.setProvider(provider);
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
   const program = new anchor.Program(idl, provider);
 
   // Get on-chain merkle root

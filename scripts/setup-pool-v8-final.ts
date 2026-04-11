@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Pool Setup - FINAL VERSION
+ * The White Protocol v2 Pool Setup - FINAL VERSION
  * 
  * This script:
  * 1. Initializes pool + merkle tree + pending buffer
@@ -81,7 +81,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 async function main() {
   console.log("╔══════════════════════════════════════════════════════════════╗");
-  console.log("║         pSOL v2 Pool Setup - FINAL VERSION (v8)              ║");
+  console.log("║         The White Protocol v2 Pool Setup - FINAL VERSION (v8)              ║");
   console.log("║         With CORRECT G2 encoding for VKs                     ║");
   console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
@@ -99,7 +99,7 @@ async function main() {
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   anchor.setProvider(provider);
 
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
   const program = new anchor.Program(idl, provider);
 
   console.log("Authority:", authority.publicKey.toBase58());

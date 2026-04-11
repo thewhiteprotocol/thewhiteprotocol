@@ -36,7 +36,7 @@ async function main() {
   const feeBps = Buffer.alloc(2);
   feeBps.writeUInt16LE(50, 0); // 0.5%
 
-  const metadataUri = "https://api.psolprotocol.org";
+  const metadataUri = "https://api.whitprotocol.org";
   const metadataBytes = Buffer.from(metadataUri, "utf8");
   const metadataLen = Buffer.alloc(4);
   metadataLen.writeUInt32LE(metadataBytes.length, 0);

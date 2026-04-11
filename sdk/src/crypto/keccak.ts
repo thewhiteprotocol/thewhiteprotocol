@@ -9,7 +9,7 @@ import { keccak_256 } from '@noble/hashes/sha3';
 import { PublicKey } from '@solana/web3.js';
 
 /** Domain separator for asset ID derivation */
-const ASSET_ID_DOMAIN = new TextEncoder().encode('psol:asset_id:v1');
+const ASSET_ID_DOMAIN = new TextEncoder().encode('white:asset_id:v1');
 
 /**
  * Compute keccak256 hash of data
@@ -36,7 +36,7 @@ export function keccak256Concat(inputs: Uint8Array[]): Uint8Array {
  * Derive asset ID from mint address (canonical on-chain derivation)
  * 
  * CANONICAL DERIVATION (matches on-chain exactly):
- * asset_id = 0x00 || Keccak256("psol:asset_id:v1" || mint_bytes)[0..31]
+ * asset_id = 0x00 || Keccak256("white:asset_id:v1" || mint_bytes)[0..31]
  * 
  * This ensures the asset_id fits in BN254 scalar field by:
  * 1. Using domain separator to prevent collisions

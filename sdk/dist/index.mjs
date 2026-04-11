@@ -1,6 +1,5 @@
 import {
   FIELD_MODULUS,
-  Poseidon,
   __require,
   bigIntToBytes,
   bigIntToFieldBytes,
@@ -13,7 +12,7 @@ import {
   initPoseidon,
   isValidFieldElement,
   randomFieldElement
-} from "./chunk-ZWLZT7DJ.mjs";
+} from "./chunk-KGIHADTE.mjs";
 
 // src/note/note.ts
 async function createNote(amount, assetId) {
@@ -627,6 +626,7 @@ var ProofType2 = /* @__PURE__ */ ((ProofType3) => {
   ProofType3[ProofType3["Withdraw"] = 1] = "Withdraw";
   ProofType3[ProofType3["JoinSplit"] = 2] = "JoinSplit";
   ProofType3[ProofType3["Membership"] = 3] = "Membership";
+  ProofType3[ProofType3["WithdrawV2"] = 5] = "WithdrawV2";
   return ProofType3;
 })(ProofType2 || {});
 function proofTypeSeed(proofType) {
@@ -634,7 +634,8 @@ function proofTypeSeed(proofType) {
     [0 /* Deposit */]: "vk_deposit",
     [1 /* Withdraw */]: "vk_withdraw",
     [2 /* JoinSplit */]: "vk_joinsplit",
-    [3 /* Membership */]: "vk_membership"
+    [3 /* Membership */]: "vk_membership",
+    [5 /* WithdrawV2 */]: "vk_withdraw_v2"
   };
   return Buffer.from(seeds[proofType]);
 }
@@ -739,23 +740,25 @@ function isValidProofLength(proofData) {
 
 // src/pda.ts
 import { PublicKey } from "@solana/web3.js";
+import { keccak_256 } from "@noble/hashes/sha3";
 var PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-var POOL_V2_SEED = Buffer.from("pool_v2");
-var MERKLE_TREE_V2_SEED = Buffer.from("merkle_tree_v2");
-var VAULT_V2_SEED = Buffer.from("vault_v2");
-var NULLIFIER_V2_SEED = Buffer.from("nullifier_v2");
+var POOL_SEED = Buffer.from("white_pool");
+var MERKLE_TREE_SEED = Buffer.from("merkle_tree");
+var VAULT_SEED = Buffer.from("vault");
+var NULLIFIER_SEED = Buffer.from("nullifier");
 var RELAYER_REGISTRY_SEED = Buffer.from("relayer_registry");
 var RELAYER_SEED = Buffer.from("relayer");
 var COMPLIANCE_SEED = Buffer.from("compliance");
+var PENDING_SEED = Buffer.from("pending");
 function findPoolConfigPda(programId, authority) {
   return PublicKey.findProgramAddressSync(
-    [POOL_V2_SEED, authority.toBuffer()],
+    [POOL_SEED, authority.toBuffer()],
     programId
   );
 }
 function findMerkleTreePda(programId, poolConfig) {
   return PublicKey.findProgramAddressSync(
-    [MERKLE_TREE_V2_SEED, poolConfig.toBuffer()],
+    [MERKLE_TREE_SEED, poolConfig.toBuffer()],
     programId
   );
 }
@@ -764,7 +767,7 @@ function findAssetVaultPda(programId, poolConfig, assetId) {
     throw new Error("Asset ID must be 32 bytes");
   }
   return PublicKey.findProgramAddressSync(
-    [VAULT_V2_SEED, poolConfig.toBuffer(), Buffer.from(assetId)],
+    [VAULT_SEED, poolConfig.toBuffer(), Buffer.from(assetId)],
     programId
   );
 }
@@ -780,13 +783,19 @@ function findSpentNullifierPda(programId, poolConfig, nullifierHash) {
     throw new Error("Nullifier hash must be 32 bytes");
   }
   return PublicKey.findProgramAddressSync(
-    [NULLIFIER_V2_SEED, poolConfig.toBuffer(), Buffer.from(nullifierHash)],
+    [NULLIFIER_SEED, poolConfig.toBuffer(), Buffer.from(nullifierHash)],
     programId
   );
 }
 function findRelayerRegistryPda(programId, poolConfig) {
   return PublicKey.findProgramAddressSync(
     [RELAYER_REGISTRY_SEED, poolConfig.toBuffer()],
+    programId
+  );
+}
+function findPendingBufferPda(programId, poolConfig) {
+  return PublicKey.findProgramAddressSync(
+    [PENDING_SEED, poolConfig.toBuffer()],
     programId
   );
 }
@@ -803,18 +812,14 @@ function findComplianceConfigPda(programId, poolConfig) {
   );
 }
 function computeAssetId(mint) {
-  return computeAssetIdKeccak(mint.toBuffer());
-}
-function computeAssetIdKeccak(input) {
-  try {
-    const crypto2 = __require("crypto");
-    const hash = crypto2.createHash("sha256").update(input).digest();
-    return new Uint8Array(hash);
-  } catch {
-    throw new Error(
-      'keccak256 not available. Install @noble/hashes and use: import { keccak_256 } from "@noble/hashes/sha3"'
-    );
-  }
+  const prefix = Buffer.from("white:asset_id:v1");
+  const mintBytes = mint.toBuffer();
+  const input = Buffer.concat([prefix, mintBytes]);
+  const hash = keccak_256(input);
+  const out = new Uint8Array(32);
+  out[0] = 0;
+  out.set(hash.slice(0, 31), 1);
+  return out;
 }
 function derivePoolPdas(programId, authority) {
   const [poolConfig, poolConfigBump] = findPoolConfigPda(programId, authority);
@@ -840,21 +845,106 @@ function deriveVerificationKeyPdas(programId, poolConfig) {
     [0 /* Deposit */]: findVerificationKeyPda(programId, poolConfig, 0 /* Deposit */),
     [1 /* Withdraw */]: findVerificationKeyPda(programId, poolConfig, 1 /* Withdraw */),
     [2 /* JoinSplit */]: findVerificationKeyPda(programId, poolConfig, 2 /* JoinSplit */),
-    [3 /* Membership */]: findVerificationKeyPda(programId, poolConfig, 3 /* Membership */)
+    [3 /* Membership */]: findVerificationKeyPda(programId, poolConfig, 3 /* Membership */),
+    [5 /* WithdrawV2 */]: findVerificationKeyPda(programId, poolConfig, 5 /* WithdrawV2 */)
   };
 }
 
 // src/client.ts
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import {
-  PublicKey as PublicKey2,
+  PublicKey as PublicKey3,
   SystemProgram
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync
 } from "@solana/spl-token";
-var PsolV2Client = class {
+
+// src/yield/jupiter.ts
+import {
+  VersionedTransaction,
+  TransactionMessage
+} from "@solana/web3.js";
+function getJupiterBaseUrl() {
+  return process.env.JUPITER_BASE_URL ?? "https://quote-api.jup.ag";
+}
+async function jupiterQuoteExactIn(params) {
+  const base = getJupiterBaseUrl();
+  const url = new URL(`${base}/v6/quote`);
+  url.searchParams.set("inputMint", params.inputMint.toBase58());
+  url.searchParams.set("outputMint", params.outputMint.toBase58());
+  url.searchParams.set("amount", params.amount.toString());
+  url.searchParams.set("slippageBps", String(params.slippageBps));
+  url.searchParams.set("swapMode", "ExactIn");
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: { accept: "application/json" }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Jupiter quote failed: ${res.status} ${res.statusText} ${text}`
+    );
+  }
+  return await res.json();
+}
+async function jupiterSwapExactIn(params) {
+  const base = getJupiterBaseUrl();
+  const res = await fetch(`${base}/v6/swap`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json"
+    },
+    body: JSON.stringify({
+      quoteResponse: params.quote,
+      userPublicKey: params.userPublicKey.toBase58(),
+      wrapAndUnwrapSol: true,
+      dynamicComputeUnitLimit: true,
+      prioritizationFeeLamports: "auto"
+    })
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Jupiter swap build failed: ${res.status} ${res.statusText} ${text}`
+    );
+  }
+  const json = await res.json();
+  if (!json.swapTransaction) {
+    throw new Error("Jupiter swap response missing swapTransaction");
+  }
+  const raw = Buffer.from(json.swapTransaction, "base64");
+  const tx = VersionedTransaction.deserialize(raw);
+  const signed = await params.signTransaction(tx);
+  const sig = await params.connection.sendTransaction(signed, {
+    maxRetries: 3,
+    skipPreflight: false
+  });
+  const latest = await params.connection.getLatestBlockhash("finalized");
+  await params.connection.confirmTransaction(
+    { signature: sig, ...latest },
+    "finalized"
+  );
+  return { signature: sig };
+}
+function buildNoopMemoTx(params) {
+  const msg = new TransactionMessage({
+    payerKey: params.payer,
+    recentBlockhash: params.recentBlockhash,
+    instructions: []
+  }).compileToV0Message();
+  return new VersionedTransaction(msg);
+}
+
+// src/client.ts
+import { NATIVE_MINT } from "@solana/spl-token";
+var SUPPORTED_LST_MINTS = {
+  JitoSOL: new PublicKey3("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"),
+  mSOL: new PublicKey3("mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So")
+};
+var WhiteProtocolClient = class {
   constructor(options) {
     this.programId = options.programId ?? PROGRAM_ID;
     if (options.provider) {
@@ -932,7 +1022,7 @@ var PsolV2Client = class {
     const authority = this.authority;
     const assetId = computeAssetId(mint);
     const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
-    const [vaultTokenAccount] = PublicKey2.findProgramAddressSync(
+    const [vaultTokenAccount] = PublicKey3.findProgramAddressSync(
       [Buffer.from("vault_token"), assetVault.toBuffer()],
       this.programId
     );
@@ -977,22 +1067,48 @@ var PsolV2Client = class {
     const assetId = computeAssetId(mint);
     const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
     const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
-    const [vaultTokenAccount] = PublicKey2.findProgramAddressSync(
+    const [vaultTokenAccount] = PublicKey3.findProgramAddressSync(
       [Buffer.from("vault_token"), assetVault.toBuffer()],
       this.programId
     );
     const [depositVk] = findVerificationKeyPda(this.programId, poolConfig, 0 /* Deposit */);
     const userTokenAccount = getAssociatedTokenAddressSync(mint, depositor);
+    const poolConfigData = await this.program.account.poolConfigV2.fetch(poolConfig);
+    const poolAuthority = poolConfigData.authority;
+    const connection = this.provider.connection;
+    const userTokenAccountInfo = await connection.getAccountInfo(userTokenAccount);
+    const preInstructions = [];
+    if (!userTokenAccountInfo) {
+      const { createAssociatedTokenAccountInstruction, NATIVE_MINT: NM2 } = await import("@solana/spl-token");
+      const createAtaIx = createAssociatedTokenAccountInstruction(
+        depositor,
+        userTokenAccount,
+        depositor,
+        mint
+      );
+      preInstructions.push(createAtaIx);
+    }
+    const { NATIVE_MINT: NM, createSyncNativeInstruction } = await import("@solana/spl-token");
+    if (mint.equals(NM)) {
+      const transferIx = SystemProgram.transfer({
+        fromPubkey: depositor,
+        toPubkey: userTokenAccount,
+        lamports: Number(amount)
+      });
+      preInstructions.push(transferIx);
+      const syncIx = createSyncNativeInstruction(userTokenAccount);
+      preInstructions.push(syncIx);
+    }
     const tx = await this.program.methods.depositMasp(
       toBN(amount),
       Array.from(commitment),
       Array.from(assetId),
-      Array.from(proofData),
-      encryptedNote ? Array.from(encryptedNote) : null
+      Buffer.from(proofData),
+      encryptedNote || null
     ).accounts({
       depositor,
       poolConfig,
-      authority: depositor,
+      authority: poolAuthority,
       merkleTree,
       assetVault,
       vaultTokenAccount,
@@ -1001,22 +1117,19 @@ var PsolV2Client = class {
       depositVk,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId
-    }).rpc();
+    }).preInstructions(preInstructions).rpc();
     return {
       signature: tx,
       leafIndex: 0
       // TODO: Parse from logs
     };
   }
-  /**
-   * Withdraw funds from the shielded pool
-   */
   async withdraw(poolConfig, mint, recipient, amount, merkleRoot, nullifierHash, proofData, relayerFee) {
     const relayer = this.authority;
     const assetId = computeAssetId(mint);
     const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
     const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
-    const [vaultTokenAccount] = PublicKey2.findProgramAddressSync(
+    const [vaultTokenAccount] = PublicKey3.findProgramAddressSync(
       [Buffer.from("vault_token"), assetVault.toBuffer()],
       this.programId
     );
@@ -1025,8 +1138,32 @@ var PsolV2Client = class {
     const [relayerRegistry] = findRelayerRegistryPda(this.programId, poolConfig);
     const recipientTokenAccount = getAssociatedTokenAddressSync(mint, recipient);
     const relayerTokenAccount = getAssociatedTokenAddressSync(mint, relayer);
+    const connection = this.provider.connection;
+    const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
+    const preInstructions = [];
+    if (!recipientAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      const createAtaIx = createAssociatedTokenAccountInstruction(
+        relayer,
+        recipientTokenAccount,
+        recipient,
+        mint
+      );
+      preInstructions.push(createAtaIx);
+    }
+    const relayerAccountInfo = await connection.getAccountInfo(relayerTokenAccount);
+    if (!relayerAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      const createRelayerAtaIx = createAssociatedTokenAccountInstruction(
+        relayer,
+        relayerTokenAccount,
+        relayer,
+        mint
+      );
+      preInstructions.push(createRelayerAtaIx);
+    }
     const tx = await this.program.methods.withdrawMasp(
-      Array.from(proofData),
+      Buffer.from(proofData),
       Array.from(merkleRoot),
       Array.from(nullifierHash),
       recipient,
@@ -1047,7 +1184,92 @@ var PsolV2Client = class {
       relayerNode: null,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId
-    }).rpc();
+    }).preInstructions(preInstructions).rpc();
+    return { signature: tx };
+  }
+  /**
+   * Withdraw V2 (join-split with change)
+   * Enables partial withdrawals with a change output
+   * 
+   * @param poolConfig - Pool configuration account
+   * @param mint - Token mint address
+   * @param recipient - Recipient address for withdrawn funds
+   * @param amount - Gross withdrawal amount (includes relayer fee)
+   * @param merkleRoot - Merkle root for proof verification
+   * @param nullifierHash0 - Primary nullifier hash
+   * @param nullifierHash1 - Secondary nullifier hash (pass zeros if unused)
+   * @param changeCommitment - Change output commitment
+   * @param proofData - ZK proof bytes (256 bytes)
+   * @param relayerFee - Fee for relayer service
+   */
+  async withdrawV2(poolConfig, mint, recipient, amount, merkleRoot, nullifierHash0, nullifierHash1, changeCommitment, proofData, relayerFee) {
+    const relayer = this.authority;
+    const assetId = computeAssetId(mint);
+    const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
+    const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
+    const [vaultTokenAccount] = PublicKey3.findProgramAddressSync(
+      [Buffer.from("vault_token"), assetVault.toBuffer()],
+      this.programId
+    );
+    const [withdrawV2Vk] = findVerificationKeyPda(this.programId, poolConfig, 5 /* WithdrawV2 */);
+    const [spentNullifier0] = findSpentNullifierPda(this.programId, poolConfig, nullifierHash0);
+    const [relayerRegistry] = findRelayerRegistryPda(this.programId, poolConfig);
+    const [pendingBuffer] = findPendingBufferPda(this.programId, poolConfig);
+    const hasSecondNullifier = !nullifierHash1.every((byte) => byte === 0);
+    const spentNullifier1 = hasSecondNullifier ? findSpentNullifierPda(this.programId, poolConfig, nullifierHash1)[0] : null;
+    const recipientTokenAccount = getAssociatedTokenAddressSync(mint, recipient);
+    const relayerTokenAccount = getAssociatedTokenAddressSync(mint, relayer);
+    const connection = this.provider.connection;
+    const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
+    const preInstructions = [];
+    if (!recipientAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      const createAtaIx = createAssociatedTokenAccountInstruction(
+        relayer,
+        recipientTokenAccount,
+        recipient,
+        mint
+      );
+      preInstructions.push(createAtaIx);
+    }
+    const relayerAccountInfo = await connection.getAccountInfo(relayerTokenAccount);
+    if (!relayerAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      const createRelayerAtaIx = createAssociatedTokenAccountInstruction(
+        relayer,
+        relayerTokenAccount,
+        relayer,
+        mint
+      );
+      preInstructions.push(createRelayerAtaIx);
+    }
+    const tx = await this.program.methods.withdrawV2(
+      Buffer.from(proofData),
+      Array.from(merkleRoot),
+      Array.from(assetId),
+      Array.from(nullifierHash0),
+      Array.from(nullifierHash1),
+      Array.from(changeCommitment),
+      recipient,
+      toBN(amount),
+      toBN(relayerFee ?? 0n)
+    ).accounts({
+      relayer,
+      poolConfig,
+      merkleTree,
+      vkAccount: withdrawV2Vk,
+      assetVault,
+      vaultTokenAccount,
+      recipientTokenAccount,
+      relayerTokenAccount,
+      spentNullifier0,
+      spentNullifier1,
+      pendingBuffer,
+      relayerRegistry,
+      relayerNode: null,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId
+    }).preInstructions(preInstructions).rpc();
     return { signature: tx };
   }
   // ============================================
@@ -1083,9 +1305,82 @@ var PsolV2Client = class {
       return false;
     }
   }
+  // ==========================================================================
+  // YIELD MODE METHODS
+  // ==========================================================================
+  /**
+   * Deposit SOL with Yield Mode (swap to LST first)
+   * 
+   * Flow:
+   * 1. Swap SOL -> LST using Jupiter
+   * 2. Deposit LST to pool (existing deposit flow)
+   * 3. Store note metadata with principal SOL amount
+   * 
+   * @param params - Deposit parameters with yield mode options
+   * @returns Swap signature and deposit signature
+   */
+  async depositYieldSol(params) {
+    const slippageBps = params.slippageBps ?? Number(process.env.JUPITER_SLIPPAGE_BPS ?? "50");
+    const connection = this.provider.connection;
+    const payer = this.provider.publicKey;
+    if (!payer) throw new Error("Provider missing publicKey");
+    const quote = await jupiterQuoteExactIn({
+      inputMint: NATIVE_MINT,
+      outputMint: params.mintLST,
+      amount: params.amountSolLamports,
+      slippageBps
+    });
+    const { signature: swapSig } = await jupiterSwapExactIn({
+      connection,
+      userPublicKey: payer,
+      quote,
+      signTransaction: async (tx) => {
+        const w = this.provider.wallet;
+        if (!w?.signTransaction) {
+          throw new Error("Provider wallet missing signTransaction");
+        }
+        return await w.signTransaction(tx);
+      }
+    });
+    const lstAmount = BigInt(quote.outAmount);
+    throw new Error(
+      "depositYieldSol: Proof generation wiring not yet implemented. Need to generate deposit proof and call deposit instruction."
+    );
+  }
+  /**
+   * Withdraw with Yield Mode (5% performance fee on positive yield)
+   * 
+   * Flow:
+   * 1. Fetch current LST -> SOL quote
+   * 2. Calculate fee: max(0, current_value - principal) * 0.05
+   * 3. Generate withdraw_v2 proof with relayer_fee
+   * 4. Submit via relayer endpoint (relayer signs)
+   * 
+   * @param params - Withdraw parameters with yield mode options
+   * @returns Withdraw signature and optional swap signature
+   */
+  async withdrawYieldV2(params) {
+    const slippageBps = params.slippageBps ?? Number(process.env.JUPITER_SLIPPAGE_BPS ?? "50");
+    const connection = this.provider.connection;
+    const payer = this.provider.publicKey;
+    if (!payer) throw new Error("Provider missing publicKey");
+    const quote = await jupiterQuoteExactIn({
+      inputMint: params.mintLST,
+      outputMint: NATIVE_MINT,
+      amount: params.amountLstAtomic,
+      slippageBps
+    });
+    const currentValueSol = BigInt(quote.outAmount);
+    const yieldSol = currentValueSol > params.principalSolLamports ? currentValueSol - params.principalSolLamports : 0n;
+    const feeSol = yieldSol * 5n / 100n;
+    const feeLst = feeSol > 0n ? feeSol * params.amountLstAtomic / currentValueSol : 0n;
+    throw new Error(
+      `withdrawYieldV2: Proof generation and relayer submission not yet implemented. Fee calculation: feeSol=${feeSol}, feeLst=${feeLst}`
+    );
+  }
 };
-function createPsolClient(provider, idl, programId) {
-  return new PsolV2Client({
+function createWhiteProtocolClient(provider, idl, programId) {
+  return new WhiteProtocolClient({
     provider,
     idl,
     programId
@@ -1094,12 +1389,13 @@ function createPsolClient(provider, idl, programId) {
 
 // src/index.ts
 async function initializeSDK() {
-  const { initPoseidon: initPoseidon2 } = await import("./poseidon-IL3XCGOJ.mjs");
+  const { initPoseidon: initPoseidon2 } = await import("./poseidon-EVTSYZRO.mjs");
   await initPoseidon2();
 }
 var SDK_VERSION = "2.0.0";
 var IS_PRODUCTION_READY = false;
 var SDK_STATUS = "alpha";
+var PROTOCOL_NAME = "The White Protocol";
 export {
   AssetType,
   COMPLIANCE_SEED,
@@ -1117,41 +1413,43 @@ export {
   MAX_ENCRYPTED_NOTE_SIZE,
   MAX_METADATA_URI_LEN,
   MAX_TREE_DEPTH,
-  MERKLE_TREE_V2_SEED,
+  MERKLE_TREE_SEED,
   MIN_ROOT_HISTORY_SIZE,
   MIN_TREE_DEPTH,
   MerkleTree,
   NATIVE_SOL_ASSET_ID,
-  NULLIFIER_V2_SEED,
+  NULLIFIER_SEED,
   NoteStore,
-  POOL_V2_SEED,
+  PENDING_SEED,
+  POOL_SEED,
   PROGRAM_ID,
   PROOF_SIZE,
-  Poseidon,
+  PROTOCOL_NAME,
   ProofType2 as ProofType,
   Prover,
-  PsolV2Client,
   RELAYER_REGISTRY_SEED,
   RELAYER_SEED,
   SDK_STATUS,
   SDK_VERSION,
+  SUPPORTED_LST_MINTS,
   ShieldedActionType,
   SpendType,
-  VAULT_V2_SEED,
+  VAULT_SEED,
+  WhiteProtocolClient,
   bigIntToBytes,
   bigIntToFieldBytes,
+  buildNoopMemoTx,
   bytesEqual,
   bytesToBigInt,
   bytesToCommitment,
   commitmentToBytes,
   computeAssetId,
-  computeAssetIdKeccak,
   computeCommitment,
   computeNoteNullifier,
   computeNullifierHash,
   createNote,
   createNoteFromParams,
-  createPsolClient,
+  createWhiteProtocolClient,
   decryptNote,
   deriveAssetVaultPdas,
   derivePoolPdas,
@@ -1163,6 +1461,7 @@ export {
   findAssetVaultPda,
   findComplianceConfigPda,
   findMerkleTreePda,
+  findPendingBufferPda,
   findPoolConfigPda,
   findRelayerNodePda,
   findRelayerRegistryPda,
@@ -1177,6 +1476,8 @@ export {
   isValidFieldElement,
   isValidNullifier,
   isValidProofLength,
+  jupiterQuoteExactIn,
+  jupiterSwapExactIn,
   proofTypeSeed,
   pubkeyToScalar,
   randomFieldElement,

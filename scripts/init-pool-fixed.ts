@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Pool Initialization - Fixed for Anchor 0.32+
+ * The White Protocol v2 Pool Initialization - Fixed for Anchor 0.32+
  * Uses snake_case account names to match IDL
  */
 
@@ -14,7 +14,7 @@ const ROOT_HISTORY_SIZE = 100;  // MISSING IN YOUR ORIGINAL SCRIPT!
 
 async function main() {
   console.log("═══════════════════════════════════════════════════════════════");
-  console.log("       pSOL v2 Pool Initialization (Anchor 0.32+ Fixed)        ");
+  console.log("       The White Protocol v2 Pool Initialization (Anchor 0.32+ Fixed)        ");
   console.log("═══════════════════════════════════════════════════════════════\n");
 
   const authorityKeypair = Keypair.fromSecretKey(
@@ -31,7 +31,7 @@ async function main() {
   anchor.setProvider(provider);
 
   const idl = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "../target/idl/psol_privacy_v2.json"), "utf8")
+    fs.readFileSync(path.join(__dirname, "../target/idl/white_protocol.json"), "utf8")
   );
   const program = new anchor.Program(idl, provider);
 

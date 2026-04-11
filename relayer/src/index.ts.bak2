@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Relayer Service
+ * The White Protocol Relayer Service
  *
  * HTTP service that relays withdrawal transactions for users.
  * Users submit proofs to the relayer, which submits them on-chain
@@ -141,7 +141,7 @@ interface SubmitWithdrawalParams {
 // =============================================================================
 
 /**
- * pSOL v2 Relayer Service
+ * The White Protocol Relayer Service
  */
 export class RelayerService {
   private config: RelayerConfig;
@@ -776,7 +776,7 @@ export class RelayerService {
   start(): void {
     this.app.listen(this.config.port, () => {
       console.log('========================================');
-      console.log('pSOL v2 Relayer Service Started');
+      console.log('The White Protocol Relayer Service Started');
       console.log('========================================');
       console.log(`Port: ${this.config.port}`);
       console.log(`Operator: ${this.config.walletKeypair.publicKey.toBase58()}`);

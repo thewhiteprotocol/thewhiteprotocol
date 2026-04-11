@@ -29,10 +29,10 @@ async function main() {
   const connection = new anchor.web3.Connection("https://devnet.helius-rpc.com/?api-key=2f0116cb-6972-4a3d-bb9e-43de29619343", "confirmed");
   const wallet = new anchor.Wallet(authority);
   const provider = new anchor.AnchorProvider(connection, wallet, {});
-  const idl = JSON.parse(fs.readFileSync("/workspaces/psol-v2/target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("/workspaces/white-protocol-v2/target/idl/white_protocol.json", "utf8"));
   const program = new anchor.Program(idl, provider);
 
-  const vk = JSON.parse(fs.readFileSync("/workspaces/psol-v2/circuits/build/deposit_vk.json", "utf8"));
+  const vk = JSON.parse(fs.readFileSync("/workspaces/white-protocol-v2/circuits/build/deposit_vk.json", "utf8"));
   const [vkPda] = PublicKey.findProgramAddressSync([Buffer.from("vk"), POOL_CONFIG.toBuffer(), Buffer.from("deposit")], PROGRAM_ID);
 
   console.log("Authority:", authority.publicKey.toString());

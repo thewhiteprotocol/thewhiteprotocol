@@ -18,7 +18,7 @@ async function main() {
   console.log("📡 Fetching CURRENT buffer state for comparison...");
   const wallet = anchor.Wallet.local();
   const provider = new anchor.AnchorProvider(connection, wallet);
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
   const program = new anchor.Program(idl, provider);
   
   const current: any = await program.account.pendingDepositsBuffer.fetch(PENDING_BUFFER);

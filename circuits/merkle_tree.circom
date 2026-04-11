@@ -1,4 +1,4 @@
-// Merkle Tree Circuit Components for pSOL v2
+// Merkle Tree Circuit Components for The White Protocol
 // Shared by all proof circuits
 
 pragma circom 2.1.6;

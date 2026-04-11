@@ -1,5 +1,5 @@
 /**
- * Relayer Selection for pSOL v2 (CORRECTED)
+ * Relayer Selection for The White Protocol (CORRECTED)
  * 
  * # Fix Applied
  * 

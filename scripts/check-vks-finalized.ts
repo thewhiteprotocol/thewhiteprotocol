@@ -19,7 +19,7 @@ const VKS = [
 ];
 
 (async () => {
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
   const coder = new anchor.BorshAccountsCoder(idl);
 
   const connection = new anchor.web3.Connection(process.env.ANCHOR_PROVIDER_URL!, "confirmed");

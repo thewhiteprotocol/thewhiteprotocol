@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { PsolPrivacyV2 } from "../target/types/psol_privacy_v2";
+import { WhiteProtocol } from "../target/types/white_protocol";
 import { ProofType } from "../sdk/src/types";
 import { 
   PublicKey, 
@@ -31,7 +31,7 @@ import {
 
 // Compute asset ID matching on-chain logic
 function computeAssetId(mint: PublicKey): Uint8Array {
-  const prefix = Buffer.from('psol:asset_id:v1');
+  const prefix = Buffer.from('white:asset_id:v1');
   const mintBytes = mint.toBuffer();
   const input = Buffer.concat([prefix, mintBytes]);
   const hash = keccak256.arrayBuffer(input);
@@ -65,7 +65,7 @@ describe("Deposit & Withdraw Integration", () => {
   });
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.PsolPrivacyV2 as Program<PsolPrivacyV2>;
+  const program = anchor.workspace.WhiteProtocol as Program<WhiteProtocol>;
   const authority = authorityKeypair;
 
   let poolConfig: PublicKey;

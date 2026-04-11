@@ -1,8 +1,8 @@
 {
-  "name": "@psol/sdk",
+  "name": "@whiteprotocol/sdk",
   "version": "2.0.0",
-  "description": "Complete TypeScript SDK for pSOL v2 Multi-Asset Shielded Pool on Solana",
-  "author": "pSOL Team",
+  "description": "The White Protocol SDK - Privacy-preserving Multi-Asset Shielded Pool on Solana",
+  "author": "White Protocol Team",
   "license": "MIT",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -80,11 +80,11 @@
     "zk-proofs",
     "groth16",
     "poseidon",
-    "psol",
+    "white-protocol",
     "defi"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/psol-protocol/psol-v2-sdk"
+    "url": "https://github.com/whiteprotocol/white-protocol"
   }
 }

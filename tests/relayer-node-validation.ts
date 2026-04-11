@@ -66,17 +66,17 @@ describe("RelayerNode PDA Validation", () => {
     try {
       // Load the program from the workspace
       // @ts-ignore - Program type is loaded dynamically
-      program = anchor.workspace.PsolPrivacyV2 as Program;
+      program = anchor.workspace.WhiteProtocol as Program;
       programId = program.programId;
     } catch (e) {
   const wsKeys = Object.keys((anchor as any).workspace ?? {});
-  const fromEnv = process.env.PSOL_PRIVACY_V2_PROGRAM_ID || process.env.ANCHOR_PROGRAM_ID;
+  const fromEnv = process.env.WHITE_PROTOCOL_PROGRAM_ID || process.env.ANCHOR_PROGRAM_ID;
 
   if (!fromEnv) {
     throw new Error(
-      `Could not load program from anchor.workspace.PsolPrivacyV2. ` +
+      `Could not load program from anchor.workspace.WhiteProtocol. ` +
       `Workspace keys: ${wsKeys.length ? wsKeys.join(", ") : "(none)"}.\n` +
-      `Set PSOL_PRIVACY_V2_PROGRAM_ID (or ANCHOR_PROGRAM_ID) to a valid base58 program id.`
+      `Set WHITE_PROTOCOL_PROGRAM_ID (or ANCHOR_PROGRAM_ID) to a valid base58 program id.`
     );
   }
 

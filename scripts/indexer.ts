@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Event Indexer
+ * The White Protocol v2 Event Indexer
  * 
  * Indexes DepositMaspEvent and BatchSettledEvent to reconstruct Merkle tree state
  */
@@ -36,7 +36,7 @@ interface IndexedState {
 }
 
 async function main() {
-  console.log("🔍 pSOL v2 Event Indexer Starting...\n");
+  console.log("🔍 The White Protocol v2 Event Indexer Starting...\n");
 
   // Setup connection
   const connection = new anchor.web3.Connection(
@@ -51,7 +51,7 @@ async function main() {
 
   // Load IDL
   const idl = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "../target/idl/psol_privacy_v2.json"), "utf8")
+    fs.readFileSync(path.join(__dirname, "../target/idl/white_protocol.json"), "utf8")
   );
   const program = new Program(idl, provider);
 

@@ -1,5 +1,5 @@
 /**
- * pSOL v2 SDK - Note Management
+ * The White Protocol SDK - Note Management
  * 
  * Handles creation, encryption, decryption, and storage of shielded notes.
  * 
@@ -17,7 +17,7 @@ import {
 } from '../crypto/poseidon';
 
 /**
- * Represents a shielded note in pSOL v2
+ * Represents a shielded note in The White Protocol
  */
 export interface Note {
   /** Random blinding factor */

@@ -1,7 +1,7 @@
 /**
- * pSOL v2 SDK
+ * The White Protocol SDK
  * 
- * Complete TypeScript SDK for the pSOL v2 Multi-Asset Shielded Pool.
+ * Complete TypeScript SDK for The White Protocol - Privacy-preserving Multi-Asset Shielded Pool.
  * 
  * @packageDocumentation
  */
@@ -39,9 +39,9 @@ export * from './pda';
 
 // Re-export client (only the client class and factory, not duplicate types)
 export { 
-  PsolV2Client, 
-  createPsolClient,
-  type PsolV2ClientOptions 
+  WhiteProtocolClient, 
+  createWhiteProtocolClient,
+  type WhiteProtocolClientOptions 
 } from './client';
 
 /**
@@ -62,6 +62,11 @@ export const SDK_VERSION = '2.0.0';
  */
 export const IS_PRODUCTION_READY = false;
 export const SDK_STATUS = "alpha";
+
+/**
+ * Protocol name
+ */
+export const PROTOCOL_NAME = "The White Protocol";
 
 // Yield Mode
 export * from './yield';

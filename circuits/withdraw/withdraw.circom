@@ -1,4 +1,4 @@
-// pSOL v2 Withdraw Circuit
+// The White Protocol Withdraw Circuit
 // Proves:
 // 1. Commitment exists in Merkle tree at merkle_root
 // 2. nullifier_hash = Poseidon(nullifier, secret, leaf_index)

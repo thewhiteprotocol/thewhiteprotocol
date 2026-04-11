@@ -1,7 +1,7 @@
 /**
- * pSOL v2 SDK Client
+ * The White Protocol SDK Client
  * 
- * Simplified client for interacting with the pSOL v2 MASP protocol
+ * Simplified client for interacting with the The White Protocol MASP protocol
  */
 
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
@@ -45,9 +45,9 @@ export const SUPPORTED_LST_MINTS = {
 
 
 /**
- * Options for creating a PsolV2Client
+ * Options for creating a WhiteProtocolClient
  */
-export interface PsolV2ClientOptions {
+export interface WhiteProtocolClientOptions {
   provider?: AnchorProvider;
   connection?: Connection;
   wallet?: Keypair;
@@ -56,14 +56,14 @@ export interface PsolV2ClientOptions {
 }
 
 /**
- * Main client for interacting with the pSOL v2 MASP protocol
+ * Main client for interacting with the The White Protocol MASP protocol
  */
-export class PsolV2Client {
+export class WhiteProtocolClient {
   public readonly program: Program;
   public readonly provider: AnchorProvider;
   public readonly programId: PublicKey;
 
-  constructor(options: PsolV2ClientOptions) {
+  constructor(options: WhiteProtocolClientOptions) {
     this.programId = options.programId ?? PROGRAM_ID;
 
     if (options.provider) {
@@ -609,7 +609,7 @@ export class PsolV2Client {
 
     const lstAmount = BigInt(quote.outAmount);
 
-    // 2) Deposit received LST into pSOL pool
+    // 2) Deposit received LST into White pool
     // TODO: Wire to actual deposit method - needs proof generation
     throw new Error(
       "depositYieldSol: Proof generation wiring not yet implemented. " +
@@ -688,14 +688,14 @@ export class PsolV2Client {
 }
 
 /**
- * Create a PsolV2Client from IDL JSON
+ * Create a WhiteProtocolClient from IDL JSON
  */
-export function createPsolClient(
+export function createWhiteProtocolClient(
   provider: AnchorProvider,
   idl: any,
   programId?: PublicKey
-): PsolV2Client {
-  return new PsolV2Client({
+): WhiteProtocolClient {
+  return new WhiteProtocolClient({
     provider,
     idl,
     programId,

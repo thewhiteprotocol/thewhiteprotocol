@@ -1,4 +1,4 @@
-// pSOL v2 Withdraw V2 Circuit (Join-Split with Change)
+// The White Protocol Withdraw V2 Circuit (Join-Split with Change)
 // Proves:
 // 1. Input commitment exists in Merkle tree at merkle_root
 // 2. Nullifier hashes computed correctly

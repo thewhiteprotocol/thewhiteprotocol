@@ -19,7 +19,7 @@ function normalize(s: string): string {
 async function main() {
   const connection = new Connection("https://api.devnet.solana.com", "confirmed");
   
-  const idl = JSON.parse(fs.readFileSync("./target/idl/psol_privacy_v2.json", "utf-8"));
+  const idl = JSON.parse(fs.readFileSync("./target/idl/white_protocol.json", "utf-8"));
   
   const [yieldRegistry] = PublicKey.findProgramAddressSync(
     [Buffer.from("yield_registry"), POOL_CONFIG.toBuffer()],

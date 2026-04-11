@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Pool Initialization - Production Grade
+ * The White Protocol v2 Pool Initialization - Production Grade
  * Uses raw TransactionInstruction to match working scripts pattern
  */
 import { 
@@ -28,7 +28,7 @@ const ROOT_HISTORY_SIZE = 100;
 
 async function main() {
   console.log("═══════════════════════════════════════════════════════════════");
-  console.log("       pSOL v2 Pool Initialization - Production Grade          ");
+  console.log("       The White Protocol v2 Pool Initialization - Production Grade          ");
   console.log("═══════════════════════════════════════════════════════════════\n");
 
   const connection = new Connection("https://api.devnet.solana.com", "confirmed");

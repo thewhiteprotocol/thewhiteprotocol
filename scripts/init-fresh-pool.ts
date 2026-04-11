@@ -34,7 +34,7 @@ async function main() {
   console.log("");
 
   const idl = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "../target/idl/psol_privacy_v2.json"), "utf8")
+    fs.readFileSync(path.join(__dirname, "../target/idl/white_protocol.json"), "utf8")
   );
   
   const program = new Program(idl, PROGRAM_ID, provider);

@@ -1,8 +1,8 @@
-# pSOL v2
+# The White Protocol
 
-pSOL v2 is a privacy protocol for Solana that enables confidential transfers of SPL tokens through a shared, multi-asset shielded pool. The protocol combines zero-knowledge proofs with an on-chain commitment tree and off-chain batching to achieve practical throughput while keeping on-chain verification bounded.
+The White Protocol is a privacy protocol for Solana that enables confidential transfers of SPL tokens through a shared, multi-asset shielded pool. The protocol combines zero-knowledge proofs with an on-chain commitment tree and off-chain batching to achieve practical throughput while keeping on-chain verification bounded.
 
-This repository contains the Solana programs, Circom circuits, relayer and sequencer services, a TypeScript SDK, and deployment scripts.
+This repository contains The White Protocol's Solana programs, Circom circuits, relayer and sequencer services, TypeScript SDK, and deployment scripts.
 
 ## Status
 
@@ -47,7 +47,7 @@ The protocol supports shielded pools for multiple SPL token mints, Groth16 proof
 
 ## Protocol Overview
 
-pSOL v2 uses a two-phase deposit flow designed around Solana's compute constraints.
+The White Protocol uses a two-phase deposit flow designed around Solana's compute constraints.
 
 ### Deposit Phase
 
@@ -87,7 +87,7 @@ The relayer submits the withdrawal transaction, paying gas fees and earning a 0.
 
 ## Yield Earn
 
-pSOL v2 supports yield-bearing assets such as Liquid Staking Tokens (JitoSOL, mSOL, bSOL, and similar). Users can deposit LSTs into the shielded pool while continuing to earn staking yield. The underlying tokens appreciate in value over time, and users retain privacy throughout.
+The White Protocol supports yield-bearing assets such as Liquid Staking Tokens (JitoSOL, mSOL, bSOL, and similar). Users can deposit LSTs into the shielded pool while continuing to earn staking yield. The underlying tokens appreciate in value over time, and users retain privacy throughout.
 
 ### How It Works
 
@@ -127,7 +127,7 @@ Performance fees apply only to positive yield, not to the original deposit amoun
 
 ## API Reference
 
-The pSOL Protocol relayer API is publicly available for integration with privacy-preserving applications on Solana.
+The White Protocol relayer API is publicly available for integration with privacy-preserving applications on Solana.
 
 **Base URL:** `https://api.psolprotocol.org`
 
@@ -211,7 +211,7 @@ cargo test -p psol-privacy-v2
 
 ## Live Demo
 
-**Frontend:** [pSOL Protocol](https://psol-frontend.replit.app) (or your deployed URL)
+**Frontend:** [White Protocol](https://psol-frontend.replit.app) (or your deployed URL)
 
 **Explorer:** [View Program on Solana Explorer](https://explorer.solana.com/address/BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb?cluster=devnet)
 

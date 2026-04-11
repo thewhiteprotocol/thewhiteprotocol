@@ -13,9 +13,9 @@ const ASSETS = [
 ];
 
 // CORRECT canonical asset_id derivation:
-// asset_id = 0x00 || Keccak256("psol:asset_id:v1" || mint)[0..31]
+// asset_id = 0x00 || Keccak256("white:asset_id:v1" || mint)[0..31]
 function computeAssetId(mint: PublicKey): Buffer {
-  const prefix = Buffer.from("psol:asset_id:v1");
+  const prefix = Buffer.from("white:asset_id:v1");
   const combined = Buffer.concat([prefix, mint.toBuffer()]);
   const hash = Buffer.from(keccak256.arrayBuffer(combined)); // 32 bytes
 

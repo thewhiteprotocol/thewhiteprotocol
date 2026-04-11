@@ -3,7 +3,7 @@ import { ProofType, proofTypeSeed } from './types';
 import { keccak_256 } from '@noble/hashes/sha3';
 
 /**
- * Default program ID for pSOL v2
+ * Default program ID for The White Protocol
  */
 export const PROGRAM_ID = new PublicKey('BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb');
 
@@ -12,16 +12,16 @@ export const PROGRAM_ID = new PublicKey('BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaL
 // ============================================================================
 
 /** Seed for PoolConfigV2 PDA */
-export const POOL_V2_SEED = Buffer.from('pool_v2');
+export const POOL_SEED = Buffer.from('white_pool');
 
 /** Seed for MerkleTreeV2 PDA */
-export const MERKLE_TREE_V2_SEED = Buffer.from('merkle_tree_v2');
+export const MERKLE_TREE_SEED = Buffer.from('merkle_tree');
 
 /** Seed for AssetVault PDA */
-export const VAULT_V2_SEED = Buffer.from('vault_v2');
+export const VAULT_SEED = Buffer.from('vault');
 
 /** Seed for SpentNullifierV2 PDA */
-export const NULLIFIER_V2_SEED = Buffer.from('nullifier_v2');
+export const NULLIFIER_SEED = Buffer.from('nullifier');
 
 /** Seed for RelayerRegistry PDA */
 export const RELAYER_REGISTRY_SEED = Buffer.from('relayer_registry');
@@ -32,7 +32,7 @@ export const RELAYER_SEED = Buffer.from('relayer');
 /** Seed for ComplianceConfig PDA */
 export const COMPLIANCE_SEED = Buffer.from('compliance');
 /** Seed for PendingDepositsBuffer PDA */
-export const PENDING_DEPOSITS_SEED = Buffer.from('pending_deposits');
+export const PENDING_SEED = Buffer.from('pending');
 
 // ============================================================================
 // PDA DERIVATION FUNCTIONS
@@ -43,7 +43,7 @@ export const PENDING_DEPOSITS_SEED = Buffer.from('pending_deposits');
  *
  * Seeds: ["pool_v2", authority]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param authority - Pool authority public key
  * @returns [PDA address, bump seed]
  */
@@ -52,7 +52,7 @@ export function findPoolConfigPda(
   authority: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [POOL_V2_SEED, authority.toBuffer()],
+    [POOL_SEED, authority.toBuffer()],
     programId
   );
 }
@@ -62,7 +62,7 @@ export function findPoolConfigPda(
  *
  * Seeds: ["merkle_tree_v2", pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @returns [PDA address, bump seed]
  */
@@ -71,7 +71,7 @@ export function findMerkleTreePda(
   poolConfig: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [MERKLE_TREE_V2_SEED, poolConfig.toBuffer()],
+    [MERKLE_TREE_SEED, poolConfig.toBuffer()],
     programId
   );
 }
@@ -81,7 +81,7 @@ export function findMerkleTreePda(
  *
  * Seeds: ["vault_v2", pool_config, asset_id]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @param assetId - 32-byte asset identifier
  * @returns [PDA address, bump seed]
@@ -95,7 +95,7 @@ export function findAssetVaultPda(
     throw new Error('Asset ID must be 32 bytes');
   }
   return PublicKey.findProgramAddressSync(
-    [VAULT_V2_SEED, poolConfig.toBuffer(), Buffer.from(assetId)],
+    [VAULT_SEED, poolConfig.toBuffer(), Buffer.from(assetId)],
     programId
   );
 }
@@ -105,7 +105,7 @@ export function findAssetVaultPda(
  *
  * Seeds: [proof_type_seed, pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @param proofType - Type of proof
  * @returns [PDA address, bump seed]
@@ -127,7 +127,7 @@ export function findVerificationKeyPda(
  *
  * Seeds: ["nullifier_v2", pool_config, nullifier_hash]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @param nullifierHash - 32-byte nullifier hash
  * @returns [PDA address, bump seed]
@@ -141,7 +141,7 @@ export function findSpentNullifierPda(
     throw new Error('Nullifier hash must be 32 bytes');
   }
   return PublicKey.findProgramAddressSync(
-    [NULLIFIER_V2_SEED, poolConfig.toBuffer(), Buffer.from(nullifierHash)],
+    [NULLIFIER_SEED, poolConfig.toBuffer(), Buffer.from(nullifierHash)],
     programId
   );
 }
@@ -151,7 +151,7 @@ export function findSpentNullifierPda(
  *
  * Seeds: ["relayer_registry", pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @returns [PDA address, bump seed]
  */
@@ -170,7 +170,7 @@ export function findRelayerRegistryPda(
  *
  * Seeds: ["pending_deposits", pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration public key
  * @returns [PDA address, bump seed]
  */
@@ -179,7 +179,7 @@ export function findPendingBufferPda(
   poolConfig: PublicKey
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
-    [PENDING_DEPOSITS_SEED, poolConfig.toBuffer()],
+    [PENDING_SEED, poolConfig.toBuffer()],
     programId
   );
 }
@@ -189,7 +189,7 @@ export function findPendingBufferPda(
  *
  * Seeds: ["relayer", registry, operator]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param registry - Relayer registry account address
  * @param operator - Relayer operator public key
  * @returns [PDA address, bump seed]
@@ -210,7 +210,7 @@ export function findRelayerNodePda(
  *
  * Seeds: ["compliance", pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @returns [PDA address, bump seed]
  */
@@ -219,7 +219,7 @@ export function findRelayerNodePda(
  *
  * Seeds: ["compliance", pool_config]
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account address
  * @returns [PDA address, bump seed]
  */
@@ -242,7 +242,7 @@ export function findComplianceConfigPda(
  * Compute asset ID from mint address using keccak256
  *
  * This matches the on-chain computation:
- * asset_id = 0x00 || keccak256("psol:asset_id:v1" || mint)[0..31]
+ * asset_id = 0x00 || keccak256("white:asset_id:v1" || mint)[0..31]
  *
  * The leading zero byte ensures the value fits in BN254 Fr field.
  *
@@ -251,7 +251,7 @@ export function findComplianceConfigPda(
  */
 export function computeAssetId(mint: PublicKey): Uint8Array {
   // Concatenate prefix and mint bytes
-  const prefix = Buffer.from('psol:asset_id:v1');
+  const prefix = Buffer.from('white:asset_id:v1');
   const mintBytes = mint.toBuffer();
   const input = Buffer.concat([prefix, mintBytes]);
   
@@ -273,7 +273,7 @@ export function computeAssetId(mint: PublicKey): Uint8Array {
 /**
  * Derive all pool-related PDAs at once
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param authority - Pool authority
  * @returns Object containing all pool PDAs
  */
@@ -310,7 +310,7 @@ export function derivePoolPdas(
 /**
  * Derive asset vault PDAs for multiple assets
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account
  * @param assetIds - Array of asset IDs
  * @returns Array of [vault address, bump] tuples
@@ -326,7 +326,7 @@ export function deriveAssetVaultPdas(
 /**
  * Derive verification key PDAs for all proof types
  *
- * @param programId - pSOL v2 program ID
+ * @param programId - The White Protocol program ID
  * @param poolConfig - Pool configuration account
  * @returns Object mapping proof type to [address, bump]
  */

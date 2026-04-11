@@ -60,7 +60,7 @@ async function main() {
   // Load pending buffer (current state with 3 pending)
   const wallet = anchor.Wallet.local();
   const provider = new anchor.AnchorProvider(connection, wallet);
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
   const program = new anchor.Program(idl, provider);
   
   const pending: any = await program.account.pendingDepositsBuffer.fetch(PENDING_BUFFER);

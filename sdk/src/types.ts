@@ -1,7 +1,7 @@
 /**
- * pSOL v2 SDK Type Definitions
+ * The White Protocol SDK Type Definitions
  *
- * Types for interacting with the pSOL v2 MASP (Multi-Asset Shielded Pool)
+ * Types for interacting with the The White Protocol MASP (Multi-Asset Shielded Pool)
  */
 
 import { PublicKey } from '@solana/web3.js';
@@ -28,7 +28,7 @@ export type MerkleRoot = Uint8Array;
 // ============================================================================
 
 /**
- * Proof types supported by pSOL v2
+ * Proof types supported by The White Protocol
  * Must match on-chain ProofType enum
  */
 export enum ProofType {

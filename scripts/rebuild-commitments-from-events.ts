@@ -55,11 +55,11 @@ async function main() {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  if (!fs.existsSync("target/idl/psol_privacy_v2.json")) {
-    throw new Error("Missing target/idl/psol_privacy_v2.json. Run: anchor build");
+  if (!fs.existsSync("target/idl/white_protocol.json")) {
+    throw new Error("Missing target/idl/white_protocol.json. Run: anchor build");
   }
 
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
   const coder = new anchor.BorshCoder(idl);
   const parser = new anchor.EventParser(programId, coder);
   const program = new anchor.Program(idl, provider);

@@ -1,5 +1,5 @@
 /**
- * pSOL v2 SDK - Proof Generation
+ * The White Protocol SDK - Proof Generation
  * 
  * Generates ZK proofs for deposits, withdrawals, and transfers.
  * Uses snarkjs for Groth16 proof generation.

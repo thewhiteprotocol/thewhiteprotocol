@@ -48,7 +48,7 @@ async function main() {
     // Parse the pending buffer
     const wallet = anchor.Wallet.local();
     const provider = new anchor.AnchorProvider(connection, wallet);
-    const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+    const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
     const program = new anchor.Program(idl, provider);
 
     // Decode the account data

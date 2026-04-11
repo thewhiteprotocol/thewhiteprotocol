@@ -16,7 +16,7 @@ async function main() {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
   
-  const idl = JSON.parse(fs.readFileSync("./target/idl/psol_privacy_v2.json", "utf-8"));
+  const idl = JSON.parse(fs.readFileSync("./target/idl/white_protocol.json", "utf-8"));
   const program = new anchor.Program(idl, provider);
   
   const authority = provider.wallet.publicKey;
