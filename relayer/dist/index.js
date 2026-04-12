@@ -726,7 +726,7 @@ async function main() {
     const config = {
         rpcEndpoint: process.env.RPC_ENDPOINT || 'https://api.devnet.solana.com',
         walletKeypair: web3_js_1.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.RELAYER_KEYPAIR || '[]'))),
-        programId: new web3_js_1.PublicKey(process.env.PROGRAM_ID || 'HJmgwBBjojb2SdKPCW4DFNh2wRQzZ5mtD6ro2YocpZHj'),
+        programId: new web3_js_1.PublicKey(process.env.PROGRAM_ID || 'C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW'),
         poolConfig: new web3_js_1.PublicKey(process.env.POOL_CONFIG || '11111111111111111111111111111111'),
         feeBps: parseInt(process.env.FEE_BPS || '50', 10),
         minWithdrawalAmount: BigInt(process.env.MIN_WITHDRAWAL || '1000000'),

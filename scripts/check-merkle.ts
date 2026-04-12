@@ -1,24 +1,52 @@
-import { PublicKey, Connection } from "@solana/web3.js";
-const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("73MzPg5UFz869CA5XWaEFUYDoS8ezzmjtvARJDMkNSgw");
+import * as anchor from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 
 async function main() {
-  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
-  const [merkleTree] = PublicKey.findProgramAddressSync(
-    [Buffer.from("merkle_tree"), POOL_CONFIG.toBuffer()], PROGRAM_ID
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+  
+  const poolConfig = new PublicKey("EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS");
+  
+  const [merkleTreePda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("merkle_tree"), poolConfig.toBuffer()],
+    new PublicKey("C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW")
   );
   
-  const mt = await connection.getAccountInfo(merkleTree);
-  if (mt) {
-    const leafCount = mt.data.readUInt32LE(41);
-    console.log("Merkle Tree:", merkleTree.toBase58());
-    console.log("Leaf count:", leafCount);
+  console.log("Merkle Tree PDA:", merkleTreePda.toBase58());
+  
+  const idl = JSON.parse(require('fs').readFileSync('./target/idl/white_protocol.json', 'utf8'));
+  const program = new anchor.Program(idl, provider);
+  
+  const merkleTree = await (program.account as any).merkleTree.fetch(merkleTreePda);
+  
+  console.log("\nMerkle Tree State:");
+  console.log("  Depth:", merkleTree.depth);
+  console.log("  Next Leaf Index:", merkleTree.nextLeafIndex.toString());
+  console.log("  Current Root:", Buffer.from(merkleTree.currentRoot).toString('hex'));
+  console.log("  Total Leaves:", merkleTree.totalLeaves.toString());
+  console.log("  Root History Index:", merkleTree.rootHistoryIndex);
+  console.log("  Root History Size:", merkleTree.rootHistory.length);
+  
+  // Check pending buffer
+  const [pendingBufferPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pending"), poolConfig.toBuffer()],
+    new PublicKey("C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW")
+  );
+  
+  try {
+    const pendingBuffer = await (program.account as any).pendingDepositsBuffer.fetch(pendingBufferPda);
+    console.log("\nPending Buffer State:");
+    console.log("  Deposits count:", pendingBuffer.deposits?.length || 0);
+    console.log("  Total pending:", pendingBuffer.totalPending?.toString() || 'unknown');
     
-    // Read current root (after depth byte and leaf_count)
-    // Layout: 8 disc + 32 pool + 1 depth + 4 leaf_count + 32 root
-    const rootStart = 8 + 32 + 1 + 4;
-    const root = mt.data.slice(rootStart, rootStart + 32);
-    console.log("Current root:", Buffer.from(root).toString('hex').slice(0, 32) + "...");
+    if (pendingBuffer.deposits && pendingBuffer.deposits.length > 0) {
+      console.log("\n  First pending deposit commitment:");
+      const firstCommitment = Buffer.from(pendingBuffer.deposits[0].commitment);
+      console.log("   ", firstCommitment.toString('hex'));
+    }
+  } catch (e: any) {
+    console.log("\nCould not fetch pending buffer:", e.message);
   }
 }
+
 main().catch(console.error);

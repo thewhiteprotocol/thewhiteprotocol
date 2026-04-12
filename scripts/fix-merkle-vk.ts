@@ -1,18 +1,15 @@
 /**
- * Fix MerkleBatchUpdate VK - Close and reinitialize with correct proof type
- * 
- * The existing VK was uploaded with proof type 4 (Membership) instead of type 3 (MerkleBatchUpdate).
- * This script closes the wrong VK account and creates a new one with the correct type.
+ * Fix MerkleBatchUpdate VK - close if exists with wrong type, then upload correctly
  */
 
 import * as anchor from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 import * as fs from 'fs';
 
 const PROGRAM_ID = new PublicKey("C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW");
 const POOL_CONFIG = new PublicKey("EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS");
 
-// Convert G1 point (3 elements) to bytes (64 bytes - x, y coordinates)
+// Convert G1 point to bytes
 function g1ToBytes(g1: string[]): number[] {
   const bytes: number[] = [];
   for (let i = 0; i < 2; i++) {
@@ -25,19 +22,25 @@ function g1ToBytes(g1: string[]): number[] {
   return bytes;
 }
 
-// Convert G2 point (3 elements of 2 elements each) to bytes (128 bytes)
-function g2ToBytes(g2: string[][]): number[] {
-  const bytes: number[] = [];
-  for (let coord = 0; coord < 2; coord++) {
-    for (let i = 0; i < 2; i++) {
-      const val = BigInt(g2[coord][i]);
-      const hex = val.toString(16).padStart(64, '0');
-      for (let j = 0; j < 64; j += 2) {
-        bytes.push(parseInt(hex.substring(j, j + 2), 16));
-      }
-    }
-  }
-  return bytes;
+// Convert G2 point to bytes - using CORRECT SDK-compatible order
+// Order: x_c1, x_c0, y_c1, y_c0 which maps to [0][1], [0][0], [1][1], [1][0]
+function g2ToBytes(point: string[][]): number[] {
+  const x_c0 = BigInt(point[0][0]).toString(16).padStart(64, '0');
+  const x_c1 = BigInt(point[0][1]).toString(16).padStart(64, '0');
+  const y_c0 = BigInt(point[1][0]).toString(16).padStart(64, '0');
+  const y_c1 = BigInt(point[1][1]).toString(16).padStart(64, '0');
+  
+  const result: number[] = [];
+  // x_c1 (32 bytes) = [0][1]
+  for (let i = 0; i < 64; i += 2) result.push(parseInt(x_c1.substring(i, i + 2), 16));
+  // x_c0 (32 bytes) = [0][0]
+  for (let i = 0; i < 64; i += 2) result.push(parseInt(x_c0.substring(i, i + 2), 16));
+  // y_c1 (32 bytes) = [1][1]
+  for (let i = 0; i < 64; i += 2) result.push(parseInt(y_c1.substring(i, i + 2), 16));
+  // y_c0 (32 bytes) = [1][0]
+  for (let i = 0; i < 64; i += 2) result.push(parseInt(y_c0.substring(i, i + 2), 16));
+  
+  return result;
 }
 
 async function main() {
@@ -54,151 +57,144 @@ async function main() {
   const idl = JSON.parse(fs.readFileSync('./target/idl/white_protocol.json', 'utf8'));
   const program = new anchor.Program(idl as anchor.Idl, provider);
   
-  // Get the wrong VK account (Membership type = 4)
-  const wrongVkSeed = Buffer.from("membership");
-  const [wrongVkPda] = PublicKey.findProgramAddressSync(
-    [wrongVkSeed, POOL_CONFIG.toBuffer()],
+  // Get the merkle_batch VK PDA
+  const [vkPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vk_merkle_batch"), POOL_CONFIG.toBuffer()],
     PROGRAM_ID
   );
   
-  // Get the correct VK account (MerkleBatchUpdate type = 3)
-  const correctVkSeed = Buffer.from("merkle_batch");
-  const [correctVkPda] = PublicKey.findProgramAddressSync(
-    [correctVkSeed, POOL_CONFIG.toBuffer()],
-    PROGRAM_ID
-  );
+  console.log("\nVK PDA:", vkPda.toBase58());
   
-  console.log("\nWrong VK (Membership):", wrongVkPda.toBase58());
-  console.log("Correct VK (MerkleBatchUpdate):", correctVkPda.toBase58());
-  
-  // Check if wrong VK exists
-  const wrongVkAccount = await provider.connection.getAccountInfo(wrongVkPda);
-  if (wrongVkAccount) {
-    console.log("\n⚠️  Wrong VK exists:");
-    console.log("  Size:", wrongVkAccount.data.length);
-    console.log("  Lamports:", wrongVkAccount.lamports);
+  // Check if account exists
+  const account = await provider.connection.getAccountInfo(vkPda);
+  if (account) {
+    console.log("\n⚠️  VK account already exists");
+    console.log("  Data length:", account.data.length);
+    console.log("  Proof type:", account.data[40]);
     
-    // We need to check if this is actually the MerkleBatchUpdate VK
-    // that was uploaded with the wrong seed
-    
-    // Check the correct VK PDA
-    const correctVkAccount = await provider.connection.getAccountInfo(correctVkPda);
-    if (!correctVkAccount) {
-      console.log("\n✓ Correct VK PDA is available (not initialized)");
-      
-      // The VK was likely uploaded with the wrong seed
-      // We need to upload to the correct PDA
-      console.log("\n🚀 Uploading VK to correct PDA (merkle_batch)...");
-      
-      // Load VK data
-      const vk = JSON.parse(fs.readFileSync('./circuits/build/merkle_batch_update/verification_key.json', 'utf8'));
-      const alphaG1 = g1ToBytes(vk.vk_alpha_1);
-      const betaG2 = g2ToBytes(vk.vk_beta_2);
-      const gammaG2 = g2ToBytes(vk.vk_gamma_2);
-      const deltaG2 = g2ToBytes(vk.vk_delta_2);
-      const icPoints = vk.IC.map((ic: string[]) => g1ToBytes(ic));
-      
-      console.log("VK Data:");
-      console.log("  IC Points:", icPoints.length);
-      console.log("  Expected for MerkleBatchUpdate: 6");
+    // Check if it's the wrong type (4 = Membership instead of 3 = MerkleBatchUpdate)
+    if (account.data[40] !== 3) {
+      console.log("\n❌ Wrong proof type! Expected 3 (MerkleBatchUpdate), got", account.data[40]);
+      console.log("   Closing VK account to re-upload...");
       
       try {
-        // Initialize VK with correct proof type
-        await program.methods
-          .initVkV2(
-            { merkleBatchUpdate: {} },
-            alphaG1,
-            betaG2,
-            gammaG2,
-            deltaG2,
-            icPoints.length
-          )
+        await (program.methods as any)
+          .closeVkV2({ merkleBatchUpdate: {} })
           .accounts({
             authority: provider.wallet.publicKey,
             poolConfig: POOL_CONFIG,
-            verificationKey: correctVkPda,
-            systemProgram: SystemProgram.programId,
+            vkAccount: vkPda,
           })
           .rpc();
-        
-        console.log("✓ VK initialized");
-        
-        // Upload IC points
-        for (let i = 0; i < icPoints.length; i++) {
-          await program.methods
-            .appendVkIcV2(i, icPoints[i])
-            .accounts({
-              authority: provider.wallet.publicKey,
-              poolConfig: POOL_CONFIG,
-              verificationKey: correctVkPda,
-            })
-            .rpc();
-          console.log(`  IC point ${i + 1}/${icPoints.length} uploaded`);
-        }
-        
-        // Finalize VK
-        await program.methods
-          .finalizeVkV2()
-          .accounts({
-            authority: provider.wallet.publicKey,
-            poolConfig: POOL_CONFIG,
-            verificationKey: correctVkPda,
-          })
-          .rpc();
-        
-        console.log("✅ VK uploaded and finalized to correct PDA!");
-        
-      } catch (e) {
-        console.error("❌ Failed to upload VK:", e.message);
-        console.log("\nPossible reasons:");
-        console.log("  - Pool config has VK locked at pool level");
-        console.log("  - Wrong VK account is blocking the operation");
-        console.log("\nChecking pool config state...");
-        
-        try {
-          const poolState = await program.account.poolConfig.fetch(POOL_CONFIG);
-          console.log("\nPool Config State:");
-          console.log("  VK Configured:", poolState.vkConfigured);
-          console.log("  VK Locked:", poolState.vkLocked);
-          
-          // Check which VKs are locked
-          const proofTypes = ['Deposit', 'Withdraw', 'JoinSplit', 'MerkleBatchUpdate', 'Membership'];
-          for (let i = 0; i < 5; i++) {
-            const mask = 1 << i;
-            const isConfigured = (poolState.vkConfigured & mask) !== 0;
-            const isLocked = (poolState.vkLocked & mask) !== 0;
-            if (isConfigured || isLocked) {
-              console.log(`  ${proofTypes[i]}: configured=${isConfigured}, locked=${isLocked}`);
-            }
-          }
-        } catch (e2) {
-          console.error("Failed to fetch pool config:", e2.message);
-        }
-      }
-    } else {
-      console.log("\n⚠️  Correct VK PDA already exists!");
-      console.log("  Size:", correctVkAccount.data.length);
-      
-      // Verify the correct VK
-      try {
-        const vkState = await program.account.verificationKeyAccount.fetch(correctVkPda);
-        console.log("\n  VK State:");
-        console.log("    Proof Type:", vkState.proofType);
-        console.log("    IC Length:", vkState.vkIcLen);
-        console.log("    Is Locked:", vkState.isLocked);
-      } catch (e) {
-        console.log("  Could not decode VK state");
+        console.log("✓ VK account closed");
+      } catch (e: any) {
+        console.error("❌ Failed to close VK:", e.message);
+        // Continue anyway - might be a different issue
       }
     }
   } else {
-    console.log("\n✓ Wrong VK does not exist");
+    console.log("\n✓ VK account does not exist, will create");
+  }
+  
+  // Wait a bit for account closure to settle
+  await new Promise(r => setTimeout(r, 2000));
+  
+  // Check again
+  const accountAfter = await provider.connection.getAccountInfo(vkPda);
+  if (accountAfter) {
+    console.log("\n⚠️  VK account still exists after close attempt");
+    console.log("  You may need to close it manually or wait for the transaction to confirm");
+    return;
+  }
+  
+  // Load VK data
+  console.log("\nLoading VK from circuits/build/merkle_batch_update/verification_key.json");
+  const vk = JSON.parse(fs.readFileSync('./circuits/build/merkle_batch_update/verification_key.json', 'utf8'));
+  
+  const alphaG1 = g1ToBytes(vk.vk_alpha_1);
+  const betaG2 = g2ToBytes(vk.vk_beta_2);
+  const gammaG2 = g2ToBytes(vk.vk_gamma_2);
+  const deltaG2 = g2ToBytes(vk.vk_delta_2);
+  const icPoints = vk.IC.map((ic: string[]) => g1ToBytes(ic));
+  
+  console.log("VK Data:");
+  console.log("  IC Points:", icPoints.length);
+  console.log("  Expected for MerkleBatchUpdate: 6");
+  
+  // Step 1: Initialize VK
+  console.log("\n🚀 Step 1: Initializing VK with proof type MerkleBatchUpdate...");
+  try {
+    await (program.methods as any)
+      .initializeVkV2(
+        { merkleBatchUpdate: {} },  // Proof type 3
+        alphaG1,
+        betaG2,
+        gammaG2,
+        deltaG2,
+        icPoints.length
+      )
+      .accounts({
+        authority: provider.wallet.publicKey,
+        poolConfig: POOL_CONFIG,
+        vkAccount: vkPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
     
-    // Check correct VK
-    const correctVkAccount = await provider.connection.getAccountInfo(correctVkPda);
-    if (!correctVkAccount) {
-      console.log("Uploading VK to correct PDA...");
-      // ... (same upload code as above)
-    }
+    console.log("✓ VK initialized");
+  } catch (e: any) {
+    console.error("❌ Failed to initialize VK:", e.message);
+    if (e.logs) console.log("Logs:", e.logs.slice(-5));
+    return;
+  }
+  
+  // Step 2: Upload IC points (all at once)
+  console.log("\n🚀 Step 2: Uploading IC points...");
+  try {
+    await (program.methods as any)
+      .appendVkIcV2({ merkleBatchUpdate: {} }, icPoints)
+      .accounts({
+        authority: provider.wallet.publicKey,
+        poolConfig: POOL_CONFIG,
+        vkAccount: vkPda,
+      })
+      .rpc();
+    console.log(`  All ${icPoints.length} IC points uploaded`);
+  } catch (e: any) {
+    console.error(`❌ Failed to upload IC points:`, e.message);
+    if (e.logs) console.log("Logs:", e.logs.slice(-5));
+    return;
+  }
+  
+  // Step 3: Finalize VK
+  console.log("\n🚀 Step 3: Finalizing VK...");
+  try {
+    await (program.methods as any)
+      .finalizeVkV2({ merkleBatchUpdate: {} })
+      .accounts({
+        authority: provider.wallet.publicKey,
+        poolConfig: POOL_CONFIG,
+        vkAccount: vkPda,
+      })
+      .rpc();
+    
+    console.log("✓ VK finalized");
+  } catch (e: any) {
+    console.error("❌ Failed to finalize VK:", e.message);
+    if (e.logs) console.log("Logs:", e.logs.slice(-5));
+    return;
+  }
+  
+  console.log("\n═══════════════════════════════════════════════════════════════");
+  console.log("  ✅ MerkleBatchUpdate VK uploaded successfully!");
+  console.log("═══════════════════════════════════════════════════════════════");
+  
+  // Verify
+  const after = await provider.connection.getAccountInfo(vkPda);
+  if (after) {
+    console.log("\nAccount info:");
+    console.log("  Size:", after.data.length);
+    console.log("  Proof Type:", after.data[40], "(3 = MerkleBatchUpdate)");
   }
 }
 
