@@ -225,7 +225,7 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         uint256 commitmentsHash
     ) external nonReentrant {
         require(proof.length == 256, "Invalid proof length");
-        require(oldRoot == currentRoot, "Old root mismatch");
+        require(oldRoot == getLastRoot(), "Old root mismatch");
         require(startIndex == nextLeafIndex, "Start index mismatch");
         require(batchSize > 0 && batchSize <= pendingDeposits.length, "Invalid batch size");
 
@@ -261,7 +261,7 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
             pendingDeposits.pop();
         }
 
-        require(currentRoot == newRoot, "New root mismatch");
+        require(getLastRoot() == newRoot, "New root mismatch");
 
         emit BatchSettlement(startIndex, batchSize, newRoot);
     }
