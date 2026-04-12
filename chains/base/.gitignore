@@ -1,0 +1,19 @@
+# Foundry
+out/
+cache/
+foundry.lock
+
+# Dependencies
+lib/
+
+# Private keys
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
