@@ -2,12 +2,12 @@
   "chainId": 84532,
   "network": "base-sepolia",
   "deployer": "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c",
-  "timestamp": 1776034526,
+  "timestamp": 1776035200,
   "contracts": {
-    "DepositVerifier": "0x20Ac5c909E68DA414204309f077c25B70F3eD441",
-    "WithdrawVerifier": "0x86CD177aCEc02cAF9cC27874bb0AC6Bb90FA61b6",
-    "MerkleBatchVerifier": "0x0eb44c154DF83876fB44042e822e3373Fbf57d95",
-    "AssetRegistry": "0x66c1741f1f85f7Bb04286B7a26E870a8D3e52Eee",
-    "WhiteProtocol": "0x0Bb7ED4A34558A44FDc8bCC7c9560948a082bc9E"
+    "DepositVerifier": "0x478A0d3214d95eCbEE2a9Ec0ec54365b7628F8c9",
+    "WithdrawVerifier": "0x5813d68a130C451420C670F5aA4a7D68F438101A",
+    "MerkleBatchVerifier": "0x7814604B3C3ecc7eBd7E61391353f609FDB47637",
+    "AssetRegistry": "0x919120F5494d1A2c218aC6F9E1aD2bB5B306bbCA",
+    "WhiteProtocol": "0xD8DFDC6AF3Eb48be8b5534E0bC5E77E6E25BE634"
   }
 }
