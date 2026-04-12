@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Relayer API Extensions
+ * The White Protocol Relayer API Extensions
  * 
  * Handles ALL heavy cryptographic operations server-side:
  * - Proof generation (deposit, withdraw)
@@ -240,10 +240,10 @@ function hexToBytes(hex: string): Uint8Array {
 
 /**
  * Compute asset ID from mint address
- * Matches on-chain: 0x00 || keccak256("psol:asset_id:v1" || mint)[0..31]
+ * Matches on-chain: 0x00 || keccak256("white:asset_id:v1" || mint)[0..31]
  */
 function computeAssetId(mint: PublicKey): Uint8Array {
-  const prefix = new TextEncoder().encode('psol:asset_id:v1');
+  const prefix = new TextEncoder().encode('white:asset_id:v1');
   const mintBytes = mint.toBytes();
   const combined = new Uint8Array(prefix.length + mintBytes.length);
   combined.set(prefix);

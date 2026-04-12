@@ -1,10 +1,10 @@
 {
-  "address": "BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb",
+  "address": "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW",
   "metadata": {
     "name": "white_protocol",
     "version": "2.0.0",
     "spec": "0.1.0",
-    "description": "Multi-Asset Shielded Pool (MASP) on Solana"
+    "description": "The White Protocol - Multi-Asset Shielded Pool (MASP) on Solana"
   },
   "instructions": [
     {
@@ -36,6 +36,82 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "add_yield_mint",
+      "docs": [
+        "Add a yield mint to the registry"
+      ],
+      "discriminator": [
+        239,
+        123,
+        187,
+        105,
+        70,
+        128,
+        203,
+        40
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Pool authority - must be signer"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_config",
+            "yield_registry"
+          ]
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool config - validated via has_one (no PDA seeds constraint)"
+          ]
+        },
+        {
+          "name": "yield_registry",
+          "docs": [
+            "Yield registry - PDA derived from pool_config"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  105,
+                  101,
+                  108,
+                  100,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "mint",
+          "type": "pubkey"
+        }
+      ]
     },
     {
       "name": "append_vk_ic_v2",
@@ -157,16 +233,7 @@
                   100,
                   105,
                   110,
-                  103,
-                  95,
-                  100,
-                  101,
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  115
+                  103
                 ]
               },
               {
@@ -211,6 +278,48 @@
           "name": "pool_config",
           "docs": [
             "Pool configuration account"
+          ],
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "clear_pending_buffer",
+      "docs": [
+        "Admin: Clear pending deposits buffer (emergency/testing)"
+      ],
+      "discriminator": [
+        199,
+        92,
+        137,
+        6,
+        200,
+        149,
+        202,
+        57
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Pool authority (must be signer)"
+          ],
+          "signer": true,
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool configuration account"
+          ]
+        },
+        {
+          "name": "pending_buffer",
+          "docs": [
+            "Pending deposits buffer"
           ],
           "writable": true
         }
@@ -413,16 +522,7 @@
                   100,
                   105,
                   110,
-                  103,
-                  95,
-                  100,
-                  101,
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  115
+                  103
                 ]
               },
               {
@@ -447,10 +547,7 @@
                   97,
                   117,
                   108,
-                  116,
-                  95,
-                  118,
-                  50
+                  116
                 ]
               },
               {
@@ -564,6 +661,90 @@
       ]
     },
     {
+      "name": "disable_feature",
+      "docs": [
+        "Disable a feature flag (authority only)"
+      ],
+      "discriminator": [
+        21,
+        61,
+        213,
+        231,
+        40,
+        37,
+        10,
+        211
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Pool authority - must be signer"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool config - validated via has_one (no PDA seeds constraint)"
+          ],
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "feature",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "enable_feature",
+      "docs": [
+        "Enable a feature flag (authority only)"
+      ],
+      "discriminator": [
+        27,
+        23,
+        206,
+        255,
+        190,
+        19,
+        231,
+        92
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Pool authority - must be signer"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool config - validated via has_one (no PDA seeds constraint)"
+          ],
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "feature",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "finalize_vk_v2",
       "docs": [
         "Finalize VK after all IC points uploaded (chunked upload step 3)"
@@ -619,6 +800,82 @@
       ]
     },
     {
+      "name": "init_yield_registry",
+      "docs": [
+        "Initialize Yield Registry"
+      ],
+      "discriminator": [
+        55,
+        132,
+        32,
+        62,
+        72,
+        239,
+        162,
+        11
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Pool authority - must be signer"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool config - validated via has_one (no PDA seeds constraint)",
+            "This supports both PDA and keypair-based pool configs"
+          ]
+        },
+        {
+          "name": "yield_registry",
+          "docs": [
+            "Yield registry - PDA derived from pool_config key",
+            "Ensures one registry per pool, regardless of pool_config type"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  105,
+                  101,
+                  108,
+                  100,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "initialize_pending_deposits_buffer",
       "discriminator": [
         84,
@@ -646,13 +903,16 @@
               {
                 "kind": "const",
                 "value": [
+                  119,
+                  104,
+                  105,
+                  116,
+                  101,
+                  95,
                   112,
                   111,
                   111,
-                  108,
-                  95,
-                  118,
-                  50
+                  108
                 ]
               },
               {
@@ -676,16 +936,7 @@
                   100,
                   105,
                   110,
-                  103,
-                  95,
-                  100,
-                  101,
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  115
+                  103
                 ]
               },
               {
@@ -731,13 +982,16 @@
               {
                 "kind": "const",
                 "value": [
+                  119,
+                  104,
+                  105,
+                  116,
+                  101,
+                  95,
                   112,
                   111,
                   111,
-                  108,
-                  95,
-                  118,
-                  50
+                  108
                 ]
               },
               {
@@ -840,13 +1094,16 @@
               {
                 "kind": "const",
                 "value": [
+                  119,
+                  104,
+                  105,
+                  116,
+                  101,
+                  95,
                   112,
                   111,
                   111,
-                  108,
-                  95,
-                  118,
-                  50
+                  108
                 ]
               },
               {
@@ -874,10 +1131,7 @@
                   116,
                   114,
                   101,
-                  101,
-                  95,
-                  118,
-                  50
+                  101
                 ]
               },
               {
@@ -1187,10 +1441,7 @@
                   97,
                   117,
                   108,
-                  116,
-                  95,
-                  118,
-                  50
+                  116
                 ]
               },
               {
@@ -1348,6 +1599,124 @@
           "type": "string"
         }
       ]
+    },
+    {
+      "name": "remove_yield_mint",
+      "docs": [
+        "Remove a yield mint from the registry"
+      ],
+      "discriminator": [
+        208,
+        202,
+        42,
+        147,
+        172,
+        51,
+        40,
+        209
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Pool authority - must be signer"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_config",
+            "yield_registry"
+          ]
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool config - validated via has_one (no PDA seeds constraint)"
+          ]
+        },
+        {
+          "name": "yield_registry",
+          "docs": [
+            "Yield registry - PDA derived from pool_config"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  105,
+                  101,
+                  108,
+                  100,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "mint",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "reset_merkle_tree",
+      "docs": [
+        "Admin: Reset merkle tree to empty state"
+      ],
+      "discriminator": [
+        138,
+        166,
+        56,
+        28,
+        159,
+        55,
+        205,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Pool authority (must be signer)"
+          ],
+          "signer": true,
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool configuration account"
+          ]
+        },
+        {
+          "name": "merkle_tree",
+          "docs": [
+            "Merkle tree account"
+          ],
+          "writable": true
+        }
+      ],
+      "args": []
     },
     {
       "name": "set_verification_key_v2",
@@ -1522,16 +1891,7 @@
                   100,
                   105,
                   110,
-                  103,
-                  95,
-                  100,
-                  101,
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  115
+                  103
                 ]
               },
               {
@@ -1808,10 +2168,7 @@
                   97,
                   117,
                   108,
-                  116,
-                  95,
-                  118,
-                  50
+                  116
                 ]
               },
               {
@@ -1868,10 +2225,7 @@
                   102,
                   105,
                   101,
-                  114,
-                  95,
-                  118,
-                  50
+                  114
                 ]
               },
               {
@@ -1898,6 +2252,13 @@
           "name": "relayer_node",
           "docs": [
             "Relayer node (optional, for registered relayers)"
+          ],
+          "optional": true
+        },
+        {
+          "name": "yield_registry",
+          "docs": [
+            "Optional: Yield registry (for yield asset enforcement)"
           ],
           "optional": true
         },
@@ -1961,6 +2322,619 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "withdraw_v2",
+      "docs": [
+        "Withdraw V2 (join-split with change output)"
+      ],
+      "discriminator": [
+        242,
+        80,
+        163,
+        0,
+        196,
+        221,
+        194,
+        194
+      ],
+      "accounts": [
+        {
+          "name": "relayer",
+          "docs": [
+            "Relayer submitting the transaction (pays gas, receives fee)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool configuration account"
+          ],
+          "writable": true
+        },
+        {
+          "name": "merkle_tree",
+          "docs": [
+            "Merkle tree account"
+          ],
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "vk_account",
+          "docs": [
+            "Verification key for withdraw v2 proofs"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  107,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  95,
+                  118,
+                  50
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_vault",
+          "docs": [
+            "Asset vault account"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "asset_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_token_account",
+          "docs": [
+            "Vault's token account (source)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "recipient_token_account",
+          "docs": [
+            "Recipient's token account (destination)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "relayer_token_account",
+          "docs": [
+            "Relayer's token account for fee"
+          ],
+          "writable": true
+        },
+        {
+          "name": "spent_nullifier_0",
+          "docs": [
+            "Primary spent nullifier account (PDA, created on first use)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  117,
+                  108,
+                  108,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "nullifier_hash_0"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spent_nullifier_1",
+          "docs": [
+            "Secondary spent nullifier account (optional, for 2-input join-split)",
+            "If nullifier_hash_1 is all zeros, this account should not be provided"
+          ],
+          "optional": true
+        },
+        {
+          "name": "pending_buffer",
+          "docs": [
+            "Pending deposits buffer (for change commitment)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "relayer_registry",
+          "docs": [
+            "Relayer registry"
+          ],
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "relayer_node",
+          "docs": [
+            "Relayer node (optional, for registered relayers)"
+          ],
+          "optional": true
+        },
+        {
+          "name": "yield_registry",
+          "docs": [
+            "Optional: Yield registry (for yield asset enforcement)"
+          ],
+          "optional": true
+        },
+        {
+          "name": "token_program",
+          "docs": [
+            "Token program"
+          ],
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "proof_data",
+          "type": "bytes"
+        },
+        {
+          "name": "merkle_root",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "asset_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nullifier_hash_0",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nullifier_hash_1",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "change_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "relayer_fee",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_yield_v2",
+      "docs": [
+        "Withdraw Yield V2 - Yield Mode with 5% performance fee",
+        "",
+        "Gated by yield_relayer signer for fee enforcement on positive yield"
+      ],
+      "discriminator": [
+        16,
+        56,
+        60,
+        122,
+        78,
+        153,
+        31,
+        147
+      ],
+      "accounts": [
+        {
+          "name": "relayer",
+          "docs": [
+            "Yield relayer (must match pool_config.yield_relayer)",
+            "SECURITY: This enforces that only the authorized yield relayer",
+            "can sign yield withdrawals, enabling off-chain fee validation"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool configuration account"
+          ],
+          "writable": true
+        },
+        {
+          "name": "merkle_tree",
+          "docs": [
+            "Merkle tree account"
+          ],
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "vk_account",
+          "docs": [
+            "Verification key for withdraw v2 proofs"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  107,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119,
+                  95,
+                  118,
+                  50
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_vault",
+          "docs": [
+            "Asset vault account"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "asset_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_token_account",
+          "docs": [
+            "Vault's token account (source)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "recipient_token_account",
+          "docs": [
+            "Recipient's token account (destination)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "relayer_token_account",
+          "docs": [
+            "Relayer's token account for fee (5% of positive yield)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "spent_nullifier_0",
+          "docs": [
+            "Primary spent nullifier account (PDA, created on first use)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  117,
+                  108,
+                  108,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "nullifier_hash_0"
+              }
+            ]
+          }
+        },
+        {
+          "name": "spent_nullifier_1",
+          "docs": [
+            "Secondary spent nullifier account (optional, for 2-input join-split)"
+          ],
+          "optional": true
+        },
+        {
+          "name": "pending_buffer",
+          "docs": [
+            "Pending deposits buffer (for change commitment)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "relayer_registry",
+          "docs": [
+            "Relayer registry"
+          ],
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "relayer_node",
+          "docs": [
+            "Relayer node (optional, for registered relayers)"
+          ],
+          "optional": true
+        },
+        {
+          "name": "yield_registry",
+          "docs": [
+            "Token program",
+            "Yield registry (validates yield assets)"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  105,
+                  101,
+                  108,
+                  100,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "proof_data",
+          "type": "bytes"
+        },
+        {
+          "name": "merkle_root",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "asset_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nullifier_hash_0",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nullifier_hash_1",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "change_commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "relayer_fee",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -1991,16 +2965,16 @@
       ]
     },
     {
-      "name": "MerkleTreeV2",
+      "name": "MerkleTree",
       "discriminator": [
-        138,
-        243,
-        121,
-        184,
-        102,
-        214,
-        62,
-        219
+        98,
+        51,
+        51,
+        226,
+        162,
+        20,
+        73,
+        212
       ]
     },
     {
@@ -2017,16 +2991,16 @@
       ]
     },
     {
-      "name": "PoolConfigV2",
+      "name": "PoolConfig",
       "discriminator": [
-        42,
-        195,
-        155,
-        132,
-        162,
-        222,
-        248,
-        31
+        26,
+        108,
+        14,
+        123,
+        116,
+        230,
+        129,
+        43
       ]
     },
     {
@@ -2056,29 +3030,42 @@
       ]
     },
     {
-      "name": "SpentNullifierV2",
+      "name": "SpentNullifier",
       "discriminator": [
-        228,
-        18,
-        237,
-        175,
-        191,
-        111,
-        143,
-        95
+        94,
+        64,
+        139,
+        83,
+        22,
+        85,
+        218,
+        195
       ]
     },
     {
-      "name": "VerificationKeyAccountV2",
+      "name": "VerificationKeyAccount",
       "discriminator": [
-        87,
-        205,
+        67,
+        6,
+        141,
+        237,
+        93,
+        54,
+        220,
+        214
+      ]
+    },
+    {
+      "name": "YieldRegistry",
+      "discriminator": [
+        100,
+        1,
+        250,
         68,
-        134,
-        131,
-        213,
-        19,
-        12
+        182,
+        52,
+        102,
+        242
       ]
     }
   ],
@@ -2185,6 +3172,19 @@
         14,
         115,
         137
+      ]
+    },
+    {
+      "name": "CommitmentInsertedEvent",
+      "discriminator": [
+        179,
+        170,
+        242,
+        27,
+        255,
+        10,
+        39,
+        199
       ]
     },
     {
@@ -2380,6 +3380,19 @@
         54,
         221,
         181
+      ]
+    },
+    {
+      "name": "WithdrawV2Event",
+      "discriminator": [
+        175,
+        151,
+        14,
+        166,
+        147,
+        56,
+        196,
+        124
       ]
     }
   ],
@@ -2631,193 +3644,238 @@
     },
     {
       "code": 6049,
+      "name": "MissingAccount",
+      "msg": "Required account is missing"
+    },
+    {
+      "code": 6050,
       "name": "RelayerMismatch",
       "msg": "Relayer token account owner does not match relayer signer"
     },
     {
-      "code": 6050,
+      "code": 6051,
       "name": "InvalidTokenOwner",
       "msg": "Invalid token owner"
     },
     {
-      "code": 6051,
+      "code": 6052,
       "name": "RelayerNotRegistered",
       "msg": "Relayer not registered"
     },
     {
-      "code": 6052,
+      "code": 6053,
       "name": "RelayerNotActive",
       "msg": "Relayer not active"
     },
     {
-      "code": 6053,
+      "code": 6054,
       "name": "RelayerFeeOutOfRange",
       "msg": "Relayer fee out of allowed range"
     },
     {
-      "code": 6054,
+      "code": 6055,
       "name": "RelayerFeeOverflow",
       "msg": "Relayer fee calculation overflow - fee is unreasonably large"
     },
     {
-      "code": 6055,
+      "code": 6056,
       "name": "InvalidFeeConfiguration",
       "msg": "Invalid fee configuration"
     },
     {
-      "code": 6056,
+      "code": 6057,
       "name": "RegistrationsClosed",
       "msg": "Relayer registrations are closed"
     },
     {
-      "code": 6057,
+      "code": 6058,
       "name": "InsufficientStake",
       "msg": "Insufficient relayer stake"
     },
     {
-      "code": 6058,
+      "code": 6059,
       "name": "InvalidRelayerNodePda",
       "msg": "Invalid RelayerNode PDA: derivation does not match expected seeds"
     },
     {
-      "code": 6059,
+      "code": 6060,
       "name": "RelayerNodeRegistryMismatch",
       "msg": "RelayerNode registry mismatch: node does not belong to expected registry"
     },
     {
-      "code": 6060,
+      "code": 6061,
       "name": "PoolPaused",
       "msg": "Pool is paused"
     },
     {
-      "code": 6061,
+      "code": 6062,
       "name": "PoolNotPaused",
       "msg": "Pool is not paused"
     },
     {
-      "code": 6062,
+      "code": 6063,
       "name": "PoolInactive",
       "msg": "Pool is not active"
     },
     {
-      "code": 6063,
+      "code": 6064,
       "name": "AlreadyInitialized",
       "msg": "Account already initialized"
     },
     {
-      "code": 6064,
+      "code": 6065,
       "name": "CorruptedData",
       "msg": "Account data corrupted"
     },
     {
-      "code": 6065,
+      "code": 6066,
       "name": "InvalidMetadata",
       "msg": "Invalid metadata format or content"
     },
     {
-      "code": 6066,
+      "code": 6067,
       "name": "InvalidInput",
       "msg": "Invalid input parameter"
     },
     {
-      "code": 6067,
+      "code": 6068,
       "name": "LimitExceeded",
       "msg": "Operation exceeds safe limits"
     },
     {
-      "code": 6068,
+      "code": 6069,
       "name": "InvalidTimestamp",
       "msg": "Invalid timestamp"
     },
     {
-      "code": 6069,
+      "code": 6070,
       "name": "BufferFull",
       "msg": "Pending deposits buffer is full"
     },
     {
-      "code": 6070,
+      "code": 6071,
       "name": "NoPendingDeposits",
       "msg": "No pending deposits to process"
     },
     {
-      "code": 6071,
+      "code": 6072,
       "name": "BatchNotReady",
       "msg": "Batch not ready for processing - timing constraints not met"
     },
     {
-      "code": 6072,
+      "code": 6073,
       "name": "InvalidBatchSize",
       "msg": "Invalid batch size - must be between 1 and MAX_BATCH_SIZE"
     },
     {
-      "code": 6073,
+      "code": 6074,
       "name": "FeatureDisabled",
       "msg": "Feature not enabled for this pool"
     },
     {
-      "code": 6074,
+      "code": 6075,
       "name": "NotImplemented",
       "msg": "Feature not implemented in this version"
     },
     {
-      "code": 6075,
+      "code": 6076,
       "name": "JoinSplitDisabled",
       "msg": "Join-split not enabled"
     },
     {
-      "code": 6076,
+      "code": 6077,
       "name": "MembershipProofsDisabled",
       "msg": "Membership proofs not enabled"
     },
     {
-      "code": 6077,
+      "code": 6078,
       "name": "ShieldedCpiDisabled",
       "msg": "Shielded CPI not enabled"
     },
     {
-      "code": 6078,
+      "code": 6079,
       "name": "EncryptedNoteRequired",
       "msg": "Encrypted note required for this pool"
     },
     {
-      "code": 6079,
+      "code": 6080,
       "name": "InvalidEncryptedNote",
       "msg": "Invalid encrypted note format"
     },
     {
-      "code": 6080,
+      "code": 6081,
       "name": "MetadataAlreadyAttached",
       "msg": "Audit metadata already attached"
     },
     {
-      "code": 6081,
+      "code": 6082,
       "name": "InputTooLarge",
       "msg": "Input exceeds maximum allowed length"
     },
     {
-      "code": 6082,
+      "code": 6083,
       "name": "InvalidOwner",
       "msg": "Invalid account owner"
     },
     {
-      "code": 6083,
+      "code": 6084,
       "name": "InvalidDiscriminator",
       "msg": "Invalid account discriminator"
     },
     {
-      "code": 6084,
+      "code": 6085,
       "name": "UnsupportedShieldedAction",
       "msg": "Shielded action not supported"
     },
     {
-      "code": 6085,
+      "code": 6086,
       "name": "CpiCallFailed",
       "msg": "CPI call failed"
     },
     {
-      "code": 6086,
+      "code": 6087,
       "name": "InvalidActionData",
       "msg": "Invalid action data"
+    },
+    {
+      "code": 6088,
+      "name": "YieldAssetRequiresYieldExit",
+      "msg": "Yield asset must use withdraw_yield_v2 instruction"
+    },
+    {
+      "code": 6089,
+      "name": "YieldMintsExceeded",
+      "msg": "Maximum yield mints exceeded"
+    },
+    {
+      "code": 6090,
+      "name": "YieldMintAlreadyExists",
+      "msg": "Yield mint already exists in registry"
+    },
+    {
+      "code": 6091,
+      "name": "YieldMintNotFound",
+      "msg": "Yield mint not found in registry"
+    },
+    {
+      "code": 6092,
+      "name": "NonYieldAssetCannotUseYieldExit",
+      "msg": "Non-yield asset cannot use yield exit"
+    },
+    {
+      "code": 6093,
+      "name": "YieldRegistryRequired",
+      "msg": "Yield registry required when yield enforcement is enabled"
+    },
+    {
+      "code": 6094,
+      "name": "InvalidFeatureFlag",
+      "msg": "Invalid feature flag"
+    },
+    {
+      "code": 6095,
+      "name": "CannotDisableCoreFeature",
+      "msg": "Cannot disable core feature"
     }
   ],
   "types": [
@@ -2896,7 +3954,7 @@
       "docs": [
         "Asset vault account - one per registered asset",
         "",
-        "PDA Seeds: `[b\"vault_v2\", pool.key().as_ref(), asset_id.as_ref()]`"
+        "PDA Seeds: `[b\"vault\", pool.key().as_ref(), asset_id.as_ref()]`"
       ],
       "type": {
         "kind": "struct",
@@ -3249,6 +4307,82 @@
       }
     },
     {
+      "name": "CommitmentInsertedEvent",
+      "docs": [
+        "Emitted for EACH commitment inserted during batch settlement.",
+        "",
+        "# Recovery Purpose",
+        "",
+        "This event enables deterministic sequencer state recovery:",
+        "1. Query all CommitmentInsertedEvent logs for the pool",
+        "2. Sort by leaf_index",
+        "3. Rebuild Merkle tree by inserting commitments in order",
+        "4. Verify rebuilt root matches on-chain current_root",
+        "",
+        "# Why Per-Commitment Events?",
+        "",
+        "BatchSettledEvent only contains the commitments_hash (SHA256 of all commitments),",
+        "which is insufficient to rebuild tree state. This per-commitment event provides",
+        "the actual commitment values needed for reconstruction.",
+        "",
+        "# Fields",
+        "",
+        "- `commitment` - The actual commitment bytes (needed to rebuild tree)",
+        "- `leaf_index` - Position in tree (needed for ordering)",
+        "- `merkle_root` - Root after batch (same for all in batch, for verification)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "docs": [
+              "Pool this commitment belongs to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "commitment",
+            "docs": [
+              "The commitment hash (Poseidon(secret, nullifier, amount, asset))"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "leaf_index",
+            "docs": [
+              "Leaf index where this commitment was inserted"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "merkle_root",
+            "docs": [
+              "Merkle root after the batch containing this commitment"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "Unix timestamp when inserted"
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "ComplianceConfig",
       "docs": [
         "Compliance Configuration account",
@@ -3472,7 +4606,7 @@
         "",
         "This event reveals:",
         "- Number of inputs/outputs (structural, unavoidable)",
-        "- Nullifiers (already public via SpentNullifierV2)",
+        "- Nullifiers (already public via SpentNullifier)",
         "- Output commitments (needed for recipients)",
         "- Public amount delta (if any external transfer)",
         "",
@@ -3662,11 +4796,11 @@
       }
     },
     {
-      "name": "MerkleTreeV2",
+      "name": "MerkleTree",
       "docs": [
         "Incremental Merkle tree state account for MASP v2",
         "",
-        "PDA Seeds: `[b\"merkle_tree_v2\", pool_config.key().as_ref()]`"
+        "PDA Seeds: `[b\"merkle_tree\", pool_config.key().as_ref()]`"
       ],
       "type": {
         "kind": "struct",
@@ -3839,7 +4973,7 @@
       "docs": [
         "Pending Deposits Buffer Account",
         "",
-        "PDA Seeds: `[b\"pending_deposits\", pool.key().as_ref()]`"
+        "PDA Seeds: `[b\"pending\", pool.key().as_ref()]`"
       ],
       "type": {
         "kind": "struct",
@@ -3913,7 +5047,7 @@
       }
     },
     {
-      "name": "PoolConfigV2",
+      "name": "PoolConfig",
       "type": {
         "kind": "struct",
         "fields": [
@@ -3935,6 +5069,13 @@
           },
           {
             "name": "compliance_config",
+            "type": "pubkey"
+          },
+          {
+            "name": "yield_relayer",
+            "docs": [
+              "Yield Mode: relayer that can sign yield withdrawals (5% fee enforcement)"
+            ],
             "type": "pubkey"
           },
           {
@@ -3964,6 +5105,13 @@
           {
             "name": "vk_locked",
             "type": "u8"
+          },
+          {
+            "name": "yield_fee_bps",
+            "docs": [
+              "Yield Mode: performance fee in basis points (500 = 5%)"
+            ],
+            "type": "u16"
           },
           {
             "name": "total_deposits",
@@ -4002,7 +5150,7 @@
             "type": {
               "array": [
                 "u8",
-                64
+                30
               ]
             }
           }
@@ -4104,6 +5252,9 @@
           },
           {
             "name": "MerkleBatchUpdate"
+          },
+          {
+            "name": "WithdrawV2"
           }
         ]
       }
@@ -4491,9 +5642,6 @@
           },
           {
             "name": "batch_size",
-            "docs": [
-              "Number of deposits to process (1 to MAX_BATCH_SIZE)"
-            ],
             "type": "u16"
           }
         ]
@@ -4546,11 +5694,11 @@
       }
     },
     {
-      "name": "SpentNullifierV2",
+      "name": "SpentNullifier",
       "docs": [
-        "Spent nullifier marker account - White Protocol v2",
+        "Spent nullifier marker account - The White Protocol v2",
         "",
-        "PDA Seeds: `[b\"nullifier_v2\", pool.key().as_ref(), nullifier_hash.as_ref()]`"
+        "PDA Seeds: `[b\"nullifier\", pool.key().as_ref(), nullifier_hash.as_ref()]`"
       ],
       "type": {
         "kind": "struct",
@@ -4625,7 +5773,7 @@
       }
     },
     {
-      "name": "VerificationKeyAccountV2",
+      "name": "VerificationKeyAccount",
       "type": {
         "kind": "struct",
         "fields": [
@@ -4803,7 +5951,7 @@
         "",
         "# Included Fields",
         "",
-        "- `nullifier_hash` - Already public via SpentNullifierV2 PDA",
+        "- `nullifier_hash` - Already public via SpentNullifier PDA",
         "- `asset_id` - Asset type (common knowledge)",
         "- `relayer` / `relayer_fee` - Needed for relayer accounting",
         "",
@@ -4824,7 +5972,7 @@
           {
             "name": "nullifier_hash",
             "docs": [
-              "Spent nullifier (already public via SpentNullifierV2 account)"
+              "Spent nullifier (already public via SpentNullifier account)"
             ],
             "type": {
               "array": [
@@ -4865,6 +6013,166 @@
               "Event timestamp"
             ],
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WithdrawV2Event",
+      "docs": [
+        "Withdrawal V2 event (join-split with change)",
+        "",
+        "Privacy considerations:",
+        "- Does NOT include recipient or amounts (prevents correlation)",
+        "- Includes change_commitment for sequencer indexing",
+        "- Nullifier hashes are public (spent nullifier tracking)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "docs": [
+              "Pool this withdrawal belongs to"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "asset_id",
+            "docs": [
+              "Asset identifier"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "nullifier_hash_0",
+            "docs": [
+              "Primary spent nullifier"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "nullifier_hash_1",
+            "docs": [
+              "Secondary spent nullifier (0 if unused)"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "change_commitment",
+            "docs": [
+              "Change commitment (for sequencer indexing)"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "merkle_root",
+            "docs": [
+              "Merkle root used for proof"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "Event timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "slot",
+            "docs": [
+              "Slot number"
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "YieldRegistry",
+      "docs": [
+        "Registry of LST mints requiring yield-gated withdrawals"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool_config",
+            "docs": [
+              "Parent pool configuration"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "docs": [
+              "Authority that can modify yield mints"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "mints",
+            "docs": [
+              "LST mints requiring yield exit (JitoSOL, mSOL, etc.)"
+            ],
+            "type": {
+              "array": [
+                "pubkey",
+                8
+              ]
+            }
+          },
+          {
+            "name": "mint_count",
+            "docs": [
+              "Number of active yield mints"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "docs": [
+              "Reserved for future use"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }

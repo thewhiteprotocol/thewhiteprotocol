@@ -1,7 +1,7 @@
 # 🎉 STAGE A: E2E WITHDRAW FLOW - COMPLETE! 🎉
 
 ## Summary
-Successfully completed the full deposit → settle → withdraw flow for pSOL v2 on Solana devnet.
+Successfully completed the full deposit → settle → withdraw flow for The White Protocol on Solana devnet.
 
 ## Transactions
 1. **Deposit**: `4RvRzshgZwLDiTC1BY5JS5epqe6v7sqHoNKUSumcGDsBcjZ1d1S33J1jkzqHLWNZqcqVFkeLjksaJqwJY3iGCPY`

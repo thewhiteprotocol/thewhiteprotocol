@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Relayer Service
+ * The White Protocol Relayer Service
  *
  * HTTP service that relays withdrawal transactions for users.
  * Users submit proofs to the relayer, which submits them on-chain
@@ -7,6 +7,7 @@
  *
  * @module relayer
  */
+import "dotenv/config";
 import { Keypair, PublicKey } from '@solana/web3.js';
 /** Configuration interface */
 interface RelayerConfig {
@@ -14,7 +15,7 @@ interface RelayerConfig {
     rpcEndpoint: string;
     /** Relayer wallet keypair */
     walletKeypair: Keypair;
-    /** pSOL program ID */
+    /** The White Protocol program ID */
     programId: PublicKey;
     /** Pool configuration account */
     poolConfig: PublicKey;
@@ -28,6 +29,10 @@ interface RelayerConfig {
     port: number;
     /** Path to withdraw verification key JSON (snarkjs vkey) */
     withdrawVkPath: string;
+    /** Path to circuits build directory */
+    circuitsPath: string;
+    /** Merkle tree depth */
+    treeDepth: number;
 }
 /** Withdrawal request interface */
 interface WithdrawRequest {
@@ -63,7 +68,7 @@ interface RelayerStatus {
     proofVerificationEnabled: boolean;
 }
 /**
- * pSOL v2 Relayer Service
+ * The White Protocol Relayer Service
  */
 export declare class RelayerService {
     private config;
@@ -140,7 +145,7 @@ export declare class RelayerService {
     /**
      * Start the relayer service
      */
-    start(): void;
+    start(): Promise<void>;
 }
 /**
  * Create a new relayer service instance

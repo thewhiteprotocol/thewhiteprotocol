@@ -129,7 +129,7 @@ Performance fees apply only to positive yield, not to the original deposit amoun
 
 The White Protocol relayer API is publicly available for integration with privacy-preserving applications on Solana.
 
-**Base URL:** `https://api.psolprotocol.org`
+**Base URL:** `https://api.thewhiteprotocol.org`
 
 ### Health Check
 
@@ -142,7 +142,7 @@ Returns the current status of the relayer service, including RPC latency and pro
 **Example request:**
 
 ```bash
-curl https://api.psolprotocol.org/health
+curl https://api.thewhiteprotocol.org/health
 ```
 
 **Example response:**
@@ -206,12 +206,12 @@ export ANCHOR_WALLET="$HOME/.config/solana/id.json"
 ### Tests
 
 ```bash
-cargo test -p psol-privacy-v2
+cargo test -p white-protocol
 ```
 
 ## Live Demo
 
-**Frontend:** [White Protocol](https://psol-frontend.replit.app) (or your deployed URL)
+**Frontend:** [White Protocol](https://app.thewhiteprotocol.org) (or your deployed URL)
 
 **Explorer:** [View Program on Solana Explorer](https://explorer.solana.com/address/BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb?cluster=devnet)
 

@@ -1058,6 +1058,11 @@
   resolved "https://registry.npmjs.org/@noble/hashes/-/hashes-1.8.0.tgz"
   integrity sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==
 
+"@noble/hashes@^1.7.1":
+  version "1.8.0"
+  resolved "https://registry.npmjs.org/@noble/hashes/-/hashes-1.8.0.tgz"
+  integrity sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==
+
 "@noble/hashes@^2.0.1":
   version "2.0.1"
   resolved "https://registry.npmjs.org/@noble/hashes/-/hashes-2.0.1.tgz"
@@ -1526,7 +1531,7 @@
   dependencies:
     "@types/yargs-parser" "*"
 
-"@whiteprotocol/relayer@file:/workspaces/psol-v2/relayer":
+"@whiteprotocol/relayer@file:/workspaces/thewhiteprotocol/relayer":
   version "2.0.0"
   resolved "file:relayer"
   dependencies:
@@ -1543,7 +1548,7 @@
     helmet "^7.1.0"
     snarkjs "^0.7.3"
 
-"@whiteprotocol/sdk@file:/workspaces/psol-v2/sdk":
+"@whiteprotocol/sdk@file:/workspaces/thewhiteprotocol/sdk":
   version "2.0.0"
   resolved "file:sdk"
   dependencies:
@@ -2054,6 +2059,11 @@ circom_runtime@0.1.28:
   integrity sha512-ACagpQ7zBRLKDl5xRZ4KpmYIcZDUjOiNRuxvXLqhnnlLSVY1Dbvh73TI853nqoR0oEbihtWmMSjgc5f+pXf/jQ==
   dependencies:
     ffjavascript "0.3.1"
+
+circomlib@^2.0.5:
+  version "2.0.5"
+  resolved "https://registry.npmjs.org/circomlib/-/circomlib-2.0.5.tgz"
+  integrity sha512-O7NQ8OS+J4eshBuoy36z/TwQU0YHw8W3zxZcs4hVwpEll3e4hDm3mgkIPqItN8FDeLEKZFK3YeT/+k8TiLF3/A==
 
 circomlibjs@^0.1.7:
   version "0.1.7"
@@ -3546,11 +3556,6 @@ joycon@^3.1.1:
   resolved "https://registry.npmjs.org/joycon/-/joycon-3.1.1.tgz"
   integrity sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==
 
-js-sha3@^0.8.0:
-  version "0.8.0"
-  resolved "https://registry.npmjs.org/js-sha3/-/js-sha3-0.8.0.tgz"
-  integrity sha512-gF1cRrHhIzNfToc802P800N8PpXS+evLLXfsVpowqmAFR9uwbi89WvXg2QspOmXL8QL86J4T1EpFu+yUkwJY3Q==
-
 js-sha3@^0.9.3:
   version "0.9.3"
   resolved "https://registry.npmjs.org/js-sha3/-/js-sha3-0.9.3.tgz"
@@ -4457,19 +4462,18 @@ snake-case@^3.0.4:
     dot-case "^3.0.4"
     tslib "^2.0.3"
 
-snarkjs@^0.7.3:
-  version "0.7.5"
-  resolved "https://registry.npmjs.org/snarkjs/-/snarkjs-0.7.5.tgz"
-  integrity sha512-h+3c4rXZKLhLuHk4LHydZCk/h5GcNvk5GjVKRRkHmfb6Ntf8gHOA9zea3g656iclRuhqQ3iKDWFgiD9ypLrKiA==
+snarkjs@^0.7.3, snarkjs@^0.7.6:
+  version "0.7.6"
+  resolved "https://registry.npmjs.org/snarkjs/-/snarkjs-0.7.6.tgz"
+  integrity sha512-4uH1xA5JzVU5jaaWS2fXej3+RC6L5Erhr6INTJtUA27du4Elbh4VXCeeRjB4QiwL6N6y7SNKePw5prTxyEf4Zg==
   dependencies:
     "@iden3/binfileutils" "0.0.12"
+    "@noble/hashes" "^1.7.1"
     bfj "^7.0.2"
-    blake2b-wasm "^2.4.0"
     circom_runtime "0.1.28"
     ejs "^3.1.6"
     fastfile "0.0.20"
     ffjavascript "0.3.1"
-    js-sha3 "^0.8.0"
     logplease "^1.2.15"
     r1csfile "0.0.48"
 

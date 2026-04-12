@@ -1,5 +1,5 @@
 /**
- * pSOL v2 Relayer Service - Extended Entry Point
+ * The White Protocol Relayer Service - Extended Entry Point
  * 
  * This file integrates:
  * - Original withdraw relayer (from relayer/src/index.ts)
@@ -458,7 +458,7 @@ class RelayerService {
 
   async start(): Promise<void> {
     console.log('========================================');
-    console.log('pSOL v2 Relayer Service Initializing...');
+    console.log('The White Protocol Relayer Service Initializing...');
     console.log('========================================');
     
     // Initialize API extensions
@@ -480,7 +480,7 @@ class RelayerService {
     // Start server
     this.app.listen(this.config.port, () => {
       console.log('========================================');
-      console.log('pSOL v2 Relayer Service Started');
+      console.log('The White Protocol Relayer Service Started');
       console.log('========================================');
       console.log(`Port: ${this.config.port}`);
       console.log(`Operator: ${this.config.walletKeypair.publicKey.toBase58()}`);
@@ -533,7 +533,7 @@ async function main(): Promise<void> {
     rpcEndpoint: process.env.RPC_ENDPOINT || 'https://api.devnet.solana.com',
     walletKeypair,
     programId: new PublicKey(
-      process.env.PROGRAM_ID || 'BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb'
+      process.env.PROGRAM_ID || 'HJmgwBBjojb2SdKPCW4DFNh2wRQzZ5mtD6ro2YocpZHj'
     ),
     poolConfig: new PublicKey(
       process.env.POOL_CONFIG || 'GZiRVMV7FjrGxjE379HiEyHyVCisHkFnjMJen95kEVEQ'

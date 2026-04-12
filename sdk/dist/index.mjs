@@ -741,7 +741,7 @@ function isValidProofLength(proofData) {
 // src/pda.ts
 import { PublicKey } from "@solana/web3.js";
 import { keccak_256 } from "@noble/hashes/sha3";
-var PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
+var PROGRAM_ID = new PublicKey("C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW");
 var POOL_SEED = Buffer.from("white_pool");
 var MERKLE_TREE_SEED = Buffer.from("merkle_tree");
 var VAULT_SEED = Buffer.from("vault");

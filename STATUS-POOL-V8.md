@@ -23,6 +23,6 @@ Generated: 2026-01-27
 - Devnet: https://api.devnet.solana.com
 
 ## Relayer/Frontend URLs
-- Relayer API: https://api.psolprotocol.org
+- Relayer API: https://api.thewhiteprotocol.org
 - Frontend (dev): https://cfef77e0-bdee-4c58-810d-8841c475704b-00-1fsaigohwyr3t.spock.replit.dev
-- Frontend (prod): https://psolprotocol.org
+- Frontend (prod): https://thewhiteprotocol.org

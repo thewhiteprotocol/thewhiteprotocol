@@ -1,4 +1,4 @@
-# pSOL v2 Relayer Configuration
+# The White Protocol Relayer Configuration
 # Copy this to .env and fill in your values
 
 # =============================================================================
@@ -28,7 +28,7 @@ RPC_ENDPOINT=https://api.devnet.solana.com
 # =============================================================================
 
 # pSOL v2 program ID (devnet)
-PROGRAM_ID=BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb
+PROGRAM_ID=HJmgwBBjojb2SdKPCW4DFNh2wRQzZ5mtD6ro2YocpZHj
 
 # Pool configuration account
 POOL_CONFIG=GZiRVMV7FjrGxjE379HiEyHyVCisHkFnjMJen95kEVEQ

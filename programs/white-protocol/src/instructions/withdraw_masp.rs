@@ -136,16 +136,16 @@ pub struct WithdrawMasp<'info> {
         ],
         bump,
     )]
-    pub spent_nullifier: Account<'info, SpentNullifier>,
+    pub spent_nullifier: Box<Account<'info, SpentNullifier>>,
 
     /// Relayer registry
     pub relayer_registry: Box<Account<'info, RelayerRegistry>>,
 
     /// Relayer node (optional, for registered relayers)
-    pub relayer_node: Option<Account<'info, RelayerNode>>,
+    pub relayer_node: Option<Box<Account<'info, RelayerNode>>>,
 
     /// Optional: Yield registry (for yield asset enforcement)
-    pub yield_registry: Option<Account<'info, YieldRegistry>>,
+    pub yield_registry: Option<Box<Account<'info, YieldRegistry>>>,
 
     /// Token program
     pub token_program: Program<'info, Token>,

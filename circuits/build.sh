@@ -17,7 +17,7 @@ compile_circuit() {
     snarkjs groth16 setup "$BUILD_DIR/${name}.r1cs" "$PTAU_FILE" "$BUILD_DIR/${name}_0000.zkey"
     
     # Contribute to ceremony (for production, use proper MPC)
-    echo "pSOL-v2-contribution" | snarkjs zkey contribute "$BUILD_DIR/${name}_0000.zkey" "$BUILD_DIR/${name}.zkey" --name="pSOL"
+    echo "white-protocol-contribution" | snarkjs zkey contribute "$BUILD_DIR/${name}_0000.zkey" "$BUILD_DIR/${name}.zkey" --name="white"
     
     # Export verification key
     snarkjs zkey export verificationkey "$BUILD_DIR/${name}.zkey" "$BUILD_DIR/${name}_vk.json"

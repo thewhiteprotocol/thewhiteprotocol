@@ -29,7 +29,7 @@
     "chai": "^6.2.2",
     "circomlibjs": "^0.1.7",
     "js-sha3": "^0.9.3",
-    "snarkjs": "^0.7.3",
+    "snarkjs": "^0.7.6",
     "ts-mocha": "^11.1.0",
     "ts-node": "^10.9.2"
   },
@@ -43,6 +43,7 @@
   "license": "MIT",
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
-    "@solana/web3.js": "^1.98.4"
+    "@solana/web3.js": "^1.98.4",
+    "circomlib": "^2.0.5"
   }
 }

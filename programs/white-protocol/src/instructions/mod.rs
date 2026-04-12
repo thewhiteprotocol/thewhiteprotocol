@@ -35,7 +35,7 @@ pub use private_transfer::PrivateTransferJoinSplit;
 pub use prove_membership::ProveMembership;
 pub use register_asset::RegisterAsset;
 pub use relayer::{ConfigureRelayerRegistry, DeactivateRelayer, RegisterRelayer, UpdateRelayer};
-pub use set_verification_key_chunked::{AppendVkIcV2, FinalizeVkV2, InitializeVkV2};
+pub use set_verification_key_chunked::{AppendVkIcV2, CloseVkV2, FinalizeVkV2, InitializeVkV2};
 pub use set_verification_key_v2::{LockVerificationKeyV2, SetVerificationKeyV2};
 pub use settle_deposits_batch::*;
 pub use shielded_cpi::ExecuteShieldedAction;

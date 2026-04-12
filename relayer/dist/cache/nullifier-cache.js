@@ -1,6 +1,6 @@
 "use strict";
 /**
- * Nullifier Cache for pSOL v2 Relayer
+ * Nullifier Cache for The White Protocol Relayer
  *
  * Simple in-memory cache for nullifiers.
  * For production, use Redis or a persistent store.

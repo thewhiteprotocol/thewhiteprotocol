@@ -5,7 +5,7 @@ import { keccak_256 } from '@noble/hashes/sha3';
 /**
  * Default program ID for The White Protocol
  */
-export const PROGRAM_ID = new PublicKey('BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb');
+export const PROGRAM_ID = new PublicKey('C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW');
 
 // ============================================================================
 // SEED CONSTANTS

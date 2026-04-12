@@ -1,13 +1,4 @@
 "use strict";
-/**
- * pSOL v2 Relayer Service
- *
- * HTTP service that relays withdrawal transactions for users.
- * Users submit proofs to the relayer, which submits them on-chain
- * and collects a fee.
- *
- * @module relayer
- */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -48,10 +39,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RelayerService = void 0;
 exports.createRelayer = createRelayer;
 exports.main = main;
+/**
+ * The White Protocol Relayer Service
+ *
+ * HTTP service that relays withdrawal transactions for users.
+ * Users submit proofs to the relayer, which submits them on-chain
+ * and collects a fee.
+ *
+ * @module relayer
+ */
+require("dotenv/config");
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const api_extensions_1 = require("./api-extensions");
 const fs = __importStar(require("fs"));
 const snarkjs = __importStar(require("snarkjs"));
 const web3_js_1 = require("@solana/web3.js");
@@ -70,7 +72,7 @@ const BASE_RETRY_DELAY_MS = 1000;
 // RELAYER SERVICE
 // =============================================================================
 /**
- * pSOL v2 Relayer Service
+ * The White Protocol Relayer Service
  */
 class RelayerService {
     constructor(config) {
@@ -587,19 +589,26 @@ class RelayerService {
     /**
      * Start the relayer service
      */
-    start() {
+    async start() {
+        // Initialize API extensions for proof generation
+        const apiExtensions = await (0, api_extensions_1.createApiExtensions)({
+            circuitsPath: this.config.circuitsPath,
+            rpcEndpoint: this.config.rpcEndpoint,
+            poolConfig: this.config.poolConfig,
+            programId: this.config.programId,
+            treeDepth: this.config.treeDepth,
+        });
+        // Mount API extensions
+        this.app.use("/api", apiExtensions.getRouter());
         this.app.listen(this.config.port, () => {
-            console.log('========================================');
-            console.log('pSOL v2 Relayer Service Started');
-            console.log('========================================');
+            console.log("========================================");
+            console.log("The White Protocol Relayer Service Started");
+            console.log("========================================");
             console.log(`Port: ${this.config.port}`);
             console.log(`Operator: ${this.config.walletKeypair.publicKey.toBase58()}`);
             console.log(`Fee: ${this.config.feeBps} bps`);
-            console.log(`Min withdrawal: ${this.config.minWithdrawalAmount}`);
-            console.log(`Max withdrawal: ${this.config.maxWithdrawalAmount}`);
-            console.log(`Proof verification: ${this.withdrawVk ? 'ENABLED' : 'DISABLED'}`);
-            console.log(`Supported assets: ${this.supportedAssets.size}`);
-            console.log('========================================');
+            console.log(`API Extensions: ENABLED`);
+            console.log("========================================");
         });
     }
 }
@@ -717,13 +726,15 @@ async function main() {
     const config = {
         rpcEndpoint: process.env.RPC_ENDPOINT || 'https://api.devnet.solana.com',
         walletKeypair: web3_js_1.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.RELAYER_KEYPAIR || '[]'))),
-        programId: new web3_js_1.PublicKey(process.env.PROGRAM_ID || 'pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'),
+        programId: new web3_js_1.PublicKey(process.env.PROGRAM_ID || 'HJmgwBBjojb2SdKPCW4DFNh2wRQzZ5mtD6ro2YocpZHj'),
         poolConfig: new web3_js_1.PublicKey(process.env.POOL_CONFIG || '11111111111111111111111111111111'),
         feeBps: parseInt(process.env.FEE_BPS || '50', 10),
         minWithdrawalAmount: BigInt(process.env.MIN_WITHDRAWAL || '1000000'),
         maxWithdrawalAmount: BigInt(process.env.MAX_WITHDRAWAL || '1000000000000'),
         port: parseInt(process.env.PORT || '3000', 10),
         withdrawVkPath: process.env.WITHDRAW_VK_PATH || './circuits/withdraw/withdraw.vkey.json',
+        circuitsPath: process.env.CIRCUITS_PATH || "../circuits/build",
+        treeDepth: parseInt(process.env.TREE_DEPTH || "20", 10),
     };
     const relayer = createRelayer(config);
     // Add supported assets if configured
@@ -733,7 +744,7 @@ async function main() {
             relayer.addSupportedAsset(asset.trim());
         }
     }
-    relayer.start();
+    await relayer.start();
 }
 // Run if executed directly
 if (require.main === module) {

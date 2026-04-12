@@ -230,3 +230,43 @@ pub fn finalize_vk_handler(ctx: Context<FinalizeVkV2>, proof_type: ProofType) ->
 
     Ok(())
 }
+
+/// Close VK account - allows authority to delete and recreate a VK
+#[derive(Accounts)]
+#[instruction(proof_type: ProofType)]
+pub struct CloseVkV2<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = authority @ WhiteProtocolError::Unauthorized,
+    )]
+    pub pool_config: Account<'info, PoolConfig>,
+
+    #[account(
+        mut,
+        seeds = [proof_type.as_seed(), pool_config.key().as_ref()],
+        bump = vk_account.bump,
+        close = authority,
+    )]
+    pub vk_account: Account<'info, VerificationKeyAccount>,
+}
+
+/// Handler for close_vk_v2 instruction
+/// Allows pool authority to close a VK account to fix mistakes or update VKs
+pub fn close_vk_handler(ctx: Context<CloseVkV2>, proof_type: ProofType) -> Result<()> {
+    let pool_config = &mut ctx.accounts.pool_config;
+
+    // Clear the VK configured flag
+    let mask = 1u8 << (proof_type as u8);
+    pool_config.vk_configured &= !mask;
+    pool_config.vk_locked &= !mask;
+
+    msg!(
+        "Closed VK for proof type {:?}",
+        proof_type
+    );
+
+    Ok(())
+}

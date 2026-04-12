@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram, ComputeBudgetProgram } from "@solana/web3.js";
 import { readFileSync } from "fs";
 
-const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
+const PROGRAM_ID = new PublicKey("HJmgwBBjojb2SdKPCW4DFNh2wRQzZ5mtD6ro2YocpZHj");
 
 async function main() {
   const provider = anchor.AnchorProvider.env();
@@ -13,12 +13,12 @@ async function main() {
   const authority = provider.wallet.publicKey;
 
   const [poolConfig] = PublicKey.findProgramAddressSync(
-    [Buffer.from("pool_v2"), authority.toBuffer()],
+    [Buffer.from("white_pool"), authority.toBuffer()],
     PROGRAM_ID
   );
 
   const [merkleTree] = PublicKey.findProgramAddressSync(
-    [Buffer.from("merkle_tree_v2"), poolConfig.toBuffer()],
+    [Buffer.from("merkle_tree"), poolConfig.toBuffer()],
     PROGRAM_ID
   );
 

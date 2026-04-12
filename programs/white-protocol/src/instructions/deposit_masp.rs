@@ -75,7 +75,7 @@ pub struct DepositMasp<'info> {
         constraint = vault_token_account.key() == asset_vault.token_account
             @ WhiteProtocolError::InvalidVaultTokenAccount
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
     /// User token account providing funds
     #[account(
@@ -83,13 +83,13 @@ pub struct DepositMasp<'info> {
         constraint = user_token_account.mint == asset_vault.mint @ WhiteProtocolError::InvalidMint,
         constraint = user_token_account.owner == depositor.key() @ WhiteProtocolError::InvalidTokenOwner
     )]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Mint for this asset
     #[account(
         constraint = mint.key() == asset_vault.mint @ WhiteProtocolError::InvalidMint
     )]
-    pub mint: Account<'info, Mint>,
+    pub mint: Box<Account<'info, Mint>>,
 
     /// Verification key account for the deposit circuit
     #[account(
@@ -99,7 +99,7 @@ pub struct DepositMasp<'info> {
         constraint = deposit_vk.proof_type == ProofType::Deposit as u8 @ WhiteProtocolError::InvalidVerificationKeyType,
         constraint = deposit_vk.is_initialized @ WhiteProtocolError::VerificationKeyNotSet,
     )]
-    pub deposit_vk: Account<'info, VerificationKeyAccount>,
+    pub deposit_vk: Box<Account<'info, VerificationKeyAccount>>,
 
     /// SPL token program
     pub token_program: Program<'info, Token>,

@@ -1,24 +1,24 @@
 {
   "network": "devnet",
-  "programId": "BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb",
-  "authority": "Ar5yGZjo3VpV1e7XRqqNJkBVphRVa8qxYgUKPQVePJXR",
-  "poolConfig": "FX26qtKeJN7fUPKfHF17bwhUv2Fah3rS2K1t9AVpcEXj",
-  "merkleTree": "6zLFi4vgvaZShwBfFBdYwvfpgLYCE2f698GiiVpdhKgy",
-  "pendingBuffer": "7DnGtZ3PWv89gtqryJky7HpvM62UHpj4JJ4txmzLMwUA",
+  "programId": "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW",
+  "authority": "8JQmzyFhPQzzL8TBNJoQwzLZDqnBNx2SZPkseUUdvgey",
+  "poolConfig": "Hbkbx1EJiAQYsdFCEFhCZ1RWdBoUH3sXLX63KwYsRdfd",
+  "merkleTree": "7zDxURRYPEGqxM4zZJe5uuzcPERKha3GMUA8DfV25hAT",
+  "pendingDeposits": "Dee8rSD2R3MKEES1Rk3a9GQctA4JqsXXdV5NtqcsxxbE",
+  "relayerRegistry": "wQta1sHXuFtSkBZjQiANzDBbu2iXhKy3TirFmVhgt42",
+  "complianceConfig": "3UYLUAN35EoFZcZZJENQVtVggvayzj9M3g6wo3V5RKLG",
+  "verificationKeys": {
+    "deposit": "4qaz9uVuJQwrencxstigpxQZU6SG1J7WVoiuuCemRh4r",
+    "withdraw": "H4ED8u1KPz57vGLSVuJqBpE7YfMAbiWgLfPmFnnD4Ek6",
+    "membership": "FBTjajb5wWGWTYkyEMfSKdbV3Pztd9hD82yCywP8X7M2"
+  },
   "assets": {
     "wSOL": {
       "mint": "So11111111111111111111111111111111111111112",
-      "assetIdHex": "00ee92a315be0abf73d0ce24b08620ff4c85483a20fcf4c4e85f2718cba5501a",
-      "assetVault": "EU3Jovy8pfYJi61Ec67YHHYtNWcJMCHLFwPA3ZQV1x2R",
-      "vaultToken": "8eMYpvmM2q4TsRVxyeXmiADAEgSNbrGmB1NdoBug5AVK",
-      "registerTx": "3zyEqbxNm36PjGizvbh3WNT2occd2MQdKmyDqobvwEfPX6tRG36ZkVtjUJWnmQ5NAQtnXr6UGjGgQiPnakrA7yfh"
-    },
-    "USDC": {
-      "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-      "assetIdHex": "001acd3a194650375e361ddfe9c54c3778fadc7398f6c4b80062474151584b3e",
-      "assetVault": "Cvo6v5voJ3whH2tUBcja1Pd42nhrBAntiXL1pkWpBEJc",
-      "vaultToken": "4mputARV7S4SwRM4RaW1KAagAsUFMeFHjqBehLMDp9b4",
-      "registerTx": "4DMssRoAv2wvH12qUS3Aj2TWpFcHwoZruZ4k7jhgRqdBCE2LofkhpfKevpzszgXc3iTiHJbPacHwWVKCdFXaJvCZ"
+      "assetIdHex": "004a067d98373879008ada3415ad678dcd5354c0b29b52233a604774c94a82e0",
+      "assetVault": "FuVvYz3wM9naPD6GyohU4QpZypkX9G5oDYaNzAfCxyC5",
+      "registerTx": "3GNU1UUXG7E88aBE3i1WgzsXhR8yzCmaA2RqPD15A1fX34UnMguf8jgHL9RYitqpgVHqB8CFwK2P7jLd9wDV36rq"
     }
-  }
+  },
+  "deployedAt": "2026-04-11T23:15:00Z"
 }

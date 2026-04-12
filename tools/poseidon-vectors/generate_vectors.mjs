@@ -75,7 +75,7 @@ async function main() {
   }
   
   // Initialize deterministic PRNG
-  const prng = seededRandom("psol-poseidon-vectors-v1");
+  const prng = seededRandom("white-protocol-poseidon-vectors-v1");
   
   // ============ Poseidon2 vectors (2 inputs) ============
   const vectors2 = [
@@ -125,7 +125,7 @@ async function main() {
       generator: "generate_vectors.mjs using circomlibjs.buildPoseidon()",
       field: "BN254 scalar field (Fr)",
       prime_hex: bigIntToBe32Hex(p),
-      seed: "psol-poseidon-vectors-v1",
+      seed: "white-protocol-poseidon-vectors-v1",
       generated_at: new Date().toISOString(),
       count: {
         poseidon2: vectors2.length,

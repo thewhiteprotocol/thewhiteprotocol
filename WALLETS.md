@@ -1,4 +1,4 @@
-# pSOL v2 Wallets
+# The White Protocol Wallets
 
 ## Pool Authority v5 (Current)
 - **Pubkey**: 8us6NR2cYmsm4k23nMpTgJdGdPEpkMD6dU89XQAkHcn

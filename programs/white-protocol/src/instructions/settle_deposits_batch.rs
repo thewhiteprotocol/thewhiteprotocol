@@ -19,7 +19,7 @@ use crate::state::{MerkleTree, PendingDepositsBuffer, PoolConfig, VerificationKe
 use crate::ProofType;
 
 /// Maximum batch size must match circuit's maxBatch parameter
-pub const MAX_BATCH_SIZE: usize = 16;
+pub const MAX_BATCH_SIZE: usize = 1;
 
 /// Accounts for settle_deposits_batch instruction
 #[derive(Accounts)]

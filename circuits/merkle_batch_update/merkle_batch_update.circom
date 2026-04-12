@@ -3,11 +3,11 @@
 // Uses conditional verification to handle variable batch sizes correctly.
 pragma circom 2.1.6;
 
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/bitify.circom";
-include "../node_modules/circomlib/circuits/comparators.circom";
-include "../node_modules/circomlib/circuits/sha256/sha256.circom";
-include "../node_modules/circomlib/circuits/mux1.circom";
+include "../../node_modules/circomlib/circuits/poseidon.circom";
+include "../../node_modules/circomlib/circuits/bitify.circom";
+include "../../node_modules/circomlib/circuits/comparators.circom";
+include "../../node_modules/circomlib/circuits/sha256/sha256.circom";
+include "../../node_modules/circomlib/circuits/mux1.circom";
 
 // Convert 256-bit sha256 output to BN254 field element
 template Sha256ToField() {
@@ -194,4 +194,4 @@ template MerkleBatchUpdate(depth, maxBatch) {
     newRoot === intermediateRoots[maxBatch];
 }
 
-component main {public [oldRoot, newRoot, startIndex, batchSize, commitmentsHash]} = MerkleBatchUpdate(20, 16);
+component main {public [oldRoot, newRoot, startIndex, batchSize, commitmentsHash]} = MerkleBatchUpdate(20, 1);

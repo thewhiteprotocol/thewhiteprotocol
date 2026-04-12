@@ -24,7 +24,7 @@ pub mod utils;
 
 pub use instructions::*;
 
-declare_id!("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
+declare_id!("C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW");
 
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_accept_authority_transfer_v2;
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_cancel_authority_transfer_v2;
@@ -41,6 +41,7 @@ pub(crate) use crate::instructions::relayer::deactivate_relayer::__client_accoun
 pub(crate) use crate::instructions::relayer::register_relayer::__client_accounts_register_relayer;
 pub(crate) use crate::instructions::relayer::update_relayer::__client_accounts_update_relayer;
 pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_append_vk_ic_v2;
+pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_close_vk_v2;
 pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_finalize_vk_v2;
 pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_initialize_vk_v2;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
@@ -141,6 +142,11 @@ pub mod white_protocol {
     /// Finalize VK after all IC points uploaded (chunked upload step 3)
     pub fn finalize_vk_v2(ctx: Context<FinalizeVkV2>, proof_type: ProofType) -> Result<()> {
         instructions::set_verification_key_chunked::finalize_vk_handler(ctx, proof_type)
+    }
+
+    /// Close VK account - allows authority to delete a VK to fix mistakes
+    pub fn close_vk_v2(ctx: Context<CloseVkV2>, proof_type: ProofType) -> Result<()> {
+        instructions::set_verification_key_chunked::close_vk_handler(ctx, proof_type)
     }
 
     pub fn pause_pool_v2(ctx: Context<PausePoolV2>) -> Result<()> {
