@@ -16,7 +16,8 @@ contract PoseidonHashTest is Test {
     
     // Expected value for poseidon(0, 0) from circomlib
     // From vectors.json: "0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864"
-    uint256 constant EXPECTED_POSEIDON_0_0 = 0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864;
+    // Decimal: 14744269619966411208579211824598458697587494354926760081771325075741142829156
+    uint256 constant EXPECTED_POSEIDON_0_0 = 14744269619966411208579211824598458697587494354926760081771325075741142829156;
     
     // Expected value for poseidon(1, 2) from circomlib
     // From vectors.json: "0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a"
