@@ -1,0 +1,18 @@
+{
+  "name": "@thewhiteprotocol/base",
+  "version": "2.0.0",
+  "description": "The White Protocol - Base chain (EVM) implementation",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test -vvv",
+    "test:coverage": "forge coverage",
+    "deploy:sepolia": "forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast --verify",
+    "verify:sepolia": "forge verify-contract --chain-id 84532 --compiler-version v0.8.23+commit.f704f362"
+  },
+  "dependencies": {
+    "@thewhiteprotocol/core": "file:../../packages/core"
+  },
+  "devDependencies": {
+    "solc": "^0.8.23"
+  }
+}

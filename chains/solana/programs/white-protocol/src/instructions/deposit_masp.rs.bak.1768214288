@@ -1,0 +1,244 @@
+use anchor_lang::prelude::*;
+use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+
+use crate::crypto::DepositPublicInputs;
+use crate::error::PrivacyErrorV2;
+use crate::events::DepositMaspEvent;
+#[cfg(feature = "event-debug")]
+use crate::events::DepositMaspDebugEvent;
+use crate::state::{AssetVault, MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2};
+use crate::ProofType;
+
+/// Accounts required for a MASP deposit.
+#[derive(Accounts)]
+#[instruction(
+    amount: u64,
+    commitment: [u8; 32],
+    asset_id: [u8; 32],
+    proof_data: Vec<u8>,
+)]
+pub struct DepositMasp<'info> {
+    /// User funding the deposit and paying tx fees
+    #[account(mut)]
+    pub depositor: Signer<'info>,
+
+    /// Global pool configuration
+    #[account(
+        mut,
+        has_one = authority,
+        has_one = merkle_tree,
+        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused
+    )]
+    pub pool_config: Box<Account<'info, PoolConfigV2>>,
+
+    /// Pool authority (validated via has_one constraint)
+    /// CHECK: Validated by has_one constraint on pool_config
+    pub authority: UncheckedAccount<'info>,
+
+    /// Merkle tree for commitments belonging to this pool
+    #[account(
+        mut,
+        constraint = merkle_tree.pool == pool_config.key() @ PrivacyErrorV2::InvalidMerkleTreePool
+    )]
+    pub merkle_tree: Box<Account<'info, MerkleTreeV2>>,
+
+    /// Asset vault configuration for this asset
+    #[account(
+        mut,
+        seeds = [
+            AssetVault::SEED_PREFIX,
+            pool_config.key().as_ref(),
+            asset_id.as_ref(),
+        ],
+        bump = asset_vault.bump,
+        constraint = asset_vault.pool == pool_config.key() @ PrivacyErrorV2::InvalidVaultPool,
+        constraint = asset_vault.is_active @ PrivacyErrorV2::AssetNotActive,
+        constraint = asset_vault.deposits_enabled @ PrivacyErrorV2::DepositsDisabled,
+    )]
+    pub asset_vault: Box<Account<'info, AssetVault>>,
+
+    /// Vault token account that receives deposited tokens
+    #[account(
+        mut,
+        constraint = vault_token_account.key() == asset_vault.token_account
+            @ PrivacyErrorV2::InvalidVaultTokenAccount
+    )]
+    pub vault_token_account: Account<'info, TokenAccount>,
+
+    /// User token account providing funds
+    #[account(
+        mut,
+        constraint = user_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
+        constraint = user_token_account.owner == depositor.key() @ PrivacyErrorV2::InvalidTokenOwner
+    )]
+    pub user_token_account: Account<'info, TokenAccount>,
+
+    /// Mint for this asset
+    #[account(
+        constraint = mint.key() == asset_vault.mint @ PrivacyErrorV2::InvalidMint
+    )]
+    pub mint: Account<'info, Mint>,
+
+    /// Verification key account for the deposit circuit
+    #[account(
+        seeds = [ProofType::Deposit.as_seed(), pool_config.key().as_ref()],
+        bump = deposit_vk.bump,
+        constraint = deposit_vk.pool == pool_config.key() @ PrivacyErrorV2::InvalidVerificationKeyPool,
+        constraint = deposit_vk.proof_type == ProofType::Deposit as u8 @ PrivacyErrorV2::InvalidVerificationKeyType,
+        constraint = deposit_vk.is_initialized @ PrivacyErrorV2::VerificationKeyNotSet,
+    )]
+    pub deposit_vk: Account<'info, VerificationKeyAccountV2>,
+
+    /// SPL token program
+    pub token_program: Program<'info, Token>,
+
+    /// System program
+    pub system_program: Program<'info, System>,
+}
+
+/// Handler for deposit_masp instruction
+#[allow(clippy::too_many_arguments)]
+pub fn handler(
+    ctx: Context<DepositMasp>,
+    amount: u64,
+    commitment: [u8; 32],
+    asset_id: [u8; 32],
+    proof_data: Vec<u8>,
+    _encrypted_note: Option<Vec<u8>>,
+) -> Result<()> {
+    // IMPORTANT:
+    // - ctx.accounts.pool_config is Box<Account<PoolConfigV2>> so it has `.key()`
+    // - after deref, PoolConfigV2 itself does NOT have `.key()`
+    let pool_key = ctx.accounts.pool_config.key();
+
+    // Deref Box<Account<...>> to inner mutable account data for updates.
+    let pool_config: &mut PoolConfigV2 = &mut *ctx.accounts.pool_config;
+    let merkle_tree: &mut MerkleTreeV2 = &mut *ctx.accounts.merkle_tree;
+    let asset_vault: &mut AssetVault = &mut *ctx.accounts.asset_vault;
+
+    let timestamp = Clock::get()?.unix_timestamp;
+
+    // =========================================================================
+    // 1. INPUT VALIDATION
+    // =========================================================================
+
+    require!(amount > 0, PrivacyErrorV2::InvalidAmount);
+    log_cu();
+
+    require!(
+        !commitment.iter().all(|&b| b == 0),
+        PrivacyErrorV2::InvalidCommitment
+    );
+
+    require!(proof_data.len() == 256, PrivacyErrorV2::InvalidProofFormat);
+
+    require!(asset_vault.asset_id == asset_id, PrivacyErrorV2::AssetIdMismatch);
+
+    require!(!merkle_tree.is_full(), PrivacyErrorV2::MerkleTreeFull);
+
+    // =========================================================================
+    // 2. VERIFY GROTH16 PROOF
+    // =========================================================================
+
+    let public_inputs = DepositPublicInputs::new(commitment, amount, asset_id);
+    public_inputs.validate()?;
+    let public_inputs_fields = public_inputs.to_field_elements();
+
+    let vk = &ctx.accounts.deposit_vk;
+    let is_valid = crate::crypto::verify_proof_from_account(
+        &vk.vk_alpha_g1,
+        &vk.vk_beta_g2,
+        &vk.vk_gamma_g2,
+        &vk.vk_delta_g2,
+        &vk.vk_ic,
+        &proof_data,
+        &public_inputs_fields,
+    )?;
+    require!(is_valid, PrivacyErrorV2::InvalidProof);
+    log_cu();
+
+    // =========================================================================
+    // 3. TRANSFER TOKENS FROM USER TO VAULT
+    // =========================================================================
+
+    let cpi_accounts = Transfer {
+        from: ctx.accounts.user_token_account.to_account_info(),
+        to: ctx.accounts.vault_token_account.to_account_info(),
+        authority: ctx.accounts.depositor.to_account_info(),
+    };
+    let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+    token::transfer(cpi_ctx, amount)?;
+
+    // =========================================================================
+    // 4. INSERT COMMITMENT INTO MERKLE TREE
+    // =========================================================================
+
+    let leaf_index = merkle_tree.insert_leaf(commitment, timestamp)?;
+    let merkle_root = merkle_tree.get_current_root();
+    log_cu();
+
+    // =========================================================================
+    // 5. UPDATE STATISTICS
+    // =========================================================================
+
+    asset_vault.record_deposit(amount, timestamp)?;
+    pool_config.record_deposit(timestamp)?;
+
+    // =========================================================================
+    // 6. EMIT EVENT (privacy-preserving)
+    // =========================================================================
+
+    emit!(DepositMaspEvent {
+        pool: pool_key,
+        commitment,
+        leaf_index,
+        merkle_root,
+        asset_id,
+        timestamp,
+    });
+
+    #[cfg(feature = "event-debug")]
+    emit!(DepositMaspDebugEvent {
+        pool: pool_key,
+        commitment,
+        leaf_index,
+        amount,
+        asset_id,
+        depositor: ctx.accounts.depositor.key(),
+        has_encrypted_note: _encrypted_note.is_some(),
+        timestamp,
+    });
+
+    msg!(
+        "MASP deposit: leaf_index={}, root=0x{}...",
+        leaf_index,
+        hex::encode(&merkle_root[..4])
+    );
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_proof_data_length() {
+        assert_eq!(256, 64 + 64 + 128);
+    }
+}
+
+// --- Compute-unit instrumentation (syscall wrapper; compatible with older solana-program crates) ---
+#[cfg(any(target_os = "solana", target_arch = "bpf"))]
+#[inline(always)]
+fn log_cu() {
+    unsafe { sol_log_compute_units_(); }
+}
+
+#[cfg(any(target_os = "solana", target_arch = "bpf"))]
+extern "C" {
+    fn sol_log_compute_units_();
+}
+
+// On native/unit tests, do nothing.
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
+#[inline(always)]
+fn log_cu() {}

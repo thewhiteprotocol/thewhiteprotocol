@@ -1,9 +1,0 @@
-[workspace]
-members = ["programs/white-protocol"]
-resolver = "2"
-
-[profile.release]
-overflow-checks = false
-lto = "fat"
-codegen-units = 1
-opt-level = 3

@@ -1,49 +1,45 @@
 {
-  "name": "white-protocol",
+  "name": "@thewhiteprotocol/monorepo",
   "version": "2.0.0",
-  "description": "The White Protocol - Privacy-preserving Multi-Asset Shielded Pool on Solana",
+  "description": "The White Protocol - Multi-chain privacy protocol monorepo (Solana + Base)",
   "private": true,
   "workspaces": [
-    "sdk",
-    "relayer"
+    "packages/*",
+    "chains/*/",
+    "relayer/"
   ],
   "scripts": {
-    "build": "npm run build:program && npm run build:circuits && npm run build:sdk && npm run build:relayer",
-    "build:program": "anchor build",
-    "build:circuits": "bash scripts/compile-circuits.sh",
-    "build:sdk": "cd sdk && npm run build",
+    "build:core": "cd packages/core && npm run build",
+    "build:solana": "cd chains/solana && anchor build",
     "build:relayer": "cd relayer && npm run build",
-    "test": "anchor test",
-    "test:sdk": "cd sdk && npm test",
-    "deploy:devnet": "anchor deploy --provider.cluster devnet",
-    "deploy:mainnet": "anchor deploy --provider.cluster mainnet",
-    "setup": "npm install && cd sdk && npm install && cd ../relayer && npm install",
-    "ceremony": "bash scripts/trusted-setup.sh",
-    "generate-constants": "node scripts/generate-poseidon-constants.js"
+    "test:solana": "cd chains/solana && npm test",
+    "test:e2e:solana": "cd chains/solana && npx tsx tests/run-all-e2e.ts",
+    "test:base": "cd chains/base && forge test",
+    "relayer:start": "cd relayer && npm start",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
   },
   "devDependencies": {
-    "@coral-xyz/anchor-cli": "^0.30.1",
-    "@noble/hashes": "^2.0.1",
-    "@types/chai": "^5.2.3",
-    "@types/mocha": "^10.0.10",
-    "chai": "^6.2.2",
-    "circomlibjs": "^0.1.7",
-    "js-sha3": "^0.9.3",
-    "snarkjs": "^0.7.6",
-    "ts-mocha": "^11.1.0",
-    "ts-node": "^10.9.2"
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "prettier": "^3.2.0",
+    "eslint": "^8.56.0"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/whiteprotocol/white-protocol"
+    "url": "https://github.com/thewhiteprotocol/thewhiteprotocol"
   },
-  "license": "MIT",
-  "dependencies": {
-    "@coral-xyz/anchor": "^0.32.1",
-    "@solana/web3.js": "^1.98.4",
-    "circomlib": "^2.0.5"
-  }
+  "keywords": [
+    "privacy",
+    "zk",
+    "zero-knowledge",
+    "solana",
+    "base",
+    "ethereum",
+    "defi"
+  ],
+  "license": "MIT"
 }
