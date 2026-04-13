@@ -1,0 +1,124 @@
+python - <<'PY'
+from pathlib import Path
+import re
+
+p = Path("index.js")
+s = p.read_text(encoding="utf-8", errors="ignore")
+
+pattern = r"app\.post\('/deposit-proof',\s*async\s*\(req,\s*res\)\s*=>\s*\{\n[\s\S]*?\n\}\);\n"
+m = re.search(pattern, s)
+if not m:
+  raise SystemExit("Could not find app.post('/deposit-proof'...) block in index.js")
+
+replacement = """app.post('/deposit-proof', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { secret, nullifier, commitment, amount, assetId } = req.body || {};
+    if (!secret || !nullifier || !commitment || amount === undefined || !assetId) {
+      return res.status(400).json({ success: false, error: 'secret, nullifier, commitment, amount, assetId required' });
+    }
+
+    // Resolve circuit paths (dev + dist)
+    const fs = require('fs');
+    const path = require('path');
+    const snarkjs = require('snarkjs');
+
+    const candidates = [
+      { wasm: 'client/public/circuits/deposit.wasm', zkey: 'client/public/circuits/deposit.zkey' },
+      { wasm: 'dist/public/circuits/deposit.wasm', zkey: 'dist/public/circuits/deposit.zkey' },
+      { wasm: 'public/circuits/deposit.wasm', zkey: 'public/circuits/deposit.zkey' },
+    ];
+
+    let wasmPath = null;
+    let zkeyPath = null;
+    for (const c of candidates) {
+      const w = path.resolve(process.cwd(), c.wasm);
+      const z = path.resolve(process.cwd(), c.zkey);
+      if (fs.existsSync(w) && fs.existsSync(z)) {
+        wasmPath = w;
+        zkeyPath = z;
+        break;
+      }
+    }
+
+    if (!wasmPath || !zkeyPath) {
+      return res.status(500).json({
+        success: false,
+        error: 'Deposit circuit files not found (deposit.wasm / deposit.zkey). Check deployment paths.',
+        details: candidates
+      });
+    }
+
+    const input = {
+      // Keep as strings so snarkjs/circom can parse big integers safely
+      secret: String(secret),
+      nullifier: String(nullifier),
+      commitment: String(commitment),
+      amount: String(amount),
+      assetId: String(assetId),
+    };
+
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasmPath, zkeyPath);
+
+    function parseSnarkBigint(v) {
+      if (typeof v === 'bigint') return v;
+      if (typeof v === 'number') {
+        if (!Number.isFinite(v) || v < 0) throw new Error('Invalid numeric proof field');
+        return BigInt(Math.trunc(v));
+      }
+      if (typeof v === 'string') return BigInt(v.trim());
+      throw new Error('Unsupported proof field type');
+    }
+
+    function to32BE(x) {
+      const out = Buffer.alloc(32);
+      let v = x;
+      for (let i = 31; i >= 0; i--) {
+        out[i] = Number(v & 0xffn);
+        v >>= 8n;
+      }
+      return out;
+    }
+
+    // Pack Groth16 proof to 256 bytes: 8 * 32 (a.x, a.y, b00, b01, b10, b11, c.x, c.y)
+    const ax = parseSnarkBigint(proof.pi_a[0]);
+    const ay = parseSnarkBigint(proof.pi_a[1]);
+
+    const b00 = parseSnarkBigint(proof.pi_b[0][0]);
+    const b01 = parseSnarkBigint(proof.pi_b[0][1]);
+    const b10 = parseSnarkBigint(proof.pi_b[1][0]);
+    const b11 = parseSnarkBigint(proof.pi_b[1][1]);
+
+    const cx = parseSnarkBigint(proof.pi_c[0]);
+    const cy = parseSnarkBigint(proof.pi_c[1]);
+
+    const packed = Buffer.concat([to32BE(ax), to32BE(ay), to32BE(b00), to32BE(b01), to32BE(b10), to32BE(b11), to32BE(cx), to32BE(cy)]);
+    if (packed.length !== 256) throw new Error(`Packed proof is ${packed.length} bytes (expected 256)`);
+
+    const proofData = packed.toString('hex');
+    if (proofData.length !== 512) throw new Error(`proofData hex length ${proofData.length} (expected 512)`);
+
+    res.json({
+      success: true,
+      proofData,
+      publicSignals,
+      proofTimeMs: Date.now() - startTime
+    });
+  } catch (e) {
+    console.error('Deposit proof error:', e);
+    res.status(500).json({
+      success: false,
+      error: e?.message || String(e),
+      proofTimeMs: Date.now() - startTime
+    });
+  }
+});
+"""
+
+s2, n = re.subn(pattern, replacement, s, count=1)
+if n != 1:
+  raise SystemExit(f"Unexpected replace count: {n}")
+
+p.write_text(s2, encoding="utf-8")
+print("patched", str(p))
+PY

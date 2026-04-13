@@ -1,0 +1,104 @@
+import { useState, useEffect } from "react";
+import { Menu, X } from "lucide-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+
+const navLinks = [
+  { label: "Overview", href: "#overview" },
+  { label: "Protocol", href: "#protocol" },
+  { label: "Architecture", href: "#architecture" },
+  { label: "Docs", href: "#docs" },
+  { label: "API", href: "#api", badge: "BETA" },
+  { label: "Devnet", href: "#devnet" },
+  { label: "Links", href: "#links" },
+];
+
+export function Navbar() {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("overview");
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+      const sections = navLinks.map(l => l.href.slice(1));
+      for (const section of sections.reverse()) {
+        const el = document.getElementById(section);
+        if (el && el.getBoundingClientRect().top <= 100) {
+          setActiveSection(section);
+          break;
+        }
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToSection = (href: string) => {
+    const element = document.querySelector(href);
+    if (element) element.scrollIntoView({ behavior: "smooth" });
+    setIsMobileMenuOpen(false);
+  };
+
+  const navBg = isScrolled ? "bg-[#090B13]/90 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.4)]" : "bg-transparent";
+
+  return (
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navBg}`}>
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="flex items-center justify-between h-16">
+          <button onClick={() => scrollToSection("#overview")} className="flex items-center gap-3 group">
+            <img src="/logo.png" alt="White Protocol" className="w-9 h-9 rounded-xl shadow-[0_0_12px_rgba(0,200,240,0.15)] group-hover:shadow-[0_0_20px_rgba(0,200,240,0.25)] group-hover:scale-105 transition-all" />
+            <span className="font-bold text-lg text-white">White</span>
+          </button>
+
+          <div className="hidden lg:flex items-center">
+            <div className="bg-white/[0.03] rounded-2xl p-1.5 border border-white/[0.06] flex gap-1 backdrop-blur-sm">
+              {navLinks.map((link) => {
+                const isActive = activeSection === link.href.slice(1);
+                const cls = isActive
+                  ? "bg-white/[0.06] text-cyan-400 border border-cyan-400/20 shadow-[0_0_10px_rgba(0,200,240,0.08)]"
+                  : "text-slate-400 hover:text-white border border-transparent";
+                return (
+                  <button key={link.href} onClick={() => scrollToSection(link.href)} className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${cls}`}>
+                    {link.label}{link.badge && <span className="ml-1 px-1 py-0.5 text-[10px] font-bold bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 rounded">{link.badge}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="hidden lg:block">
+            <WalletMultiButton />
+          </div>
+
+          <button
+            className="lg:hidden p-3 bg-white/[0.04] rounded-xl border border-white/[0.08] active:bg-white/[0.08] transition-all"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5 text-slate-300" /> : <Menu className="h-5 w-5 text-slate-300" />}
+          </button>
+        </div>
+      </div>
+
+      {isMobileMenuOpen && (
+        <div className="lg:hidden bg-[#090B13]/95 backdrop-blur-xl border-t border-white/[0.06] shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+          <div className="px-6 py-4 space-y-2">
+            {navLinks.map((link) => {
+              const isActive = activeSection === link.href.slice(1);
+              const cls = isActive
+                ? "bg-cyan-400/[0.06] text-cyan-400 border border-cyan-400/20"
+                : "text-slate-400 hover:text-white bg-white/[0.03] border border-white/[0.04]";
+              return (
+                <button key={link.href} onClick={() => scrollToSection(link.href)} className={`w-full text-left px-4 py-3 rounded-xl font-medium transition-all ${cls}`}>
+                  {link.label}{link.badge && <span className="ml-1 px-1 py-0.5 text-[10px] font-bold bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 rounded">{link.badge}</span>}
+                </button>
+              );
+            })}
+            <div className="pt-2">
+              <WalletMultiButton />
+            </div>
+          </div>
+        </div>
+      )}
+    </nav>
+  );
+}
