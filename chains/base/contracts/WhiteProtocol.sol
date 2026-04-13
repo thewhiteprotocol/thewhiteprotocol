@@ -286,6 +286,41 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
     }
 
     /**
+     * @notice Add a supported asset
+     * @param token Asset address (use address(0) for ETH)
+     * @param isYield Whether the asset is yield-bearing
+     * @param decimals Asset decimals
+     * @param minDeposit Minimum deposit amount
+     * @param maxDeposit Maximum deposit amount
+     */
+    function addSupportedAsset(
+        address token,
+        bool isYield,
+        uint8 decimals,
+        uint256 minDeposit,
+        uint256 maxDeposit
+    ) external onlyOwner {
+        assetRegistry.addAsset(token, isYield, decimals, minDeposit, maxDeposit);
+    }
+
+    /**
+     * @notice Remove a supported asset
+     * @param token Asset address to remove
+     */
+    function removeSupportedAsset(address token) external onlyOwner {
+        assetRegistry.removeAsset(token);
+    }
+
+    /**
+     * @notice Check if an asset is supported
+     * @param token Asset address to check
+     * @return bool True if supported
+     */
+    function isSupported(address token) external view returns (bool) {
+        return assetRegistry.isSupported(token);
+    }
+
+    /**
      * @notice Get pending deposits count
      */
     function getPendingDepositsCount() external view returns (uint256) {
