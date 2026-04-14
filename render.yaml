@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: white-protocol-relayer
+    runtime: node
+    rootDir: relayer
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    plan: starter
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: RPC_ENDPOINT
+        fromGroup: white-protocol
+      - key: RELAYER_KEYPAIR
+        fromGroup: white-protocol
+      - key: PROGRAM_ID
+        fromGroup: white-protocol
+      - key: POOL_CONFIG
+        fromGroup: white-protocol
+      - key: FEE_BPS
+        value: "50"
+      - key: MIN_WITHDRAWAL
+        value: "1000000"
+      - key: MAX_WITHDRAWAL
+        value: "1000000000000"
+      - key: WITHDRAW_VK_PATH
+        value: "./circuits/withdraw/withdraw.vkey.json"
+      - key: CIRCUITS_PATH
+        value: "../circuits/build"
+      - key: TREE_DEPTH
+        value: "20"
+      - key: CORS_ORIGIN
+        value: "*"
