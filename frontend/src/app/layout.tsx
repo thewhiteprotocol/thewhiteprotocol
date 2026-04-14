@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { Sidebar } from "@/components/sidebar";
 import { MobileNav } from "@/components/mobile-nav";
 import { TestnetBanner } from "@/components/testnet-banner";
+import { UnlockModal } from "@/components/unlock-modal";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const inter = Inter({
@@ -39,6 +40,7 @@ export default function RootLayout({
               </main>
             </div>
             <MobileNav />
+            <UnlockModal />
           </WalletProvider>
         </TooltipProvider>
       </body>

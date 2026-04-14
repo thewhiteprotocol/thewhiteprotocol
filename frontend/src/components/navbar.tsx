@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { useChain, SupportedChain } from "@/providers/ChainContext";
+import { useChain } from "@/providers/ChainContext";
+import { SupportedChain } from "@/config/chains";
 import { SolanaConnectButton, EvmConnectButton } from "@/providers/WalletProvider";
 import { CHAINS } from "@/config/chains";
 import { cn } from "@/lib/utils";
