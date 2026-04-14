@@ -13,12 +13,17 @@
  * @module relayer/api-extensions
  */
 
-import express, { Request, Response, Router } from 'express';
+import express, { Request, Response, Router, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { PublicKey, Connection } from '@solana/web3.js';
 import * as snarkjs from 'snarkjs';
 import * as fs from 'fs';
 import * as path from 'path';
 import { keccak_256 } from '@noble/hashes/sha3';
+import { logger } from './logger';
+import { loadMerkleTreeState, saveMerkleTreeState } from './state-store';
+import { withRetry } from './retry';
+import { TtlCache } from './cache/ttl-cache';
 
 // =============================================================================
 // CONFIGURATION
@@ -71,9 +76,9 @@ async function initPoseidon(): Promise<void> {
     };
     
     poseidonInitialized = true;
-    console.log('[API Extensions] Poseidon hash initialized');
+    logger.info('Poseidon hash initialized');
   } catch (err) {
-    console.error('[API Extensions] Failed to initialize Poseidon:', err);
+    logger.error('Failed to initialize Poseidon', { error: String(err) });
     throw new Error('Poseidon initialization failed');
   }
 }
@@ -171,6 +176,10 @@ class ServerMerkleTree {
   
   getLeaves(): bigint[] {
     return [...this.leaves];
+  }
+  
+  setLeaves(leaves: bigint[]): void {
+    this.leaves = [...leaves];
   }
 }
 
@@ -289,6 +298,41 @@ function pubkeyToScalar(pubkey: PublicKey): bigint {
 }
 
 // =============================================================================
+// INPUT VALIDATION HELPERS
+// =============================================================================
+
+function isValidBigIntString(value: unknown): boolean {
+  if (typeof value !== 'string' && typeof value !== 'number') return false;
+  const str = String(value).trim();
+  if (str.length === 0 || str.length > 128) return false;
+  return /^-?\d+$/.test(str);
+}
+
+function isValidUint32(value: unknown): boolean {
+  if (typeof value !== 'number') return false;
+  return Number.isInteger(value) && value >= 0 && value <= 0xffffffff;
+}
+
+function isValidSolanaPubkey(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > 50) return false;
+  try {
+    new PublicKey(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
+
+// =============================================================================
 // API EXTENSIONS CLASS
 // =============================================================================
 
@@ -306,20 +350,55 @@ export class RelayerApiExtensions {
   private withdrawZkey: Uint8Array | null = null;
   private withdrawVk: any = null;
   
+  // RPC response cache (5s TTL default)
+  private rpcCache = new TtlCache<any>(5000);
+  
   constructor(config: ApiExtensionsConfig) {
     this.config = config;
     this.connection = new Connection(config.rpcEndpoint, 'confirmed');
     this.router = express.Router();
     this.merkleTree = null as any; // Initialized in initialize()
     
+    this.setupMiddleware();
     this.setupRoutes();
+  }
+  
+  private setupMiddleware(): void {
+    // Rate limiting (mirrors main relayer app)
+    const globalLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      max: 500,
+      message: { error: 'Service temporarily unavailable' },
+    });
+    const perKeyLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      max: 30,
+      message: { error: 'Too many requests, please slow down' },
+      keyGenerator: (req: Request) => req.ip || 'unknown',
+    });
+    this.router.use(globalLimiter);
+    this.router.use(perKeyLimiter);
+  }
+  
+  private requireAuth(req: Request, res: Response, next: NextFunction): void {
+    const expected = process.env.SEQUENCER_AUTH_TOKEN;
+    if (!expected) {
+      res.status(500).json({ error: 'Server misconfiguration: missing SEQUENCER_AUTH_TOKEN' });
+      return;
+    }
+    const provided = req.headers['x-sequencer-token'];
+    if (!provided || provided !== expected) {
+      res.status(401).json({ error: 'Unauthorized: invalid or missing X-Sequencer-Token header' });
+      return;
+    }
+    next();
   }
   
   /**
    * Initialize the API extensions (load circuits, poseidon)
    */
   async initialize(): Promise<void> {
-    console.log('[API Extensions] Initializing...');
+    logger.info('API Extensions initializing');
     
     // Initialize Poseidon
     await initPoseidon();
@@ -327,13 +406,20 @@ export class RelayerApiExtensions {
     // Reinitialize merkle tree now that poseidon is ready
     this.merkleTree = new ServerMerkleTree(this.config.treeDepth);
     
+    // Restore persisted merkle tree state if available
+    const persistedMerkle = loadMerkleTreeState();
+    if (persistedMerkle && persistedMerkle.leaves.length > 0) {
+      this.merkleTree.setLeaves(persistedMerkle.leaves.map(l => BigInt(l)));
+      logger.info('Restored merkle tree from disk', { leafCount: persistedMerkle.leaves.length });
+    }
+    
     // Load circuit artifacts
     await this.loadCircuitArtifacts();
     
     // Sync merkle tree from chain
     await this.syncMerkleTree();
     
-    console.log('[API Extensions] Initialization complete');
+    logger.info('API Extensions initialization complete');
   }
   
   private async loadCircuitArtifacts(): Promise<void> {
@@ -346,15 +432,15 @@ export class RelayerApiExtensions {
     
     if (fs.existsSync(depositWasmPath)) {
       this.depositWasm = new Uint8Array(fs.readFileSync(depositWasmPath));
-      console.log('[API Extensions] Loaded deposit.wasm');
+      logger.info('Loaded deposit.wasm');
     }
     if (fs.existsSync(depositZkeyPath)) {
       this.depositZkey = new Uint8Array(fs.readFileSync(depositZkeyPath));
-      console.log('[API Extensions] Loaded deposit.zkey');
+      logger.info('Loaded deposit.zkey');
     }
     if (fs.existsSync(depositVkPath)) {
       this.depositVk = JSON.parse(fs.readFileSync(depositVkPath, 'utf8'));
-      console.log('[API Extensions] Loaded deposit_vk.json');
+      logger.info('Loaded deposit_vk.json');
     }
     
     // Load withdraw circuit
@@ -364,16 +450,41 @@ export class RelayerApiExtensions {
     
     if (fs.existsSync(withdrawWasmPath)) {
       this.withdrawWasm = new Uint8Array(fs.readFileSync(withdrawWasmPath));
-      console.log('[API Extensions] Loaded withdraw.wasm');
+      logger.info('Loaded withdraw.wasm');
     }
     if (fs.existsSync(withdrawZkeyPath)) {
       this.withdrawZkey = new Uint8Array(fs.readFileSync(withdrawZkeyPath));
-      console.log('[API Extensions] Loaded withdraw.zkey');
+      logger.info('Loaded withdraw.zkey');
     }
     if (fs.existsSync(withdrawVkPath)) {
       this.withdrawVk = JSON.parse(fs.readFileSync(withdrawVkPath, 'utf8'));
-      console.log('[API Extensions] Loaded withdraw_vk.json');
+      logger.info('Loaded withdraw_vk.json');
     }
+  }
+  
+  /**
+   * Persist current merkle tree leaves to disk
+   */
+  private persistMerkleTree(): void {
+    saveMerkleTreeState({
+      leaves: this.merkleTree.getLeaves().map(l => l.toString()),
+    });
+  }
+  
+  /**
+   * Cached account info fetch with optional TTL override
+   */
+  private async getAccountInfoCached(pubkey: PublicKey, ttlMs: number = 5000): Promise<any> {
+    const key = pubkey.toBase58();
+    const cached = this.rpcCache.get(key);
+    if (cached !== undefined) return cached;
+    
+    const info = await withRetry(
+      () => this.connection.getAccountInfo(pubkey),
+      { maxAttempts: 3, baseDelayMs: 500 }
+    );
+    this.rpcCache.set(key, info, ttlMs);
+    return info;
   }
   
   private async syncMerkleTree(): Promise<void> {
@@ -383,9 +494,9 @@ export class RelayerApiExtensions {
         this.config.programId
       );
       
-      const accountInfo = await this.connection.getAccountInfo(merkleTreePda);
+      const accountInfo = await this.getAccountInfoCached(merkleTreePda);
       if (!accountInfo) {
-        console.log('[API Extensions] Merkle tree not found on chain, starting fresh');
+        logger.info('Merkle tree not found on chain, starting fresh');
         return;
       }
       
@@ -393,21 +504,24 @@ export class RelayerApiExtensions {
       const data = accountInfo.data;
       const nextLeafIndex = data.readUInt32LE(40);
       
-      console.log(`[API Extensions] Merkle tree has ${nextLeafIndex} leaves on chain`);
+      logger.info('Merkle tree synced from chain', { nextLeafIndex });
       
       // TODO: Fetch actual commitments from events or database
       // For now, tree starts empty and gets populated via API calls
     } catch (err) {
-      console.error('[API Extensions] Failed to sync merkle tree:', err);
+      logger.error('Failed to sync merkle tree', { error: String(err) });
     }
   }
   
   private setupRoutes(): void {
+    // All state-mutating and expensive endpoints require auth
+    this.router.use(['/merkle/insert', '/settle-note'], this.requireAuth.bind(this));
+
     // =========================================================================
     // POST /api/generate-commitment
     // Generate note commitment from secret, nullifier, amount, assetId
     // =========================================================================
-    this.router.post('/generate-commitment', async (req: Request, res: Response) => {
+    this.router.post('/generate-commitment', this.requireAuth.bind(this), async (req: Request, res: Response) => {
       try {
         const { secret, nullifier, amount, assetId } = req.body;
         
@@ -415,6 +529,13 @@ export class RelayerApiExtensions {
           return res.status(400).json({
             success: false,
             error: 'Missing required fields: secret, nullifier, amount, assetId',
+          });
+        }
+        
+        if (![secret, nullifier, amount, assetId].every(isValidBigIntString)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid numeric field format',
           });
         }
         
@@ -442,7 +563,7 @@ export class RelayerApiExtensions {
           nullifierHashHex: bytesToHex(feToBytes32BE(nullifierHash)),
         });
       } catch (error: any) {
-        console.error('[generate-commitment] Error:', error);
+        logger.error('generate-commitment failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -451,18 +572,18 @@ export class RelayerApiExtensions {
     // POST /api/compute-asset-id
     // Compute asset ID from mint address
     // =========================================================================
-    this.router.post('/compute-asset-id', async (req: Request, res: Response) => {
+    this.router.post('/compute-asset-id', this.requireAuth.bind(this), async (req: Request, res: Response) => {
       try {
         const { mint } = req.body;
         
-        if (!mint) {
+        if (!isValidSolanaPubkey(mint)) {
           return res.status(400).json({
             success: false,
-            error: 'Missing required field: mint',
+            error: 'Invalid mint address',
           });
         }
         
-        const mintPubkey = new PublicKey(mint);
+        const mintPubkey = new PublicKey(mint.trim());
         const assetId = computeAssetId(mintPubkey);
         const assetIdBigInt = assetIdToBigInt(assetId);
         
@@ -473,7 +594,7 @@ export class RelayerApiExtensions {
           mint: mint,
         });
       } catch (error: any) {
-        console.error('[compute-asset-id] Error:', error);
+        logger.error('compute-asset-id failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -482,7 +603,7 @@ export class RelayerApiExtensions {
     // POST /api/deposit-proof
     // Generate deposit proof (heavy ZK operation)
     // =========================================================================
-    this.router.post('/deposit-proof', async (req: Request, res: Response) => {
+    this.router.post('/deposit-proof', this.requireAuth.bind(this), async (req: Request, res: Response) => {
       try {
         const { secret, nullifier, commitment, amount, assetId } = req.body;
         
@@ -500,7 +621,14 @@ export class RelayerApiExtensions {
           });
         }
         
-        console.log('[deposit-proof] Generating proof...');
+        if (![secret, nullifier, commitment, amount, assetId].every(isValidBigIntString)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid numeric field format',
+          });
+        }
+        
+        logger.info('deposit-proof generating proof');
         const startTime = Date.now();
         
         const circuitInput = {
@@ -511,14 +639,14 @@ export class RelayerApiExtensions {
           nullifier: nullifier.toString(),
         };
         
-        const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-          circuitInput,
-          this.depositWasm,
-          this.depositZkey
+        const { proof, publicSignals } = await withTimeout(
+          snarkjs.groth16.fullProve(circuitInput, this.depositWasm, this.depositZkey),
+          60000,
+          'Proof generation timed out'
         );
         
         const proofTime = Date.now() - startTime;
-        console.log(`[deposit-proof] Proof generated in ${proofTime}ms`);
+        logger.info('deposit-proof generated', { proofTimeMs: proofTime });
         
         // Verify locally
         if (this.depositVk) {
@@ -529,7 +657,7 @@ export class RelayerApiExtensions {
               error: 'Generated proof failed local verification',
             });
           }
-          console.log('[deposit-proof] Local verification passed');
+          logger.info('deposit-proof local verification passed');
         }
         
         // Serialize for chain
@@ -542,7 +670,7 @@ export class RelayerApiExtensions {
           proofTimeMs: proofTime,
         });
       } catch (error: any) {
-        console.error('[deposit-proof] Error:', error);
+        logger.error('deposit-proof failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -551,7 +679,7 @@ export class RelayerApiExtensions {
     // POST /api/withdraw-proof
     // Generate withdraw proof (heavy ZK operation)
     // =========================================================================
-    this.router.post('/withdraw-proof', async (req: Request, res: Response) => {
+    this.router.post('/withdraw-proof', this.requireAuth.bind(this), async (req: Request, res: Response) => {
       try {
         const {
           merkleRoot,
@@ -590,15 +718,37 @@ export class RelayerApiExtensions {
           });
         }
         
-        // Validate merkle path length
-        if (merklePath.length !== this.config.treeDepth || merklePathIndices.length !== this.config.treeDepth) {
+        // Validate pubkey fields
+        if (!isValidSolanaPubkey(recipient) || !isValidSolanaPubkey(relayer)) {
           return res.status(400).json({
             success: false,
-            error: `Invalid merkle path length: expected ${this.config.treeDepth}, got ${merklePath.length}`,
+            error: 'Invalid recipient or relayer public key',
           });
         }
         
-        console.log('[withdraw-proof] Generating proof...');
+        // Validate numeric fields
+        if (![merkleRoot, nullifierHash, assetId, amount, relayerFee, secret, nullifier, leafIndex].every(isValidBigIntString)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid numeric field format',
+          });
+        }
+        
+        // Validate merkle path length and contents
+        if (!Array.isArray(merklePath) || merklePath.length !== this.config.treeDepth || !merklePath.every(p => isValidBigIntString(p))) {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid merkle path: expected ${this.config.treeDepth} numeric elements`,
+          });
+        }
+        if (!Array.isArray(merklePathIndices) || merklePathIndices.length !== this.config.treeDepth || !merklePathIndices.every((i: number) => i === 0 || i === 1)) {
+          return res.status(400).json({
+            success: false,
+            error: `Invalid merkle path indices: expected ${this.config.treeDepth} binary elements (0 or 1)`,
+          });
+        }
+        
+        logger.info('withdraw-proof generating proof');
         const startTime = Date.now();
         
         // Convert recipient and relayer to scalars
@@ -623,14 +773,14 @@ export class RelayerApiExtensions {
           merkle_path_indices: merklePathIndices.map((i: number) => i.toString()),
         };
         
-        const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-          circuitInput,
-          this.withdrawWasm,
-          this.withdrawZkey
+        const { proof, publicSignals } = await withTimeout(
+          snarkjs.groth16.fullProve(circuitInput, this.withdrawWasm, this.withdrawZkey),
+          60000,
+          'Proof generation timed out'
         );
         
         const proofTime = Date.now() - startTime;
-        console.log(`[withdraw-proof] Proof generated in ${proofTime}ms`);
+        logger.info('withdraw-proof generated', { proofTimeMs: proofTime });
         
         // Verify locally
         if (this.withdrawVk) {
@@ -641,7 +791,7 @@ export class RelayerApiExtensions {
               error: 'Generated proof failed local verification',
             });
           }
-          console.log('[withdraw-proof] Local verification passed');
+          logger.info('withdraw-proof local verification passed');
         }
         
         // Serialize for chain
@@ -654,7 +804,7 @@ export class RelayerApiExtensions {
           proofTimeMs: proofTime,
         });
       } catch (error: any) {
-        console.error('[withdraw-proof] Error:', error);
+        logger.error('withdraw-proof failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -678,8 +828,8 @@ export class RelayerApiExtensions {
         
         // Fetch accounts
         const [merkleInfo, pendingInfo] = await Promise.all([
-          this.connection.getAccountInfo(merkleTreePda),
-          this.connection.getAccountInfo(pendingBufferPda),
+          this.getAccountInfoCached(merkleTreePda),
+          this.getAccountInfoCached(pendingBufferPda),
         ]);
         
         let merkleRoot = '0';
@@ -733,7 +883,7 @@ export class RelayerApiExtensions {
           },
         });
       } catch (error: any) {
-        console.error('[pool-state] Error:', error);
+        logger.error('pool-state failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -775,7 +925,7 @@ export class RelayerApiExtensions {
           pathIndices: pathIndices,
         });
       } catch (error: any) {
-        console.error('[merkle/proof] Error:', error);
+        logger.error('merkle/proof failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -788,10 +938,16 @@ export class RelayerApiExtensions {
       try {
         const { commitment, leafIndex } = req.body;
         
-        if (!commitment) {
+        if (!commitment || !isValidBigIntString(commitment)) {
           return res.status(400).json({
             success: false,
-            error: 'Missing required field: commitment',
+            error: 'Invalid commitment: must be a valid integer string',
+          });
+        }
+        if (leafIndex !== undefined && !isValidUint32(leafIndex)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid leafIndex: must be a non-negative integer',
           });
         }
         
@@ -804,6 +960,7 @@ export class RelayerApiExtensions {
         } else {
           insertedIndex = this.merkleTree.insert(commitmentBigInt);
         }
+        this.persistMerkleTree();
         
         const newRoot = this.merkleTree.getRoot();
         
@@ -815,7 +972,7 @@ export class RelayerApiExtensions {
           totalLeaves: this.merkleTree.getLeafCount(),
         });
       } catch (error: any) {
-        console.error('[merkle/insert] Error:', error);
+        logger.error('merkle/insert failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -827,6 +984,13 @@ export class RelayerApiExtensions {
     this.router.get('/note/:commitment', async (req: Request, res: Response) => {
       try {
         const commitment = req.params.commitment;
+        
+        if (typeof commitment !== 'string' || commitment.length > 128) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid commitment parameter',
+          });
+        }
         
         // Handle both decimal string and hex formats
         let commitmentBigInt: bigint;
@@ -857,7 +1021,7 @@ export class RelayerApiExtensions {
           this.config.programId
         );
         
-        const pendingInfo = await this.connection.getAccountInfo(pendingBufferPda);
+        const pendingInfo = await this.getAccountInfoCached(pendingBufferPda);
         if (pendingInfo) {
           const data = pendingInfo.data;
           const pendingCount = data.readUInt32LE(40);
@@ -888,7 +1052,7 @@ export class RelayerApiExtensions {
           hint: 'Commitment not found in pending buffer or merkle tree',
         });
       } catch (error: any) {
-        console.error('[note/:commitment] Error:', error);
+        logger.error('note/:commitment failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -902,15 +1066,22 @@ export class RelayerApiExtensions {
       try {
         const { commitment, leafIndex } = req.body;
         
-        if (!commitment || leafIndex === undefined) {
+        if (!commitment || !isValidBigIntString(commitment)) {
           return res.status(400).json({
             success: false,
-            error: 'Missing required fields: commitment, leafIndex',
+            error: 'Invalid commitment: must be a valid integer string',
+          });
+        }
+        if (!isValidUint32(leafIndex)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid leafIndex: must be a non-negative integer',
           });
         }
         
         const commitmentBigInt = BigInt(commitment);
         this.merkleTree.insertAt(leafIndex, commitmentBigInt);
+        this.persistMerkleTree();
         
         res.json({
           success: true,
@@ -919,7 +1090,7 @@ export class RelayerApiExtensions {
           newMerkleRoot: this.merkleTree.getRoot().toString(),
         });
       } catch (error: any) {
-        console.error('[settle-note] Error:', error);
+        logger.error('settle-note failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -928,7 +1099,7 @@ export class RelayerApiExtensions {
     // POST /api/poseidon-hash
     // Generic Poseidon hash endpoint
     // =========================================================================
-    this.router.post('/poseidon-hash', async (req: Request, res: Response) => {
+    this.router.post('/poseidon-hash', this.requireAuth.bind(this), async (req: Request, res: Response) => {
       try {
         const { inputs } = req.body;
         
@@ -946,6 +1117,13 @@ export class RelayerApiExtensions {
           });
         }
         
+        if (!inputs.every(isValidBigIntString)) {
+          return res.status(400).json({
+            success: false,
+            error: 'All inputs must be valid integers',
+          });
+        }
+        
         const inputsBigInt = inputs.map((i: string | number | bigint) => BigInt(i));
         const hash = poseidonHash(inputsBigInt);
         
@@ -955,7 +1133,7 @@ export class RelayerApiExtensions {
           hashHex: bytesToHex(feToBytes32BE(hash)),
         });
       } catch (error: any) {
-        console.error('[poseidon-hash] Error:', error);
+        logger.error('poseidon-hash failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -968,14 +1146,14 @@ export class RelayerApiExtensions {
       try {
         const { pubkey } = req.body;
         
-        if (!pubkey) {
+        if (!isValidSolanaPubkey(pubkey)) {
           return res.status(400).json({
             success: false,
-            error: 'Missing required field: pubkey',
+            error: 'Invalid pubkey',
           });
         }
         
-        const pubkeyObj = new PublicKey(pubkey);
+        const pubkeyObj = new PublicKey(pubkey.trim());
         const scalar = pubkeyToScalar(pubkeyObj);
         
         res.json({
@@ -985,7 +1163,7 @@ export class RelayerApiExtensions {
           scalarHex: bytesToHex(feToBytes32BE(scalar)),
         });
       } catch (error: any) {
-        console.error('[pubkey-to-scalar] Error:', error);
+        logger.error('pubkey-to-scalar failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -1010,7 +1188,7 @@ export class RelayerApiExtensions {
         
         // Derive PDAs
         // Fetch authority from pool_config account (stored at offset 8)
-        const poolConfigInfo = await this.connection.getAccountInfo(this.config.poolConfig);
+        const poolConfigInfo = await this.getAccountInfoCached(this.config.poolConfig);
         if (!poolConfigInfo) throw new Error("Pool config not found");
         const authority = new PublicKey(poolConfigInfo.data.slice(8, 40));
         
@@ -1035,13 +1213,13 @@ export class RelayerApiExtensions {
           this.config.programId
         );
         // Fetch vault token account from AssetVault state (stored, not derived)
-        const assetVaultInfo = await this.connection.getAccountInfo(assetVault);
+        const assetVaultInfo = await this.getAccountInfoCached(assetVault, 30000);
         if (!assetVaultInfo) {
           throw new Error('AssetVault not found for this asset. Asset may not be registered.');
         }
         // AssetVault layout: discriminator(8) + pool(32) + asset_id(32) + mint(32) + token_account(32)
         const vaultTokenAccount = new PublicKey(assetVaultInfo.data.slice(104, 136));
-        console.log('[build-deposit-tx] Vault token account from state:', vaultTokenAccount.toBase58());
+        logger.info('build-deposit-tx vault token account resolved', { vaultTokenAccount: vaultTokenAccount.toBase58() });
 
         // Get user token account
         const { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction } = await import('@solana/spl-token');
@@ -1050,9 +1228,9 @@ export class RelayerApiExtensions {
         const preInstructions: any[] = [];
         
         // Check if user ATA exists
-        const userAtaInfo = await this.connection.getAccountInfo(userTokenAccount);
+        const userAtaInfo = await this.getAccountInfoCached(userTokenAccount, 30000);
         if (!userAtaInfo) {
-          console.log('[build-deposit-tx] User ATA does not exist, adding create instruction');
+          logger.info('build-deposit-tx user ATA does not exist, adding create instruction');
           preInstructions.push(createAssociatedTokenAccountInstruction(
             depositor, userTokenAccount, depositor, mintPubkey
           ));
@@ -1105,7 +1283,10 @@ export class RelayerApiExtensions {
         });
 
         // Get recent blockhash
-        const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash();
+        const { blockhash, lastValidBlockHeight } = await withRetry(
+          () => this.connection.getLatestBlockhash(),
+          { maxAttempts: 3, baseDelayMs: 500 }
+        );
         
         const tx = new Transaction();
         tx.recentBlockhash = blockhash;
@@ -1118,7 +1299,8 @@ export class RelayerApiExtensions {
         // Track commitment in local merkle tree for later proof generation
         const commitmentBigInt = BigInt('0x' + commitment);
         const insertedLeafIndex = this.merkleTree.insert(commitmentBigInt);
-        console.log(`[build-deposit-tx] Tracked commitment in local tree at index ${insertedLeafIndex}`);
+        this.persistMerkleTree();
+        logger.info('build-deposit-tx tracked commitment in local tree', { leafIndex: insertedLeafIndex });
 
         res.json({
           success: true,
@@ -1128,7 +1310,7 @@ export class RelayerApiExtensions {
           leafIndex: insertedLeafIndex, // Return leaf index for frontend tracking
         });
       } catch (error: any) {
-        console.error('[build-deposit-tx] Error:', error);
+        logger.error('build-deposit-tx failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });

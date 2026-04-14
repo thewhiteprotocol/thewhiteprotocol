@@ -37,12 +37,23 @@ export declare class RelayerApiExtensions {
     private withdrawWasm;
     private withdrawZkey;
     private withdrawVk;
+    private rpcCache;
     constructor(config: ApiExtensionsConfig);
+    private setupMiddleware;
+    private requireAuth;
     /**
      * Initialize the API extensions (load circuits, poseidon)
      */
     initialize(): Promise<void>;
     private loadCircuitArtifacts;
+    /**
+     * Persist current merkle tree leaves to disk
+     */
+    private persistMerkleTree;
+    /**
+     * Cached account info fetch with optional TTL override
+     */
+    private getAccountInfoCached;
     private syncMerkleTree;
     private setupRoutes;
     /**

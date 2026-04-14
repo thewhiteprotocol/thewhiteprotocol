@@ -16,6 +16,7 @@
     "test:e2e:solana": "cd chains/solana && npx tsx tests/run-all-e2e.ts",
     "test:base": "cd chains/base && forge test",
     "relayer:start": "cd relayer && npm start",
+    "download:circuits": "node tools/download-circuits.js",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
   },
@@ -41,5 +42,9 @@
     "ethereum",
     "defi"
   ],
+  "dependencies": {
+    "bfj": "^9.1.3",
+    "underscore": "^1.13.8"
+  },
   "license": "MIT"
 }

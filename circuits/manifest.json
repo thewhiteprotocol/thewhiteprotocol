@@ -1,0 +1,86 @@
+{
+  "version": "1.0.0",
+  "baseUrl": "https://your-cdn.example.com/circuits",
+  "artifacts": [
+    {
+      "path": "circuits/build/deposit.zkey",
+      "size": 361340
+    },
+    {
+      "path": "circuits/build/deposit_js/deposit.wasm",
+      "size": 2090471
+    },
+    {
+      "path": "circuits/build/withdraw.zkey",
+      "size": 5571324
+    },
+    {
+      "path": "circuits/build/withdraw_js/withdraw.wasm",
+      "size": 2431809
+    },
+    {
+      "path": "circuits/build/membership.zkey",
+      "size": 5371324
+    },
+    {
+      "path": "circuits/build/membership_js/membership.wasm",
+      "size": 2431809
+    },
+    {
+      "path": "circuits/build/joinsplit.zkey",
+      "size": 12582912
+    },
+    {
+      "path": "circuits/build/joinsplit_js/joinsplit.wasm",
+      "size": 2431809
+    },
+    {
+      "path": "circuits/build/merkle_batch_update.zkey",
+      "size": 26214400
+    },
+    {
+      "path": "circuits/build/merkle_batch_update_js/merkle_batch_update.wasm",
+      "size": 2191809
+    },
+    {
+      "path": "circuits/build/batch_append_js/batch_append.wasm",
+      "size": 2431809
+    },
+    {
+      "path": "frontend/public/circuits/deposit/deposit.zkey",
+      "size": 361340
+    },
+    {
+      "path": "frontend/public/circuits/deposit/deposit.wasm",
+      "size": 2090471
+    },
+    {
+      "path": "frontend/public/circuits/withdraw/withdraw.zkey",
+      "size": 5571324
+    },
+    {
+      "path": "frontend/public/circuits/withdraw/withdraw.wasm",
+      "size": 2431809
+    },
+    {
+      "path": "frontend/public/circuits/membership/membership.zkey",
+      "size": 5371324
+    },
+    {
+      "path": "frontend/public/circuits/membership/membership.wasm",
+      "size": 2431809
+    },
+    {
+      "path": "frontend/public/circuits/merkle_batch_update/merkle_batch_update.zkey",
+      "size": 26214400
+    },
+    {
+      "path": "frontend/public/circuits/merkle_batch_update/merkle_batch_update.wasm",
+      "size": 2191809
+    },
+    {
+      "path": "frontend/public/circuits/batch_append/batch_append.wasm",
+      "size": 2431809
+    }
+  ]
+}

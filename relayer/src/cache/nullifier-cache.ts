@@ -6,6 +6,7 @@
  */
 
 import { PublicKey } from '@solana/web3.js';
+import { logger } from '../logger';
 
 /**
  * In-memory nullifier cache
@@ -36,7 +37,7 @@ export class NullifierCache {
   async markNullifierUsed(pool: PublicKey, nullifierHash: Uint8Array): Promise<void> {
     const key = this.getNullifierKey(pool, nullifierHash);
     this.cache.set(key, true);
-    console.log(`Cached nullifier as spent: ${key}`);
+    logger.info('Cached nullifier as spent', { key });
   }
 
   /**
@@ -53,7 +54,7 @@ export class NullifierCache {
       }
     }
     
-    console.log(`Cache cleared: ${deletedCount} keys deleted`);
+    logger.info('Nullifier cache cleared', { deletedCount });
   }
 
   /**

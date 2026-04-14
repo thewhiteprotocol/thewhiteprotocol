@@ -7,6 +7,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NullifierCache = void 0;
+const logger_1 = require("../logger");
 /**
  * In-memory nullifier cache
  */
@@ -35,7 +36,7 @@ class NullifierCache {
     async markNullifierUsed(pool, nullifierHash) {
         const key = this.getNullifierKey(pool, nullifierHash);
         this.cache.set(key, true);
-        console.log(`Cached nullifier as spent: ${key}`);
+        logger_1.logger.info('Cached nullifier as spent', { key });
     }
     /**
      * Clear cache for a pool
@@ -49,7 +50,7 @@ class NullifierCache {
                 deletedCount++;
             }
         }
-        console.log(`Cache cleared: ${deletedCount} keys deleted`);
+        logger_1.logger.info('Nullifier cache cleared', { deletedCount });
     }
     /**
      * Get cache statistics

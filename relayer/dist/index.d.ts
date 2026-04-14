@@ -81,7 +81,23 @@ export declare class RelayerService {
     private supportedAssets;
     /** Verification key for withdraw circuit (snarkjs format) */
     private withdrawVk;
+    /** In-flight nullifier hashes to prevent race-condition double spends */
+    private pendingNullifiers;
+    /** Circuit breaker for on-chain withdrawal submissions */
+    private withdrawalBreaker;
+    /** Nullifier cache to avoid repeated RPC checks */
+    private nullifierCache;
+    /** Service start timestamp for uptime calculation */
+    private startTime;
     constructor(config: RelayerConfig);
+    /**
+     * Load persisted relayer state
+     */
+    private loadState;
+    /**
+     * Persist relayer state to disk
+     */
+    private persistState;
     /**
      * Load withdraw verification key from file
      * Fails fast if the key is not available
@@ -123,13 +139,9 @@ export declare class RelayerService {
      */
     private checkNullifierSpent;
     /**
-     * Submit withdrawal transaction with retry logic
+     * Submit withdrawal transaction with circuit breaker and retry logic
      */
     private submitWithdrawalWithRetry;
-    /**
-     * Check if an error should not be retried
-     */
-    private isNonRetryableError;
     /**
      * Submit withdrawal transaction
      */

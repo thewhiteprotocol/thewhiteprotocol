@@ -12,13 +12,13 @@ export interface BaseConfig {
 }
 
 export class BaseAdapter {
-  private provider: ethers.JsonRpcProvider;
-  private wallet: ethers.Wallet;
-  private contract: ethers.Contract | null = null;
+  private provider: any;
+  private wallet: any;
+  private contract: any | null = null;
   
   constructor(private config: BaseConfig) {
-    this.provider = new ethers.JsonRpcProvider(config.rpcEndpoint, config.chainId);
-    this.wallet = new ethers.Wallet(config.privateKey, this.provider);
+    this.provider = new (ethers as any).providers.JsonRpcProvider(config.rpcEndpoint, config.chainId);
+    this.wallet = new (ethers as any).Wallet(config.privateKey, this.provider);
   }
   
   async initialize(abi: any): Promise<void> {
@@ -63,11 +63,11 @@ export class BaseAdapter {
     return await this.contract.merkleRoot();
   }
   
-  getProvider(): ethers.JsonRpcProvider {
+  getProvider(): any {
     return this.provider;
   }
   
-  getWallet(): ethers.Wallet {
+  getWallet(): any {
     return this.wallet;
   }
 }

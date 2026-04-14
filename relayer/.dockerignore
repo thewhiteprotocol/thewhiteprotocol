@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+!.env.example
+data/
+dist/
+.git
+.github
+*.md
+coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+jest.config.js

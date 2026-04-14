@@ -56,6 +56,12 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const api_extensions_1 = require("./api-extensions");
 const fs = __importStar(require("fs"));
 const snarkjs = __importStar(require("snarkjs"));
+const logger_1 = require("./logger");
+const state_store_1 = require("./state-store");
+const circuit_breaker_1 = require("./circuit-breaker");
+const retry_1 = require("./retry");
+const nullifier_cache_1 = require("./cache/nullifier-cache");
+const metrics_1 = require("./metrics");
 const web3_js_1 = require("@solana/web3.js");
 const anchor_1 = require("@coral-xyz/anchor");
 const spl_token_1 = require("@solana/spl-token");
@@ -79,10 +85,20 @@ class RelayerService {
         this.totalTransactions = 0;
         this.totalFeesEarned = BigInt(0);
         this.supportedAssets = new Set();
+        /** In-flight nullifier hashes to prevent race-condition double spends */
+        this.pendingNullifiers = new Set();
+        /** Circuit breaker for on-chain withdrawal submissions */
+        this.withdrawalBreaker = new circuit_breaker_1.CircuitBreaker('withdrawal', 5, 2, 30000);
+        /** Nullifier cache to avoid repeated RPC checks */
+        this.nullifierCache = new nullifier_cache_1.NullifierCache();
+        /** Service start timestamp for uptime calculation */
+        this.startTime = Date.now();
         this.config = config;
         this.connection = new web3_js_1.Connection(config.rpcEndpoint, 'confirmed');
         // Load withdraw verification key at startup (fail fast if missing)
         this.loadWithdrawVerificationKey();
+        // Restore persisted state
+        this.loadState();
         // Setup Anchor provider
         const wallet = {
             publicKey: config.walletKeypair.publicKey,
@@ -107,12 +123,37 @@ class RelayerService {
         this.setupRoutes();
     }
     /**
+     * Load persisted relayer state
+     */
+    loadState() {
+        const state = (0, state_store_1.loadRelayerState)();
+        if (state) {
+            this.totalTransactions = state.totalTransactions || 0;
+            this.totalFeesEarned = BigInt(state.totalFeesEarned || '0');
+            this.supportedAssets = new Set(state.supportedAssets || []);
+            logger_1.logger.info('Relayer state restored from disk', {
+                totalTransactions: this.totalTransactions,
+                totalFeesEarned: this.totalFeesEarned.toString(),
+            });
+        }
+    }
+    /**
+     * Persist relayer state to disk
+     */
+    persistState() {
+        (0, state_store_1.saveRelayerState)({
+            totalTransactions: this.totalTransactions,
+            totalFeesEarned: this.totalFeesEarned.toString(),
+            supportedAssets: Array.from(this.supportedAssets),
+        });
+    }
+    /**
      * Load withdraw verification key from file
      * Fails fast if the key is not available
      */
     loadWithdrawVerificationKey() {
         try {
-            console.log(`Loading withdraw verification key from: ${this.config.withdrawVkPath}`);
+            logger_1.logger.info('Loading withdraw verification key', { path: this.config.withdrawVkPath });
             const vkeyJson = fs.readFileSync(this.config.withdrawVkPath, 'utf8');
             this.withdrawVk = JSON.parse(vkeyJson);
             // Basic validation of vkey structure
@@ -122,14 +163,14 @@ class RelayerService {
             if (!this.withdrawVk.vk_alpha_1 || !this.withdrawVk.vk_beta_2) {
                 throw new Error('Invalid verification key format: missing vk_alpha_1 or vk_beta_2');
             }
-            console.log('Withdraw verification key loaded successfully');
-            console.log(`  Protocol: ${this.withdrawVk.protocol}`);
-            console.log(`  Curve: ${this.withdrawVk.curve}`);
-            console.log(`  IC points: ${this.withdrawVk.IC?.length || 0}`);
+            logger_1.logger.info('Withdraw verification key loaded successfully', {
+                protocol: this.withdrawVk.protocol,
+                curve: this.withdrawVk.curve,
+                icPoints: this.withdrawVk.IC?.length || 0,
+            });
         }
         catch (err) {
-            console.error('Failed to load withdraw verification key from', this.config.withdrawVkPath);
-            console.error(err);
+            logger_1.logger.error('Failed to load withdraw verification key', { path: this.config.withdrawVkPath, error: String(err) });
             throw new Error('Withdraw verification key not available for relayer');
         }
     }
@@ -139,9 +180,10 @@ class RelayerService {
     setupMiddleware() {
         // Security headers
         this.app.use((0, helmet_1.default)());
-        // CORS
+        // CORS — never default to wildcard in production
+        const corsOrigin = process.env.CORS_ORIGIN;
         this.app.use((0, cors_1.default)({
-            origin: process.env.CORS_ORIGIN || '*',
+            origin: corsOrigin ? corsOrigin.split(',').map(s => s.trim()) : false,
             methods: ['GET', 'POST'],
         }));
         // JSON parsing
@@ -172,9 +214,14 @@ class RelayerService {
         // Apply both: global then per-key
         this.app.use(globalLimiter);
         this.app.use(perKeyLimiter);
-        // Request logging
+        // Request logging and metrics
         this.app.use((req, res, next) => {
-            console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+            logger_1.logger.info('Incoming request', { method: req.method, path: req.path, ip: req.ip });
+            metrics_1.metrics.recordRequest(req.path);
+            const start = Date.now();
+            res.on('finish', () => {
+                metrics_1.metrics.recordResponseTime(Date.now() - start);
+            });
             next();
         });
     }
@@ -184,11 +231,23 @@ class RelayerService {
     setupRoutes() {
         // Health check
         this.app.get('/health', (req, res) => {
+            const mem = process.memoryUsage();
             res.json({
                 status: 'ok',
                 timestamp: Date.now(),
+                uptimeSeconds: Math.floor((Date.now() - this.startTime) / 1000),
                 proofVerificationEnabled: !!this.withdrawVk,
+                pendingNullifiers: this.pendingNullifiers.size,
+                circuitBreaker: this.withdrawalBreaker.getStatus(),
+                memoryMb: {
+                    rss: Math.round(mem.rss / 1024 / 1024),
+                    heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+                },
             });
+        });
+        // Metrics endpoint
+        this.app.get('/metrics', (req, res) => {
+            res.json(metrics_1.metrics.getSnapshot());
         });
         // Relayer status
         this.app.get('/status', async (req, res) => {
@@ -218,7 +277,8 @@ class RelayerService {
                 res.json(result);
             }
             catch (error) {
-                console.error('Withdrawal error:', error);
+                logger_1.logger.error('Withdrawal request failed', { error: error.message });
+                metrics_1.metrics.recordWithdrawal(false);
                 res.status(400).json({
                     success: false,
                     error: error.message,
@@ -233,7 +293,7 @@ class RelayerService {
         });
         // Error handler
         this.app.use((err, req, res, next) => {
-            console.error('Unhandled error:', err);
+            logger_1.logger.error('Unhandled error', { error: err.message, stack: err.stack });
             res.status(500).json({ error: 'Internal server error' });
         });
     }
@@ -298,35 +358,55 @@ class RelayerService {
             publicDataHash: undefined, // If you add encrypted metadata later, pass its hash here
         });
         const proofVerifyTime = Date.now() - proofVerifyStart;
-        console.log(`Proof verification took ${proofVerifyTime}ms, result: ${isProofValid}`);
+        logger_1.logger.info('Proof verification completed', { durationMs: proofVerifyTime, valid: isProofValid });
         if (!isProofValid) {
             throw new Error('Invalid withdrawal proof (local verification failed)');
         }
-        // 6. Check nullifier hasn't been spent
-        const isSpent = await this.checkNullifierSpent(nullifierHash);
-        if (isSpent) {
-            throw new Error('Nullifier already spent');
+        const nullifierKey = bytesToHex(nullifierHash);
+        // In-flight deduplication: prevent concurrent processing of the same nullifier
+        if (this.pendingNullifiers.has(nullifierKey)) {
+            throw new Error('Nullifier already being processed');
         }
-        // 7. Build and submit transaction with retry logic
-        const signature = await this.submitWithdrawalWithRetry({
-            proofData,
-            merkleRoot,
-            nullifierHash,
-            recipient,
-            amount,
-            fee,
-            assetId,
-            mint,
-        });
-        // 8. Update statistics
-        this.totalTransactions++;
-        this.totalFeesEarned += fee;
-        const totalTime = Date.now() - startTime;
-        console.log(`Withdrawal processed successfully in ${totalTime}ms: ${signature}`);
-        return {
-            success: true,
-            signature,
-        };
+        this.pendingNullifiers.add(nullifierKey);
+        try {
+            // 6. Check nullifier hasn't been spent (with timeout)
+            const isSpent = await withTimeout(this.checkNullifierSpent(nullifierHash), 15000, 'Nullifier check timed out');
+            if (isSpent) {
+                throw new Error('Nullifier already spent');
+            }
+            // 7. Build and submit transaction with retry logic (with timeout)
+            const signature = await withTimeout(this.submitWithdrawalWithRetry({
+                proofData,
+                merkleRoot,
+                nullifierHash,
+                recipient,
+                amount,
+                fee,
+                assetId,
+                mint,
+            }), 90000, 'Transaction submission timed out');
+            // 8. Update statistics and cache
+            this.totalTransactions++;
+            this.totalFeesEarned += fee;
+            await this.nullifierCache.markNullifierUsed(this.config.poolConfig, nullifierHash);
+            this.persistState();
+            metrics_1.metrics.recordWithdrawal(true);
+            const totalTime = Date.now() - startTime;
+            logger_1.logger.info('Withdrawal processed successfully', {
+                durationMs: totalTime,
+                signature,
+                recipient: recipient.toBase58(),
+                amount: amount.toString(),
+                fee: fee.toString(),
+            });
+            return {
+                success: true,
+                signature,
+            };
+        }
+        finally {
+            this.pendingNullifiers.delete(nullifierKey);
+        }
     }
     /**
      * Locally verify a withdraw proof using snarkjs before submitting on-chain.
@@ -340,7 +420,7 @@ class RelayerService {
         }
         // Validate proof data length
         if (params.proofData.length !== 256) {
-            console.error(`Invalid proof data length: expected 256 bytes, got ${params.proofData.length}`);
+            logger_1.logger.error('Invalid proof data length', { expected: 256, actual: params.proofData.length });
             return false;
         }
         try {
@@ -377,7 +457,7 @@ class RelayerService {
                 params.relayerFee.toString(),
                 publicDataHashScalar.toString(),
             ];
-            console.log('Verifying proof with public signals:', {
+            logger_1.logger.info('Verifying proof with public signals', {
                 merkleRoot: merkleRootScalar.toString().slice(0, 20) + '...',
                 nullifierHash: nullifierHashScalar.toString().slice(0, 20) + '...',
                 amount: params.amount.toString(),
@@ -390,7 +470,7 @@ class RelayerService {
             return result;
         }
         catch (err) {
-            console.error('Proof verification error:', err);
+            logger_1.logger.error('Proof verification error', { error: String(err) });
             return false;
         }
     }
@@ -398,6 +478,7 @@ class RelayerService {
      * Validate withdrawal request format
      */
     validateWithdrawRequest(request) {
+        // Validate lengths and presence
         if (!request.proofData || request.proofData.length !== 512) {
             throw new Error('Invalid proof data length (must be 256 bytes hex)');
         }
@@ -417,8 +498,11 @@ class RelayerService {
         catch {
             throw new Error('Invalid recipient public key');
         }
-        if (!request.amount || BigInt(request.amount) <= 0) {
+        if (!request.amount || !/^\d+$/.test(request.amount) || request.amount.length > 30) {
             throw new Error('Invalid amount');
+        }
+        if (BigInt(request.amount) <= 0) {
+            throw new Error('Amount must be greater than zero');
         }
         if (!request.assetId || request.assetId.length !== 64) {
             throw new Error('Invalid asset ID length');
@@ -446,6 +530,13 @@ class RelayerService {
         if (!/^[0-9a-fA-F]+$/.test(request.assetId)) {
             throw new Error('Invalid asset ID: not valid hex');
         }
+        // Prevent DoS via extremely long strings
+        const maxFieldLength = 2048;
+        for (const [key, value] of Object.entries(request)) {
+            if (typeof value === 'string' && value.length > maxFieldLength) {
+                throw new Error(`Field ${key} exceeds maximum length`);
+            }
+        }
     }
     /**
      * Check if nullifier has been spent on-chain
@@ -456,66 +547,51 @@ class RelayerService {
             this.config.poolConfig.toBuffer(),
             Buffer.from(nullifierHash),
         ], this.config.programId);
+        // Check local cache first
+        const cached = await this.nullifierCache.isNullifierUsed(this.config.poolConfig, nullifierHash);
+        if (cached) {
+            return true;
+        }
         try {
-            const accountInfo = await this.connection.getAccountInfo(nullifierPda);
+            const accountInfo = await (0, retry_1.withRetry)(() => this.connection.getAccountInfo(nullifierPda), { maxAttempts: 3, baseDelayMs: 500, nonRetryablePatterns: [] });
             // Account exists => nullifier is spent
-            return accountInfo !== null;
+            const isSpent = accountInfo !== null;
+            if (isSpent) {
+                await this.nullifierCache.markNullifierUsed(this.config.poolConfig, nullifierHash);
+            }
+            return isSpent;
         }
         catch (err) {
             // RPC/network error, do not silently treat as spent or unspent
-            console.error('RPC error checking nullifier status', {
+            logger_1.logger.error('RPC error checking nullifier status', {
                 nullifier: bytesToHex(nullifierHash),
                 pda: nullifierPda.toBase58(),
-                error: err instanceof Error ? err.message : err,
+                error: err instanceof Error ? err.message : String(err),
             });
             throw new Error('Failed to verify nullifier status - RPC error');
         }
     }
     /**
-     * Submit withdrawal transaction with retry logic
+     * Submit withdrawal transaction with circuit breaker and retry logic
      */
     async submitWithdrawalWithRetry(params) {
-        let lastError = null;
-        for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
-            try {
-                console.log(`Submitting withdrawal transaction (attempt ${attempt}/${MAX_RETRY_ATTEMPTS})`);
-                const signature = await this.submitWithdrawal(params);
-                return signature;
-            }
-            catch (err) {
-                lastError = err instanceof Error ? err : new Error(String(err));
-                console.error(`Transaction attempt ${attempt} failed:`, lastError.message);
-                // Don't retry on certain errors
-                if (this.isNonRetryableError(lastError)) {
-                    console.error('Non-retryable error, aborting retry');
-                    throw lastError;
-                }
-                // Wait before retry with exponential backoff
-                if (attempt < MAX_RETRY_ATTEMPTS) {
-                    const delay = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-                    console.log(`Waiting ${delay}ms before retry...`);
-                    await sleep(delay);
-                }
-            }
-        }
-        throw lastError || new Error('Transaction submission failed after all retries');
-    }
-    /**
-     * Check if an error should not be retried
-     */
-    isNonRetryableError(error) {
-        const message = error.message.toLowerCase();
-        // Don't retry on these errors
-        const nonRetryablePatterns = [
-            'nullifier already spent',
-            'invalid proof',
-            'insufficient funds',
-            'account not found',
-            'invalid signature',
-            'simulation failed',
-            'instruction error',
-        ];
-        return nonRetryablePatterns.some(pattern => message.includes(pattern));
+        return this.withdrawalBreaker.execute(() => (0, retry_1.withRetry)(async () => {
+            logger_1.logger.info('Submitting withdrawal transaction');
+            const signature = await this.submitWithdrawal(params);
+            return signature;
+        }, {
+            maxAttempts: MAX_RETRY_ATTEMPTS,
+            baseDelayMs: BASE_RETRY_DELAY_MS,
+            nonRetryablePatterns: [
+                'nullifier already spent',
+                'invalid proof',
+                'insufficient funds',
+                'account not found',
+                'invalid signature',
+                'simulation failed',
+                'instruction error',
+            ],
+        }));
     }
     /**
      * Submit withdrawal transaction
@@ -564,9 +640,22 @@ class RelayerService {
         })
             .instruction();
         // Build and send transaction
-        const tx = new web3_js_1.Transaction().add(ix);
-        const signature = await (0, web3_js_1.sendAndConfirmTransaction)(this.connection, tx, [this.config.walletKeypair], { commitment: 'confirmed' });
-        return signature;
+        const { blockhash, lastValidBlockHeight } = await (0, retry_1.withRetry)(() => this.connection.getLatestBlockhash('confirmed'), { maxAttempts: 3, baseDelayMs: 500 });
+        const tx = new web3_js_1.Transaction({ blockhash, lastValidBlockHeight }).add(ix);
+        tx.feePayer = this.config.walletKeypair.publicKey;
+        try {
+            const signature = await (0, web3_js_1.sendAndConfirmTransaction)(this.connection, tx, [this.config.walletKeypair], {
+                commitment: 'confirmed',
+                maxRetries: 2,
+            });
+            return signature;
+        }
+        catch (err) {
+            if (err instanceof web3_js_1.TransactionExpiredBlockheightExceededError) {
+                logger_1.logger.warn('Transaction expired due to blockheight exceeded');
+            }
+            throw err;
+        }
     }
     /**
      * Register asset as supported
@@ -577,14 +666,16 @@ class RelayerService {
             throw new Error('Invalid asset ID format: must be 64 hex characters');
         }
         this.supportedAssets.add(assetId.toLowerCase());
-        console.log(`Registered supported asset: ${assetId}`);
+        this.persistState();
+        logger_1.logger.info('Registered supported asset', { assetId });
     }
     /**
      * Remove asset from supported list
      */
     removeSupportedAsset(assetId) {
         this.supportedAssets.delete(assetId.toLowerCase());
-        console.log(`Removed supported asset: ${assetId}`);
+        this.persistState();
+        logger_1.logger.info('Removed supported asset', { assetId });
     }
     /**
      * Start the relayer service
@@ -601,15 +692,21 @@ class RelayerService {
         // Mount API extensions
         this.app.use("/api", apiExtensions.getRouter());
         this.app.listen(this.config.port, () => {
-            console.log("========================================");
-            console.log("The White Protocol Relayer Service Started");
-            console.log("========================================");
-            console.log(`Port: ${this.config.port}`);
-            console.log(`Operator: ${this.config.walletKeypair.publicKey.toBase58()}`);
-            console.log(`Fee: ${this.config.feeBps} bps`);
-            console.log(`API Extensions: ENABLED`);
-            console.log("========================================");
+            logger_1.logger.info('The White Protocol Relayer Service Started', {
+                port: this.config.port,
+                operator: this.config.walletKeypair.publicKey.toBase58(),
+                feeBps: this.config.feeBps,
+                apiExtensions: true,
+            });
         });
+        // Graceful shutdown: persist state before exit
+        const shutdown = (signal) => {
+            logger_1.logger.info('Received shutdown signal, persisting state', { signal });
+            this.persistState();
+            process.exit(0);
+        };
+        process.once('SIGTERM', () => shutdown('SIGTERM'));
+        process.once('SIGINT', () => shutdown('SIGINT'));
     }
 }
 exports.RelayerService = RelayerService;
@@ -709,6 +806,15 @@ function deserializeGroth16Proof(proofData) {
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+/**
+ * Race a promise against a timeout
+ */
+function withTimeout(promise, ms, message) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+    ]);
+}
 // =============================================================================
 // EXPORTS
 // =============================================================================
@@ -749,7 +855,7 @@ async function main() {
 // Run if executed directly
 if (require.main === module) {
     main().catch(err => {
-        console.error('Failed to start relayer:', err);
+        logger_1.logger.error('Failed to start relayer', { error: String(err) });
         process.exit(1);
     });
 }

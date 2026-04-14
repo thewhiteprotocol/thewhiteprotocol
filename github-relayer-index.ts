@@ -185,9 +185,9 @@ class RelayerService {
     this.app.use(helmet());
     
     this.app.use(cors({
-      origin: this.config.corsOrigin || '*',
+      origin: this.config.corsOrigin ? this.config.corsOrigin.split(',').map(s => s.trim()) : false,
       methods: ['GET', 'POST', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Sequencer-Token'],
     }));
     
     this.app.use(express.json({ limit: '2mb' }));
@@ -545,7 +545,7 @@ async function main(): Promise<void> {
     withdrawVkPath: process.env.WITHDRAW_VK_PATH || './circuits/build/withdraw_vk.json',
     circuitsPath: process.env.CIRCUITS_PATH || './circuits/build',
     treeDepth: parseInt(process.env.TREE_DEPTH || '20', 10),
-    corsOrigin: process.env.CORS_ORIGIN || '*',
+    corsOrigin: process.env.CORS_ORIGIN || '',
   };
   
   const relayer = new RelayerService(config);

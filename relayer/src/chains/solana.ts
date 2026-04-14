@@ -2,7 +2,7 @@
  * Solana chain adapter for The White Protocol relayer
  */
 
-import { Connection, Keypair, PublicKey, Transaction } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
 import { AnchorProvider, Program } from '@coral-xyz/anchor';
 import * as fs from 'fs';
 
@@ -29,7 +29,7 @@ export class SolanaAdapter {
       new AnchorWallet(this.config.walletKeypair),
       { commitment: 'confirmed' }
     );
-    this.program = new Program(idl, this.config.programId, this.provider);
+    this.program = new Program(idl as any, this.provider);
   }
   
   async submitWithdrawal(
@@ -66,14 +66,22 @@ class AnchorWallet {
     return this.payer.publicKey;
   }
   
-  async signTransaction(tx: Transaction): Promise<Transaction> {
-    tx.partialSign(this.payer);
+  async signTransaction<T extends Transaction | VersionedTransaction>(tx: T): Promise<T> {
+    if (tx instanceof Transaction) {
+      tx.partialSign(this.payer);
+    } else {
+      tx.sign([this.payer]);
+    }
     return tx;
   }
   
-  async signAllTransactions(txs: Transaction[]): Promise<Transaction[]> {
+  async signAllTransactions<T extends Transaction | VersionedTransaction>(txs: T[]): Promise<T[]> {
     return txs.map(tx => {
-      tx.partialSign(this.payer);
+      if (tx instanceof Transaction) {
+        tx.partialSign(this.payer);
+      } else {
+        tx.sign([this.payer]);
+      }
       return tx;
     });
   }

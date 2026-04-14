@@ -68,5 +68,8 @@ WITHDRAW_VK_PATH=./circuits/build/withdraw_vk.json
 # CORS
 # =============================================================================
 
-# Allowed origins (use * for development, specific domains for production)
-CORS_ORIGIN=*
+# Allowed origins — comma-separated list (no wildcard in production)
+# CORS_ORIGIN=https://your-app.vercel.app
+
+# Sequencer auth token — required for state-mutating API endpoints
+SEQUENCER_AUTH_TOKEN=change-me-to-a-random-secret

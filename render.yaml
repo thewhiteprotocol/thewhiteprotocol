@@ -3,14 +3,19 @@ services:
     name: white-protocol-relayer
     runtime: node
     rootDir: relayer
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     plan: starter
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: "3000"
+      - key: LOG_LEVEL
+        value: info
+      - key: STATE_DIR
+        value: /app/data
       - key: RPC_ENDPOINT
         fromGroup: white-protocol
       - key: RELAYER_KEYPAIR
@@ -32,4 +37,7 @@ services:
       - key: TREE_DEPTH
         value: "20"
       - key: CORS_ORIGIN
-        value: "*"
+        # Set this to your deployed frontend domain(s), e.g. "https://your-app.vercel.app"
+        fromGroup: white-protocol
+      - key: SEQUENCER_AUTH_TOKEN
+        generateValue: true
