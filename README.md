@@ -1,53 +1,69 @@
 # The White Protocol
 
-The White Protocol is a privacy protocol for Solana that enables confidential transfers of SPL tokens through a shared, multi-asset shielded pool. The protocol combines zero-knowledge proofs with an on-chain commitment tree and off-chain batching to achieve practical throughput while keeping on-chain verification bounded.
+The White Protocol is a multi-chain privacy protocol that enables confidential transfers of tokens through shared, multi-asset shielded pools. It combines zero-knowledge proofs with an on-chain commitment tree and off-chain batching to achieve practical throughput while keeping on-chain verification bounded.
 
-This repository contains The White Protocol's Solana programs, Circom circuits, relayer and sequencer services, TypeScript SDK, and deployment scripts.
+The protocol is live on **Solana Devnet** and **Base Sepolia**, sharing the same Circom circuits, Poseidon Merkle tree, and Groth16 proof system across both chains.
 
 ## Status
 
-**Network:** Solana Devnet
-
+**Networks:** Solana Devnet, Base Sepolia  
 **Release:** Experimental, under active development
 
 ## Capabilities
 
-The protocol supports shielded pools for multiple SPL token mints, Groth16 proofs over BN254, Poseidon-based commitments, Merkle tree membership proofs, batched settlement of pending deposits through an off-chain sequencer, and yield-bearing asset support with performance fee enforcement.
+The protocol supports shielded pools for multiple token mints (SPL on Solana, ERC20/ETH on Base), Groth16 proofs over BN254, Poseidon-based commitments, Merkle tree membership proofs, batched settlement of pending deposits through an off-chain sequencer, and yield-bearing asset support with performance fee enforcement on Solana.
 
 ## Repository Structure
 
 | Directory | Description |
 |-----------|-------------|
-| `programs/` | Solana programs for pool state, deposit settlement, withdrawals, and yield management |
-| `circuits/` | Circom circuits and compiled artifacts for ZK proof generation |
-| `relayer/` | Off-chain service for batching, proof generation, and client endpoints |
-| `sdk/` | TypeScript SDK for transactions, notes, and proof construction |
+| `circuits/` | Shared Circom circuits and compiled artifacts for ZK proof generation |
+| `chains/solana/` | Anchor/Rust programs for pool state, deposit settlement, withdrawals, and yield management |
+| `chains/base/` | Solidity/Foundry contracts for the EVM port |
+| `packages/core/` | Shared TypeScript crypto primitives, types, and proof helpers |
+| `relayer/` | Off-chain sequencer and relayer service for batching, proof generation, and client endpoints |
+| `frontend/` | Next.js multi-chain UI supporting both Solana and Base |
 | `scripts/` | Deployment, initialization, and registry management tooling |
 
-## Devnet Deployment
+## Deployments
 
-**Program ID:** `BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb`
+### Solana Devnet
 
-### Active Pool
+**Program ID:** `C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW`
 
 | Component | Address |
 |-----------|---------|
-| Pool Config | `uKWvwEoqd46PHeDQHbmrp4gXTgvWBxu7VeWXgFUE9zc` |
-| Merkle Tree | `DR3C2PRhgtcgZDiaAtKGHMK2Z3AZr1QUAHNCeLmJ37W4` |
-| Pending Buffer | `GFfT479ybSWUZgBaq4rLjU2zuwYX8ziPXHqX9rYZmRTS` |
-| Pool Authority | `6qroZpZMFjLzhyBVz8CUeUjWXhmue3EAVQM57FczNysA` |
-| Relayer Registry | `Eo5t5SicskPpzSPxpDWnru6BHvfjEXTNSdSVgD5tErvF` |
-| Compliance Config | `FGkwjNzeC1z2RubycEGAxAocmwKy6SoTd8Ed3QCwzaBF` |
+| Pool Config | `EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS` |
+| Merkle Tree | `2DjfHs3CYK22a4SAMSH2gt6eXRwSnBzm2f4gWvmos8sD` |
+| Pending Buffer | `7MzDFCdPEog6orC42jCXBz53zhqysQVq5vb5J7R1DAyw` |
+| wSOL Vault | `629JMEcz1u4AjyahByEcQtyGF3TwDnBPY7nHhaLVB9PS` |
 
-### Supported Assets
+**Supported Assets**
 
 | Asset | Mint Address |
 |-------|--------------|
 | wSOL | `So11111111111111111111111111111111111111112` |
 
+### Base Sepolia
+
+| Contract | Address |
+|----------|---------|
+| WhiteProtocol | `0xCE959493cf6F15314b4B9eEbb28369716341e7FE` |
+| AssetRegistry | `0x87319Da4558FcBD4f3475cFECc468ee4D736D3ea` |
+| DepositVerifier | `0x3F44E947d9f9F0055854aF678F03C32F4bbd415e` |
+| WithdrawVerifier | `0xcb657012d8a718EA8FC51E68cC729d923f023E59` |
+| MerkleBatchVerifier | `0x71930f07b3bA75A314a6e7c44C350AD0E2718473` |
+
+**Supported Assets**
+
+| Asset | Address |
+|-------|---------|
+| ETH | `0x0000000000000000000000000000000000000000` |
+| WETH | `0x4200000000000000000000000000000000000006` |
+
 ## Protocol Overview
 
-The White Protocol uses a two-phase deposit flow designed around Solana's compute constraints.
+The White Protocol uses a two-phase deposit flow designed around compute constraints on both Solana and Base.
 
 ### Deposit Phase
 
@@ -70,11 +86,29 @@ Sequencer batches commitments (off-chain)
 Batch proof generation
     |
     v
-settle_deposits_batch (on-chain)
+settle_deposits_batch / settleBatch (on-chain)
     |
     v
 Merkle tree updated
 ```
+
+## Base Chain
+
+The Base implementation is an EVM port of the core protocol written in Solidity and tested with Foundry. It reuses the same Circom circuits and Poseidon Merkle tree (20 levels) as Solana, ensuring cryptographic compatibility across chains.
+
+### Contract Architecture
+
+- **`WhiteProtocol.sol`** — Main privacy pool. Handles deposits, withdrawals, batch settlements, and relayer management. Inherits `MerkleTreeWithHistory`.
+- **`AssetRegistry.sol`** — Ownable registry of supported ERC20 tokens and native ETH.
+- **`MerkleTreeWithHistory.sol`** — Incremental Poseidon Merkle tree with a 30-slot root history buffer.
+- **`DepositVerifier.sol` / `WithdrawVerifier.sol` / `MerkleBatchVerifier.sol`** — SnarkJS-generated Groth16 verifier contracts using Ethereum precompiles.
+
+### How It Differs from Solana
+
+- **Merkle insertion** is performed on-chain inside `settleBatch` after the batch proof is verified.
+- **Verifiers** are hard-coded Solidity contracts rather than dynamically uploaded on-chain accounts.
+- **Nullifiers** are tracked in a simple `mapping(uint256 => bool)` instead of PDAs.
+- **Feature set** is streamlined: it supports deposits, basic withdrawals, and batch settlement without yield mode or join-split transactions.
 
 ## Withdrawal Flow
 
@@ -83,7 +117,7 @@ Users generate a ZK proof demonstrating:
 - The nullifier has not been spent
 - The recipient and amount match the proof public inputs
 
-The relayer submits the withdrawal transaction, paying gas fees and earning a 0.5% service fee.
+The relayer submits the withdrawal transaction, paying gas fees and earning a service fee.
 
 ## Yield Earn
 
@@ -125,11 +159,9 @@ The YieldRegistry can hold up to 8 yield-bearing mints per pool. Common examples
 
 Performance fees apply only to positive yield, not to the original deposit amount. If a user deposits 100 JitoSOL and it appreciates to 105 JitoSOL equivalent value, the 5% fee applies only to the 5 JitoSOL gain. The user receives 104.75 JitoSOL (100 principal + 4.75 net yield).
 
-## API Reference
+## Relayer API
 
-The White Protocol relayer API is publicly available for integration with privacy-preserving applications on Solana.
-
-**Base URL:** `https://api.thewhiteprotocol.org`
+Each deployed relayer exposes a local HTTP API for integration. The base URL is deployment-specific and configured per operator.
 
 ### Health Check
 
@@ -138,12 +170,6 @@ GET /health
 ```
 
 Returns the current status of the relayer service, including RPC latency and proof queue metrics.
-
-**Example request:**
-
-```bash
-curl https://api.thewhiteprotocol.org/health
-```
 
 **Example response:**
 
@@ -158,15 +184,7 @@ curl https://api.thewhiteprotocol.org/health
 }
 ```
 
-### Pool State
-
-```
-GET /pool-state
-```
-
-Returns the current state of the shielded pool, including Merkle tree information and pending deposits.
-
-### Additional Endpoints
+### Core Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -177,9 +195,9 @@ Returns the current state of the shielded pool, including Merkle tree informatio
 | `/api/config` | GET | Pool configuration and supported assets |
 | `/quote` | GET | Get current relayer fee quote |
 
-### Network
+## Frontend
 
-The API currently operates on Solana Devnet. Mainnet deployment is planned for a future release.
+The frontend is a **Next.js** application located in `frontend/`. It supports both **Solana** and **Base** with automatic wallet detection, allowing users to deposit, withdraw, and view pool state from a single interface.
 
 ## Development
 
@@ -190,6 +208,7 @@ The API currently operates on Solana Devnet. Mainnet deployment is planned for a
 | Rust | 1.75+ |
 | Solana CLI | 1.18+ |
 | Anchor | 0.30+ |
+| Foundry | latest |
 | Node.js | 18+ |
 | circom | 2.1+ |
 | snarkjs | 0.7+ |
@@ -205,15 +224,25 @@ export ANCHOR_WALLET="$HOME/.config/solana/id.json"
 
 ### Tests
 
+**Solana:**
 ```bash
-cargo test -p white-protocol
+cd chains/solana && cargo test -p white-protocol
+```
+
+**Base:**
+```bash
+cd chains/base && forge test
 ```
 
 ## Live Demo
 
 **Frontend:** [White Protocol](https://app.thewhiteprotocol.org) (or your deployed URL)
 
-**Explorer:** [View Program on Solana Explorer](https://explorer.solana.com/address/BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb?cluster=devnet)
+**Solana Explorer:** [View Program on Solana Explorer](https://explorer.solana.com/address/C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW?cluster=devnet)
+
+**Base Sepolia:**
+- [WhiteProtocol](https://sepolia.basescan.org/address/0xCE959493cf6F15314b4B9eEbb28369716341e7FE)
+- [AssetRegistry](https://sepolia.basescan.org/address/0x87319Da4558FcBD4f3475cFECc468ee4D736D3ea)
 
 ## Security Considerations
 
