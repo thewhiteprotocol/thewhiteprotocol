@@ -12,16 +12,16 @@ type TooltipState = {
 };
 
 const COLORS = {
-  bg: "#E0E5EC",
-  card: "#E0E5EC",
+  bg: "#090B13",
+  card: "#0f1220",
   deposit: "#10b981",
   withdraw: "#ef4444",
-  proof: "#3b82f6",
-  pool: "#8b5cf6",
-  ink: "#334155",
-  muted: "#64748b",
-  shadow: "#b8b9be",
-  highlight: "#ffffff",
+  proof: "#38bdf8",
+  pool: "#a78bfa",
+  ink: "#f8fafc",
+  muted: "#94a3b8",
+  shadow: "#000000",
+  highlight: "#1e293b",
 };
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
@@ -115,14 +115,14 @@ function NodeBox({
     <g onMouseEnter={onHover} onMouseLeave={onLeave} onMouseMove={onMove} style={{ cursor: onHover ? "help" : "default" }}>
       <defs>
         <filter id={`neumorph-${x}-${y}`} x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="4" dy="4" stdDeviation="6" floodColor="#b8b9be" floodOpacity="0.8" />
-          <feDropShadow dx="-4" dy="-4" stdDeviation="6" floodColor="#ffffff" floodOpacity="0.9" />
+          <feDropShadow dx="3" dy="3" stdDeviation="5" floodColor="#000000" floodOpacity="0.6" />
+          <feDropShadow dx="-2" dy="-2" stdDeviation="4" floodColor="#1e293b" floodOpacity="0.4" />
         </filter>
       </defs>
       <motion.rect
         x={x} y={y} width={w} height={h} rx={16}
         fill={COLORS.card}
-        stroke={active ? color : "#c8ccd4"}
+        stroke={active ? color : "#334155"}
         strokeWidth={active ? 2.5 : 1.25}
         filter={`url(#neumorph-${x}-${y})`}
         initial={false}
@@ -133,7 +133,7 @@ function NodeBox({
       {subtitle && <text x={x + 16} y={y + 46} fill={COLORS.muted} fontFamily={MONO} fontSize={11}>{subtitle}</text>}
       {tag && (
         <g>
-          <rect x={x + w - 70} y={y + 10} width={56} height={22} rx={11} fill={COLORS.card} stroke={active ? color : "#c8ccd4"} strokeWidth={1.25} />
+          <rect x={x + w - 70} y={y + 10} width={56} height={22} rx={11} fill={COLORS.card} stroke={active ? color : "#334155"} strokeWidth={1.25} />
           <text x={x + w - 42} y={y + 26} textAnchor="middle" fill={active ? color : COLORS.muted} fontFamily={MONO} fontSize={10} fontWeight="600">{tag}</text>
         </g>
       )}
@@ -144,7 +144,7 @@ function NodeBox({
 function CheckBadge({ x, y, ok }: { x: number; y: number; ok: boolean }) {
   return (
     <g>
-      <motion.circle cx={x} cy={y} r={12} fill={ok ? "#d1fae5" : "#fee2e2"} stroke={ok ? COLORS.deposit : COLORS.withdraw} strokeWidth={2}
+      <motion.circle cx={x} cy={y} r={12} fill={ok ? "#064e3b" : "#450a0a"} stroke={ok ? COLORS.deposit : COLORS.withdraw} strokeWidth={2}
         initial={false} animate={{ scale: ok ? 1 : 0.92, opacity: 1 }} transition={{ duration: 0.2 }} style={{ filter: glow(ok ? COLORS.deposit : COLORS.withdraw) }} />
       <motion.path d={ok ? "M-4 1 L-1 4 L5 -4" : "M-4 -4 L4 4 M4 -4 L-4 4"} transform={`translate(${x}, ${y})`} fill="none" stroke={ok ? COLORS.deposit : COLORS.withdraw} strokeWidth={2.25} strokeLinecap="round"
         initial={false} animate={{ pathLength: 1, opacity: 1 }} transition={{ duration: 0.25 }} />
@@ -181,8 +181,8 @@ function ECPoints({ x, y, visible, tint }: { x: number; y: number; visible: bool
 
 function StatPill({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-full bg-[#E0E5EC] px-3 py-1.5 shadow-[inset_2px_2px_4px_#b8b9be,inset_-2px_-2px_4px_#ffffff]">
-      <span className="font-mono text-xs text-slate-500">{label}</span>
+    <div className="flex items-center gap-2 rounded-full bg-white/[0.03] border border-white/[0.06] px-3 py-1.5">
+      <span className="font-mono text-xs text-zinc-400">{label}</span>
       <span className="font-mono text-xs font-bold" style={{ color }}>{value}</span>
     </div>
   );
@@ -268,13 +268,13 @@ export default function ProtocolFlowVisualizer() {
   const mixParticles = useMemo(() => new Array(8).fill(0).map((_, i) => ({ id: i, color: i % 3 === 0 ? COLORS.deposit : i % 3 === 1 ? COLORS.proof : "#06b6d4", phase: i * 0.8 })), []);
 
   return (
-    <div className="w-full bg-[#E0E5EC] rounded-[2rem] p-6 shadow-[12px_12px_24px_#b8b9be,-12px_-12px_24px_#ffffff]">
+    <div className="w-full rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-[300px]">
-              <div className="text-lg font-bold text-slate-700">The White Protocol v2 Privacy Protocol Flow</div>
-              <div className="text-sm text-slate-500">Groth16 (BN254), Poseidon Merkle, circom/snarkjs, Solana verification</div>
+              <div className="text-lg font-bold text-white">The White Protocol Privacy Protocol Flow</div>
+              <div className="text-sm text-zinc-400">Groth16 (BN254), Poseidon Merkle, circom/snarkjs, Multi-chain verification</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {[
@@ -283,17 +283,17 @@ export default function ProtocolFlowVisualizer() {
                 { label: "Privacy Guarantees", onClick: showPrivacy },
                 { label: "Reset", onClick: reset },
               ].map((btn) => (
-                <button key={btn.label} onClick={btn.onClick} className="px-4 py-2 bg-[#E0E5EC] rounded-xl text-sm font-medium text-slate-600 shadow-[4px_4px_8px_#b8b9be,-4px_-4px_8px_#ffffff] hover:shadow-[2px_2px_4px_#b8b9be,-2px_-2px_4px_#ffffff] active:shadow-[inset_3px_3px_6px_#b8b9be,inset_-3px_-3px_6px_#ffffff] transition-all">
+                <button key={btn.label} onClick={btn.onClick} className="px-4 py-2 rounded-xl text-sm font-medium text-zinc-300 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.12] active:bg-white/[0.08] transition-all">
                   {btn.label}
                 </button>
               ))}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-3 rounded-2xl bg-[#E0E5EC] px-4 py-2 shadow-[inset_3px_3px_6px_#b8b9be,inset_-3px_-3px_6px_#ffffff]">
-              <span className="text-xs font-mono text-slate-500">Speed</span>
-              <input type="range" min={0.5} max={2} step={0.1} value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="w-32 accent-blue-500" />
-              <span className="text-xs font-mono text-slate-700 font-bold">{speed.toFixed(1)}x</span>
+            <div className="flex items-center gap-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] px-4 py-2">
+              <span className="text-xs font-mono text-zinc-400">Speed</span>
+              <input type="range" min={0.5} max={2} step={0.1} value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="w-32 accent-cyan-400" />
+              <span className="text-xs font-mono text-white font-bold">{speed.toFixed(1)}x</span>
             </div>
             <StatPill label="Commitments" value={commitments.toLocaleString()} color={COLORS.pool} />
             <StatPill label="TVL" value={`${tvl.toLocaleString(undefined, { minimumFractionDigits: 2 })} SOL`} color={COLORS.pool} />
@@ -302,11 +302,11 @@ export default function ProtocolFlowVisualizer() {
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-2xl bg-[#E0E5EC] shadow-[inset_6px_6px_12px_#b8b9be,inset_-6px_-6px_12px_#ffffff]">
+        <div className="relative overflow-hidden rounded-2xl bg-[#090B13] border border-white/[0.08]">
           <svg viewBox={`0 0 ${W} ${H}`} className="h-[580px] w-full select-none">
             <defs>
               <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
-                <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#c8ccd4" strokeWidth="0.5" opacity="0.5" />
+                <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#1e293b" strokeWidth="0.5" opacity="0.5" />
               </pattern>
             </defs>
             <rect x="0" y="0" width={W} height={H} fill={COLORS.bg} />
@@ -535,10 +535,10 @@ export default function ProtocolFlowVisualizer() {
           <AnimatePresence>
             {tooltip.visible && (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}
-                className="pointer-events-none absolute z-50 max-w-xs rounded-xl bg-[#E0E5EC] p-3 shadow-[8px_8px_16px_#b8b9be,-8px_-8px_16px_#ffffff]"
+                className="pointer-events-none absolute z-50 max-w-xs rounded-xl bg-[#0f1220] border border-white/10 p-3 shadow-xl"
                 style={{ left: tooltip.x + 15, top: tooltip.y + 15 }}>
-                <div className="text-sm font-bold text-slate-700">{tooltip.title}</div>
-                <div className="mt-1 text-xs leading-relaxed text-slate-500">{tooltip.body}</div>
+                <div className="text-sm font-bold text-white">{tooltip.title}</div>
+                <div className="mt-1 text-xs leading-relaxed text-zinc-400">{tooltip.body}</div>
               </motion.div>
             )}
           </AnimatePresence>

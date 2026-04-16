@@ -361,7 +361,9 @@ class RelayerService {
             throw new Error(`Amount above maximum: ${this.config.maxWithdrawalAmount}`);
         }
         // 3. Check asset is supported BEFORE expensive proof verification
-        if (this.supportedAssets.size > 0 && !this.supportedAssets.has(request.assetId)) {
+        if (this.supportedAssets.size > 0 &&
+            !this.supportedAssets.has(request.assetId) &&
+            !this.supportedAssets.has(request.mint)) {
             throw new Error(`Asset ${request.assetId} not supported by this relayer`);
         }
         // 4. Decode inputs
@@ -453,7 +455,9 @@ class RelayerService {
             throw new Error(`Amount above maximum: ${this.config.maxWithdrawalAmount}`);
         }
         // Check asset is supported BEFORE expensive proof verification
-        if (this.supportedAssets.size > 0 && !this.supportedAssets.has(request.assetId)) {
+        if (this.supportedAssets.size > 0 &&
+            !this.supportedAssets.has(request.assetId) &&
+            !this.supportedAssets.has(request.mint)) {
             throw new Error(`Asset ${request.assetId} not supported by this relayer`);
         }
         // Decode inputs
@@ -781,9 +785,11 @@ class RelayerService {
      * Register asset as supported
      */
     addSupportedAsset(assetId) {
-        // Validate asset ID format
-        if (!/^[0-9a-fA-F]{64}$/.test(assetId)) {
-            throw new Error('Invalid asset ID format: must be 64 hex characters');
+        // Accept 64-char hex asset IDs or Solana base58 mint addresses (32-44 chars)
+        const isHexAssetId = /^[0-9a-fA-F]{64}$/.test(assetId);
+        const isBase58Mint = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(assetId);
+        if (!isHexAssetId && !isBase58Mint) {
+            throw new Error('Invalid asset ID format: must be 64 hex characters or a valid Solana mint address');
         }
         this.supportedAssets.add(assetId.toLowerCase());
         this.persistState();
@@ -972,11 +978,25 @@ function createRelayer(config) {
 /**
  * Example usage / entry point
  */
+function parseRelayerKeypair() {
+    const raw = process.env.RELAYER_KEYPAIR || '[]';
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            throw new Error(`RELAYER_KEYPAIR parsed as non-array: ${typeof parsed}`);
+        }
+        return Uint8Array.from(parsed);
+    }
+    catch (err) {
+        logger_1.logger.error('Failed to parse RELAYER_KEYPAIR', { rawLength: raw.length, rawPreview: raw.slice(0, 200), error: err?.message });
+        throw new Error(`Invalid RELAYER_KEYPAIR: ${err?.message}. Ensure it is a valid JSON array of 64 numbers with no line breaks or extra quotes.`);
+    }
+}
 async function main() {
     // Load configuration from environment
     const config = {
         rpcEndpoint: process.env.RPC_ENDPOINT || 'https://api.devnet.solana.com',
-        walletKeypair: web3_js_1.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.RELAYER_KEYPAIR || '[]'))),
+        walletKeypair: web3_js_1.Keypair.fromSecretKey(parseRelayerKeypair()),
         programId: new web3_js_1.PublicKey(process.env.PROGRAM_ID || 'C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW'),
         poolConfig: new web3_js_1.PublicKey(process.env.POOL_CONFIG || '11111111111111111111111111111111'),
         feeBps: parseInt(process.env.FEE_BPS || '50', 10),

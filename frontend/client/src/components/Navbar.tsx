@@ -4,10 +4,11 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
 const navLinks = [
   { label: "Overview", href: "#overview" },
-  { label: "Protocol", href: "#protocol" },
+  { label: "Business", href: "#business" },
+  { label: "Protocol", href: "#protocol-flow" },
   { label: "Architecture", href: "#architecture" },
   { label: "Docs", href: "#docs" },
-  { label: "API", href: "#api", badge: "BETA" },
+  { label: "Relayer", href: "#relayer" },
   { label: "Devnet", href: "#devnet" },
   { label: "Links", href: "#links" },
 ];
@@ -59,7 +60,7 @@ export function Navbar() {
                   : "text-slate-400 hover:text-white border border-transparent";
                 return (
                   <button key={link.href} onClick={() => scrollToSection(link.href)} className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${cls}`}>
-                    {link.label}{link.badge && <span className="ml-1 px-1 py-0.5 text-[10px] font-bold bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 rounded">{link.badge}</span>}
+                    {link.label}
                   </button>
                 );
               })}
@@ -67,12 +68,6 @@ export function Navbar() {
           </div>
 
           <div className="hidden lg:flex items-center gap-3">
-            <a
-              href={import.meta.env.VITE_APP_URL || "http://localhost:3000"}
-              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(0,200,240,0.3)] transition-all"
-            >
-              Launch App
-            </a>
             <WalletMultiButton />
           </div>
 
@@ -95,17 +90,11 @@ export function Navbar() {
                 : "text-slate-400 hover:text-white bg-white/[0.03] border border-white/[0.04]";
               return (
                 <button key={link.href} onClick={() => scrollToSection(link.href)} className={`w-full text-left px-4 py-3 rounded-xl font-medium transition-all ${cls}`}>
-                  {link.label}{link.badge && <span className="ml-1 px-1 py-0.5 text-[10px] font-bold bg-cyan-400/10 text-cyan-400 border border-cyan-400/20 rounded">{link.badge}</span>}
+                  {link.label}
                 </button>
               );
             })}
             <div className="pt-2 flex flex-col gap-2">
-              <a
-                href={import.meta.env.VITE_APP_URL || "http://localhost:3000"}
-                className="w-full px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(0,200,240,0.3)] transition-all text-center"
-              >
-                Launch App
-              </a>
               <WalletMultiButton />
             </div>
           </div>

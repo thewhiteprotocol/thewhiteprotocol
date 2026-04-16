@@ -1,5 +1,5 @@
-import { useWallet } from "@solana/wallet-adapter-react";
 import { Globe, Cpu, Code, ExternalLink, CheckCircle, Wallet } from "lucide-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { DEVNET_CONFIG } from "@/config";
 
 export function DevnetStatus() {
@@ -7,60 +7,137 @@ export function DevnetStatus() {
 
   return (
     <section id="devnet" className="py-24 px-4">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-700 mb-4">Devnet Deployment</h2>
-          <p className="text-lg text-slate-500 max-w-2xl mx-auto">The White Protocol v2 is live on Solana devnet for testing</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Devnet Deployment</h2>
+          <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
+            The White Protocol is live on Solana Devnet and Base Sepolia for testing
+          </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="p-6 bg-[#E0E5EC] rounded-2xl shadow-[8px_8px_16px_#b8b9be,-8px_-8px_16px_#ffffff]">
+          <div className="p-6 rounded-2xl border border-white/10 bg-white/[0.03]">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff]"><Globe className="h-5 w-5 text-blue-500" /></div>
-              <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Network</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div><span className="text-sm font-bold text-slate-700">Solana Devnet</span></div></div>
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20"><Globe className="h-5 w-5 text-cyan-400" /></div>
+              <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Network</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                  <span className="text-sm font-bold text-white">Solana Devnet</span>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="p-6 bg-[#E0E5EC] rounded-2xl shadow-[8px_8px_16px_#b8b9be,-8px_-8px_16px_#ffffff]">
+          <div className="p-6 rounded-2xl border border-white/10 bg-white/[0.03]">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff]"><Cpu className="h-5 w-5 text-blue-500" /></div>
-              <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Program</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div><span className="text-sm font-bold text-slate-700">Deployed</span></div></div>
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20"><Cpu className="h-5 w-5 text-cyan-400" /></div>
+              <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Base Sepolia</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                  <span className="text-sm font-bold text-white">Deployed</span>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="p-6 bg-[#E0E5EC] rounded-2xl shadow-[8px_8px_16px_#b8b9be,-8px_-8px_16px_#ffffff]">
+          <div className="p-6 rounded-2xl border border-white/10 bg-white/[0.03]">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff]"><Wallet className="h-5 w-5 text-blue-500" /></div>
-              <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Wallet</p><div className="flex items-center gap-2 mt-1"><div className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-500" : "bg-slate-400"}`}></div><span className="text-sm font-bold text-slate-700">{connected ? "Connected" : "Not Connected"}</span></div></div>
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20"><Wallet className="h-5 w-5 text-cyan-400" /></div>
+              <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Wallet</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-zinc-500"}`}></div>
+                  <span className="text-sm font-bold text-white">{connected ? "Connected" : "Not Connected"}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-[#E0E5EC] rounded-[2rem] p-8 shadow-[12px_12px_24px_#b8b9be,-12px_-12px_24px_#ffffff] mb-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff]"><Code className="h-5 w-5 text-blue-500" /></div>
-            <h3 className="text-xl font-bold text-slate-700">Program Deployment</h3>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20"><Code className="h-5 w-5 text-cyan-400" /></div>
+              <h3 className="text-xl font-bold text-white">Solana Deployment</h3>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Program ID</p>
+                <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] overflow-x-auto">
+                  <code className="text-sm font-mono text-zinc-300">{DEVNET_CONFIG.PROGRAM_ID}</code>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Pool Config</p>
+                <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] overflow-x-auto">
+                  <code className="text-sm font-mono text-zinc-300">{DEVNET_CONFIG.POOL_CONFIG}</code>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Merkle Tree</p>
+                <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] overflow-x-auto">
+                  <code className="text-sm font-mono text-zinc-300">{DEVNET_CONFIG.MERKLE_TREE}</code>
+                </div>
+              </div>
+            </div>
+            <a href={DEVNET_CONFIG.EXPLORER_URL} target="_blank" rel="noopener noreferrer" className="mt-6 w-full px-6 py-4 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] active:bg-white/[0.08] transition-all flex items-center justify-center gap-2 text-zinc-300 font-bold">
+              <ExternalLink size={16} /> View on Solana Explorer
+            </a>
           </div>
-          <div className="space-y-4">
-            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">RPC Endpoint</p><div className="p-4 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff] overflow-x-auto"><code className="text-sm font-mono text-slate-600">{DEVNET_CONFIG.RPC_URL}</code></div></div>
-            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Program ID</p><div className="p-4 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff] overflow-x-auto"><code className="text-sm font-mono text-slate-600">{DEVNET_CONFIG.PROGRAM_ID}</code></div></div>
-            <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Pool Config</p><div className="p-4 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff] overflow-x-auto"><code className="text-sm font-mono text-slate-600">{DEVNET_CONFIG.POOL_CONFIG}</code></div></div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20"><Code className="h-5 w-5 text-blue-400" /></div>
+              <h3 className="text-xl font-bold text-white">Base Sepolia Deployment</h3>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Protocol Contract</p>
+                <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] overflow-x-auto">
+                  <code className="text-sm font-mono text-zinc-300">0xCE959493cf6F15314b4B9eEbb28369716341e7FE</code>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Asset Registry</p>
+                <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] overflow-x-auto">
+                  <code className="text-sm font-mono text-zinc-300">0x87319Da4558FcBD4f3475cFECc468ee4D736D3ea</code>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Batch Verifier</p>
+                <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] overflow-x-auto">
+                  <code className="text-sm font-mono text-zinc-300">0x71930f07b3bA75A314a6e7c44C350AD0E2718473</code>
+                </div>
+              </div>
+            </div>
+            <a href="https://sepolia.basescan.org/address/0xCE959493cf6F15314b4B9eEbb28369716341e7FE" target="_blank" rel="noopener noreferrer" className="mt-6 w-full px-6 py-4 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] active:bg-white/[0.08] transition-all flex items-center justify-center gap-2 text-zinc-300 font-bold">
+              <ExternalLink size={16} /> View on BaseScan
+            </a>
           </div>
-          <a href={DEVNET_CONFIG.EXPLORER_URL} target="_blank" rel="noopener noreferrer" className="mt-6 w-full px-6 py-4 bg-[#E0E5EC] rounded-xl shadow-[6px_6px_12px_#b8b9be,-6px_-6px_12px_#ffffff] hover:shadow-[3px_3px_6px_#b8b9be,-3px_-3px_6px_#ffffff] active:shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff] transition-all flex items-center justify-center gap-2 text-slate-600 font-bold"><ExternalLink size={16} /> View on Solana Explorer</a>
         </div>
 
-        <div className="bg-[#E0E5EC] rounded-[2rem] p-8 shadow-[12px_12px_24px_#b8b9be,-12px_-12px_24px_#ffffff]">
+        <div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.03] p-8">
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff]"><CheckCircle className="h-5 w-5 text-emerald-500" /></div>
-            <h3 className="text-xl font-bold text-slate-700">Zero-Knowledge Circuits</h3>
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20"><CheckCircle className="h-5 w-5 text-emerald-400" /></div>
+            <h3 className="text-xl font-bold text-white">Zero-Knowledge Circuits</h3>
           </div>
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="p-4 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff] text-center"><p className="text-2xl font-bold text-emerald-500">3</p><p className="text-xs text-slate-400 font-bold uppercase mt-1">Circuits</p></div>
-            <div className="p-4 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff] text-center"><p className="text-2xl font-bold text-emerald-500">466,858</p><p className="text-xs text-slate-400 font-bold uppercase mt-1">Max Constraints</p></div>
-            <div className="p-4 bg-[#E0E5EC] rounded-xl shadow-[inset_4px_4px_8px_#b8b9be,inset_-4px_-4px_8px_#ffffff] text-center"><p className="text-2xl font-bold text-emerald-500">72</p><p className="text-xs text-slate-400 font-bold uppercase mt-1">Test Vectors</p></div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-4 bg-[#E0E5EC] rounded-xl shadow-[4px_4px_8px_#b8b9be,-4px_-4px_8px_#ffffff]"><span className="text-sm text-slate-600">Deposit Circuit</span><span className="px-3 py-1 bg-[#E0E5EC] rounded-lg shadow-[inset_2px_2px_4px_#b8b9be,inset_-2px_-2px_4px_#ffffff] text-xs font-bold text-emerald-500">807 constraints</span></div>
-            <div className="flex items-center justify-between p-4 bg-[#E0E5EC] rounded-xl shadow-[4px_4px_8px_#b8b9be,-4px_-4px_8px_#ffffff]"><span className="text-sm text-slate-600">Withdraw Circuit</span><span className="px-3 py-1 bg-[#E0E5EC] rounded-lg shadow-[inset_2px_2px_4px_#b8b9be,inset_-2px_-2px_4px_#ffffff] text-xs font-bold text-emerald-500">12,330 constraints</span></div>
-            <div className="flex items-center justify-between p-4 bg-[#E0E5EC] rounded-xl shadow-[4px_4px_8px_#b8b9be,-4px_-4px_8px_#ffffff]"><span className="text-sm text-slate-600">Membership Circuit</span><span className="px-3 py-1 bg-[#E0E5EC] rounded-lg shadow-[inset_2px_2px_4px_#b8b9be,inset_-2px_-2px_4px_#ffffff] text-xs font-bold text-emerald-500">11,807 constraints</span></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] text-center">
+              <p className="text-2xl font-bold text-emerald-400">4</p>
+              <p className="text-xs text-zinc-500 font-bold uppercase mt-1">Circuits</p>
+            </div>
+            <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] text-center">
+              <p className="text-2xl font-bold text-emerald-400">466K+</p>
+              <p className="text-xs text-zinc-500 font-bold uppercase mt-1">Max Constraints</p>
+            </div>
+            <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] text-center">
+              <p className="text-2xl font-bold text-emerald-400">20</p>
+              <p className="text-xs text-zinc-500 font-bold uppercase mt-1">Tree Depth</p>
+            </div>
+            <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] text-center">
+              <p className="text-2xl font-bold text-emerald-400">1M</p>
+              <p className="text-xs text-zinc-500 font-bold uppercase mt-1">Capacity</p>
+            </div>
           </div>
         </div>
       </div>

@@ -185,9 +185,6 @@ export declare class RelayerService {
  * Create a new relayer service instance
  */
 export declare function createRelayer(config: RelayerConfig): RelayerService;
-/**
- * Example usage / entry point
- */
 export declare function main(): Promise<void>;
 export {};
 //# sourceMappingURL=index.d.ts.map

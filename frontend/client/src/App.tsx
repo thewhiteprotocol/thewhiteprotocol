@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -10,16 +9,12 @@ import { ForBusiness } from "@/sections/ForBusiness";
 import { ProtocolFlow } from "@/sections/ProtocolFlow";
 import { Architecture } from "@/sections/Architecture";
 import { Docs } from "@/sections/Docs";
-import { ApiDocs } from "@/sections/ApiDocs";
+import { Relayer } from "@/sections/Relayer";
 import { DevnetStatus } from "@/sections/DevnetStatus";
 import { Links } from "@/sections/Links";
 import NeonCrystalCity from "@/components/ui/neon-crystal-city";
 
 function App() {
-  // Wake sequencer on app load
-  useEffect(() => {
-    fetch("https://relayer.thewhiteprotocol.com/api/wake").catch(() => {});
-  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <WalletContextProvider>
@@ -38,7 +33,7 @@ function App() {
               <ProtocolFlow />
               <Architecture />
               <Docs />
-              <ApiDocs />
+              <Relayer />
               <DevnetStatus />
               <Links />
             </main>
