@@ -434,6 +434,10 @@ export class SolanaChainService {
     const program = this.getProgram(wallet);
     const depositor = wallet.publicKey;
 
+    // Fetch pool config to get the actual authority address
+    const poolConfigAccount: any = await (program.account as any).poolConfig.fetch(SOLANA_POOL_CONFIG);
+    const poolAuthority = new PublicKey(poolConfigAccount.authority);
+
     const [merkleTree] = PublicKey.findProgramAddressSync(
       [Buffer.from("merkle_tree"), SOLANA_POOL_CONFIG.toBuffer()],
       SOLANA_PROGRAM_ID
@@ -451,6 +455,14 @@ export class SolanaChainService {
       SOLANA_PROGRAM_ID
     );
 
+    // Verify asset vault is initialized
+    const vaultInfo = await this.connection.getAccountInfo(assetVault);
+    if (!vaultInfo) {
+      throw new Error(
+        `Asset vault not initialized for this token. The pool authority must register ${mint.toBase58()} before deposits are enabled.`
+      );
+    }
+
     const vaultTokenAccount = await getAssociatedTokenAddress(mint, assetVault, true);
     const userTokenAccount = await getAssociatedTokenAddress(mint, depositor);
 
@@ -465,7 +477,7 @@ export class SolanaChainService {
       .accounts({
         depositor,
         poolConfig: SOLANA_POOL_CONFIG,
-        authority: depositor,
+        authority: poolAuthority,
         merkleTree,
         pendingBuffer,
         assetVault,

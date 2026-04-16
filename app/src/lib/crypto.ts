@@ -2,6 +2,7 @@
 
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import { buildPoseidon } from "circomlibjs";
+import { PublicKey } from "@solana/web3.js";
 
 let poseidonInstance: any = null;
 
@@ -31,17 +32,33 @@ export function poseidonHash(inputs: bigint[]): bigint {
 }
 
 export function computeAssetId(tokenAddress: string | Uint8Array): Uint8Array {
-  let input: Uint8Array;
+  let mintBytes: Uint8Array;
   if (typeof tokenAddress === "string") {
     if (tokenAddress.startsWith("0x")) {
-      input = Uint8Array.from(Buffer.from(tokenAddress.slice(2), "hex"));
+      // Base / EVM hex address
+      mintBytes = Uint8Array.from(Buffer.from(tokenAddress.slice(2), "hex"));
+    } else if (tokenAddress.length >= 32 && tokenAddress.length <= 44) {
+      // Solana base58 address
+      mintBytes = new PublicKey(tokenAddress).toBytes();
     } else {
-      input = Uint8Array.from(Buffer.from(tokenAddress, "hex"));
+      // Fallback: treat as hex
+      mintBytes = Uint8Array.from(Buffer.from(tokenAddress, "hex"));
     }
   } else {
-    input = tokenAddress;
+    mintBytes = tokenAddress;
   }
-  return keccak_256(input);
+
+  // Match Rust: asset_id = 0x00 || keccak256("white:asset_id:v1" || mint)[0..31]
+  const prefix = new TextEncoder().encode("white:asset_id:v1");
+  const input = new Uint8Array(prefix.length + mintBytes.length);
+  input.set(prefix, 0);
+  input.set(mintBytes, prefix.length);
+
+  const hash = keccak_256(input);
+  const out = new Uint8Array(32);
+  out[0] = 0;
+  out.set(hash.slice(0, 31), 1);
+  return out;
 }
 
 export function computeAssetIdBigInt(tokenAddress: string | Uint8Array): bigint {
