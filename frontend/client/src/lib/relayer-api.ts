@@ -17,7 +17,7 @@
 // =============================================================================
 
 const RELAYER_API_URL =
-  ((import.meta.env.VITE_RELAYER_API_URL as string | undefined) ?? 'https://thewhiteprotocol.onrender.com/api')
+  ((import.meta.env.VITE_RELAYER_API_URL as string | undefined) ?? 'https://relayer.thewhiteprotocol.com/api')
     .trim()
     .replace(/\/+$/, '');
 

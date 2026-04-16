@@ -18,7 +18,7 @@ import NeonCrystalCity from "@/components/ui/neon-crystal-city";
 function App() {
   // Wake sequencer on app load
   useEffect(() => {
-    fetch("https://thewhiteprotocol.onrender.com/api/wake").catch(() => {});
+    fetch("https://relayer.thewhiteprotocol.com/api/wake").catch(() => {});
   }, []);
   return (
     <QueryClientProvider client={queryClient}>

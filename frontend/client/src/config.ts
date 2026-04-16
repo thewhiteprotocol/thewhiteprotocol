@@ -4,7 +4,7 @@ export const DEVNET_CONFIG = {
   MERKLE_TREE: '2DjfHs3CYK22a4SAMSH2gt6eXRwSnBzm2f4gWvmos8sD',
   PENDING_BUFFER: '7MzDFCdPEog6orC42jCXBz53zhqysQVq5vb5J7R1DAyw',
   RPC_URL: 'https://api.devnet.solana.com',
-  RELAYER_ENDPOINT: import.meta.env.VITE_RELAYER_API_URL || 'https://thewhiteprotocol.onrender.com',
+  RELAYER_ENDPOINT: import.meta.env.VITE_RELAYER_API_URL || 'https://relayer.thewhiteprotocol.com',
   NATIVE_SOL_ASSET_ID: BigInt(0),
   NETWORK: 'Solana Devnet',
   EXPLORER_URL: 'https://explorer.solana.com/address/C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW?cluster=devnet',
