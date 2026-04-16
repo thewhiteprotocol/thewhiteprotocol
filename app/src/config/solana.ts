@@ -26,7 +26,7 @@ export const getSolanaPendingDepositsPda = () => {
   return pda;
 };
 
-// wSOL mint on devnet
+// Native SOL mint address (used for SPL token accounting)
 export const SOLANA_WSOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
 
 // USDC mint on devnet (optional)

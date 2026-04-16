@@ -2,8 +2,8 @@
 export const SUPPORTED_ASSETS = [
   {
     symbol: 'SOL',
-    displayName: 'wSOL',
-    name: 'Wrapped SOL',
+    displayName: 'SOL',
+    name: 'Solana',
     mint: 'So11111111111111111111111111111111111111112',
     decimals: 9,
     isNative: true,

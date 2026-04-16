@@ -1222,7 +1222,8 @@ export class RelayerApiExtensions {
         logger.info('build-deposit-tx vault token account resolved', { vaultTokenAccount: vaultTokenAccount.toBase58() });
 
         // Get user token account
-        const { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction } = await import('@solana/spl-token');
+        const { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction, createSyncNativeInstruction, NATIVE_MINT } = await import('@solana/spl-token');
+        const { SystemProgram } = await import('@solana/web3.js');
         const userTokenAccount = getAssociatedTokenAddressSync(mintPubkey, depositor);
         
         const preInstructions: any[] = [];
@@ -1234,6 +1235,19 @@ export class RelayerApiExtensions {
           preInstructions.push(createAssociatedTokenAccountInstruction(
             depositor, userTokenAccount, depositor, mintPubkey
           ));
+        }
+
+        // Auto-wrap native SOL into wSOL before deposit
+        if (mintPubkey.equals(NATIVE_MINT)) {
+          logger.info('build-deposit-tx native SOL deposit, adding wrap instructions');
+          preInstructions.push(
+            SystemProgram.transfer({
+              fromPubkey: depositor,
+              toPubkey: userTokenAccount,
+              lamports: BigInt(amount),
+            })
+          );
+          preInstructions.push(createSyncNativeInstruction(userTokenAccount));
         }
 
         // Build instruction data manually (discriminator + args)

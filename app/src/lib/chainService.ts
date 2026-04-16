@@ -1,7 +1,15 @@
 "use client";
 
 import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
-import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import {
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
+  createSyncNativeInstruction,
+  createCloseAccountInstruction,
+  NATIVE_MINT,
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import { AnchorProvider, Program, BN, Idl } from "@coral-xyz/anchor";
 import { baseSepolia } from "wagmi/chains";
 import { createPublicClient, http, parseAbi } from "viem";
@@ -466,7 +474,9 @@ export class SolanaChainService {
     const vaultTokenAccount = await getAssociatedTokenAddress(mint, assetVault, true);
     const userTokenAccount = await getAssociatedTokenAddress(mint, depositor);
 
-    const preInstructions = [];
+    const preInstructions: any[] = [];
+    const postInstructions: any[] = [];
+
     const userTokenAccountInfo = await this.connection.getAccountInfo(userTokenAccount);
     if (!userTokenAccountInfo) {
       preInstructions.push(
@@ -477,6 +487,18 @@ export class SolanaChainService {
           mint
         )
       );
+    }
+
+    // Auto-wrap native SOL into wSOL before deposit
+    if (mint.equals(NATIVE_MINT)) {
+      preInstructions.push(
+        SystemProgram.transfer({
+          fromPubkey: depositor,
+          toPubkey: userTokenAccount,
+          lamports: Number(amount),
+        })
+      );
+      preInstructions.push(createSyncNativeInstruction(userTokenAccount));
     }
 
     const tx = await (program.methods as any)
@@ -502,6 +524,7 @@ export class SolanaChainService {
         systemProgram: SystemProgram.programId,
       })
       .preInstructions(preInstructions)
+      .postInstructions(postInstructions)
       .rpc();
 
     return tx;
@@ -556,6 +579,33 @@ export class SolanaChainService {
     const recipientTokenAccount = await getAssociatedTokenAddress(mint, recipient);
     const relayerTokenAccount = await getAssociatedTokenAddress(mint, actualRelayer);
 
+    const preInstructions: any[] = [];
+    const postInstructions: any[] = [];
+
+    // Create recipient ATA if missing
+    const recipientTokenAccountInfo = await this.connection.getAccountInfo(recipientTokenAccount);
+    if (!recipientTokenAccountInfo) {
+      preInstructions.push(
+        createAssociatedTokenAccountInstruction(
+          signer,
+          recipientTokenAccount,
+          recipient,
+          mint
+        )
+      );
+    }
+
+    // Auto-unwrap wSOL to native SOL after withdrawal by closing the recipient ATA
+    if (mint.equals(NATIVE_MINT)) {
+      postInstructions.push(
+        createCloseAccountInstruction(
+          recipientTokenAccount,
+          recipient,
+          recipient
+        )
+      );
+    }
+
     const tx = await (program.methods as any)
       .withdrawMasp(
         Buffer.from(proof),
@@ -581,6 +631,8 @@ export class SolanaChainService {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
+      .preInstructions(preInstructions)
+      .postInstructions(postInstructions)
       .rpc();
 
     return tx;
