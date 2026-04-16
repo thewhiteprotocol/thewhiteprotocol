@@ -197,6 +197,26 @@ export class BaseChainService {
     });
   }
 
+  async findDepositEvent(commitment: bigint): Promise<{ commitment: bigint; amount: bigint; asset: `0x${string}`; leafIndex: bigint; blockNumber: bigint } | null> {
+    const logs = await this.publicClient.getContractEvents({
+      address: BASE_PROTOCOL_ADDRESS,
+      abi: WHITE_PROTOCOL_ABI,
+      eventName: "Deposit",
+      args: { commitment },
+      fromBlock: 0n,
+      toBlock: "latest",
+    });
+    if (logs.length === 0) return null;
+    const log = logs[0] as any;
+    return {
+      commitment: log.args.commitment as bigint,
+      amount: log.args.amount as bigint,
+      asset: log.args.asset as `0x${string}`,
+      leafIndex: log.args.leafIndex as bigint,
+      blockNumber: log.blockNumber as bigint,
+    };
+  }
+
   async deposit(
     walletClient: any,
     proof: Uint8Array,
@@ -314,6 +334,52 @@ export class SolanaChainService {
 
   getConnection() {
     return this.connection;
+  }
+
+  async getPendingDepositsBuffer(): Promise<{ deposits: { commitment: string; timestamp: number }[]; totalPending: number }> {
+    const wallet = { publicKey: new PublicKey("11111111111111111111111111111111") };
+    const program = this.getProgram(wallet);
+    const [pendingBuffer] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pending"), SOLANA_POOL_CONFIG.toBuffer()],
+      SOLANA_PROGRAM_ID
+    );
+    try {
+      const account: any = await (program.account as any).pendingDepositsBuffer.fetch(pendingBuffer);
+      return {
+        deposits: account.deposits.map((d: any) => ({
+          commitment: Array.from(d.commitment as number[])
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join(""),
+          timestamp: d.timestamp.toNumber?.() || Number(d.timestamp),
+        })),
+        totalPending: account.totalPending.toNumber?.() || Number(account.totalPending),
+      };
+    } catch {
+      return { deposits: [], totalPending: 0 };
+    }
+  }
+
+  async isCommitmentPending(commitment: string): Promise<boolean> {
+    const buffer = await this.getPendingDepositsBuffer();
+    const needle = commitment.toLowerCase().replace(/^0x/, "");
+    return buffer.deposits.some((d) => d.commitment.toLowerCase() === needle);
+  }
+
+  async findDepositInLogs(commitment: string): Promise<boolean> {
+    const sigs = await this.connection.getSignaturesForAddress(SOLANA_PROGRAM_ID, { limit: 100 });
+    if (sigs.length === 0) return false;
+    const txs = await this.connection.getParsedTransactions(
+      sigs.map((s) => s.signature),
+      { commitment: "confirmed", maxSupportedTransactionVersion: 0 }
+    );
+    const needle = commitment.toLowerCase().replace(/^0x/, "");
+    for (const tx of txs) {
+      if (!tx?.meta?.logMessages) continue;
+      for (const log of tx.meta.logMessages) {
+        if (log.toLowerCase().includes(needle)) return true;
+      }
+    }
+    return false;
   }
 
   private getProgram(wallet: any): Program {

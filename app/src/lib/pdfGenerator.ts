@@ -1,17 +1,19 @@
 "use client";
 
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 import type { Invoice } from "./invoiceService";
 import type { Receipt } from "./receiptService";
 
 export async function generateInvoicePDF(invoice: Invoice): Promise<Blob> {
-  return printToPDF("invoice", renderInvoiceHTML(invoice));
+  return renderToPDF(renderInvoiceHTML(invoice));
 }
 
 export async function generateReceiptPDF(receipt: Receipt): Promise<Blob> {
-  return printToPDF("receipt", renderReceiptHTML(receipt));
+  return renderToPDF(renderReceiptHTML(receipt));
 }
 
-function renderInvoiceHTML(invoice: Invoice): string {
+function renderInvoiceHTML(invoice: Invoice): HTMLElement {
   const itemsHtml = invoice.lineItems
     .map(
       (item) => `
@@ -29,8 +31,17 @@ function renderInvoiceHTML(invoice: Invoice): string {
     ? `<img src="${invoice.from.logo}" style="height:48px;object-fit:contain" />`
     : `<div style="font-size:24px;font-weight:700;color:#10b981">${invoice.from.companyName}</div>`;
 
-  return `
-    <div style="font-family:system-ui,-apple-system,sans-serif;color:#111827;max-width:720px;margin:0 auto;padding:40px">
+  const container = document.createElement("div");
+  container.style.position = "fixed";
+  container.style.top = "-9999px";
+  container.style.left = "-9999px";
+  container.style.width = "800px";
+  container.style.background = "#ffffff";
+  container.style.padding = "40px";
+  container.style.fontFamily = "system-ui, -apple-system, sans-serif";
+  container.style.color = "#111827";
+  container.innerHTML = `
+    <div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px">
         <div>${logoHtml}</div>
         <div style="text-align:right">
@@ -100,17 +111,28 @@ function renderInvoiceHTML(invoice: Invoice): string {
       </div>
     </div>
   `;
+  document.body.appendChild(container);
+  return container;
 }
 
-function renderReceiptHTML(receipt: Receipt): string {
+function renderReceiptHTML(receipt: Receipt): HTMLElement {
   const logoHtml = receipt.companyLogo
     ? `<img src="${receipt.companyLogo}" style="height:48px;object-fit:contain" />`
     : receipt.companyName
     ? `<div style="font-size:24px;font-weight:700;color:#10b981">${receipt.companyName}</div>`
     : "";
 
-  return `
-    <div style="font-family:system-ui,-apple-system,sans-serif;color:#111827;max-width:720px;margin:0 auto;padding:40px">
+  const container = document.createElement("div");
+  container.style.position = "fixed";
+  container.style.top = "-9999px";
+  container.style.left = "-9999px";
+  container.style.width = "800px";
+  container.style.background = "#ffffff";
+  container.style.padding = "40px";
+  container.style.fontFamily = "system-ui, -apple-system, sans-serif";
+  container.style.color = "#111827";
+  container.innerHTML = `
+    <div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px">
         <div>${logoHtml}</div>
         <div style="text-align:right">
@@ -153,6 +175,30 @@ function renderReceiptHTML(receipt: Receipt): string {
       </div>
     </div>
   `;
+  document.body.appendChild(container);
+  return container;
+}
+
+async function renderToPDF(element: HTMLElement): Promise<Blob> {
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    width: 800,
+  });
+  const imgData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF("p", "pt", "a4");
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const imgWidth = canvas.width;
+  const imgHeight = canvas.height;
+  const ratio = Math.min(pageWidth / imgWidth, pageHeight / imgHeight);
+  const scaledWidth = imgWidth * ratio;
+  const scaledHeight = imgHeight * ratio;
+  pdf.addImage(imgData, "PNG", 0, 0, scaledWidth, scaledHeight);
+  const blob = pdf.output("blob");
+  document.body.removeChild(element);
+  return blob;
 }
 
 function formatDate(ts: number): string {
@@ -160,55 +206,5 @@ function formatDate(ts: number): string {
     year: "numeric",
     month: "long",
     day: "numeric",
-  });
-}
-
-function printToPDF(filenamePrefix: string, html: string): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.top = "-9999px";
-    iframe.style.left = "-9999px";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    document.body.appendChild(iframe);
-
-    iframe.onload = () => {
-      try {
-        const doc = iframe.contentDocument;
-        if (!doc) return reject(new Error("Failed to access iframe document"));
-        doc.open();
-        doc.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <meta charset="utf-8" />
-              <title>${filenamePrefix}</title>
-              <style>
-                @media print {
-                  body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                }
-              </style>
-            </head>
-            <body>${html}</body>
-          </html>
-        `);
-        doc.close();
-
-        setTimeout(() => {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-          // We can't easily get a Blob from window.print(), so we resolve with a placeholder
-          // In practice, the browser's print dialog lets the user save as PDF
-          resolve(new Blob([html], { type: "text/html" }));
-          setTimeout(() => document.body.removeChild(iframe), 1000);
-        }, 500);
-      } catch (err) {
-        reject(err);
-      }
-    };
-
-    // Trigger load
-    iframe.src = "about:blank";
   });
 }

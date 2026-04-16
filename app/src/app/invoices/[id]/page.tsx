@@ -10,6 +10,7 @@ import { createReceipt } from "@/lib/receiptService";
 import { generateInvoicePDF } from "@/lib/pdfGenerator";
 import { getTierConfig } from "@/lib/userTier";
 import { useChain } from "@/providers/ChainContext";
+import { baseChainService, solanaChainService } from "@/lib/chainService";
 import { QRCodeSVG } from "qrcode.react";
 import { Loader2, Copy, Download, Check, FileText, X, ArrowLeft } from "lucide-react";
 
@@ -33,23 +34,76 @@ export default function InvoiceDetailPage() {
     load();
   }, [load]);
 
-  // Auto-poll for payment (mocked with localStorage check; in prod would query chain)
+  // Auto-poll for payment on-chain
   useEffect(() => {
     if (!invoice || invoice.status === "paid" || invoice.status === "cancelled") return;
     setPolling(true);
-    const interval = setInterval(async () => {
-      // In a real implementation, we would query the contract for the commitment
-      // For now, we simulate by checking if a receipt exists with this invoiceId
-      const { getReceipts } = await import("@/lib/receiptService");
-      const receipts = await getReceipts();
-      const match = receipts.find((r) => r.invoiceId === invoice.id);
-      if (match) {
-        await updateInvoiceStatus(invoice.id, "paid", match.txHash);
-        setInvoice((prev) => (prev ? { ...prev, status: "paid", paidAt: Date.now(), paidTxHash: match.txHash } : prev));
+
+    let checks = 0;
+    const MAX_CHECKS = 240; // stop after ~1 hour (240 * 15s)
+
+    const checkPayment = async () => {
+      if (!invoice) return;
+      checks++;
+      if (checks > MAX_CHECKS) {
         setPolling(false);
-        clearInterval(interval);
+        return;
       }
-    }, 15000);
+
+      try {
+        let paid = false;
+        let txHash: string | undefined;
+
+        if (invoice.chain === "base") {
+          const pendingIndex = await baseChainService.getCommitmentPendingIndex(BigInt(invoice.commitment));
+          if (pendingIndex > 0n) {
+            // Still pending, keep polling
+            return;
+          }
+          // Not pending - check if it was ever deposited (settled)
+          const event = await baseChainService.findDepositEvent(BigInt(invoice.commitment));
+          if (event) {
+            paid = true;
+            txHash = event.blockNumber.toString(); // use blockNumber as proxy since event doesn't include txHash directly
+          }
+        } else {
+          const isPending = await solanaChainService.isCommitmentPending(invoice.commitment);
+          if (isPending) {
+            // Still pending, keep polling
+            return;
+          }
+          // Not pending - check recent program logs for the commitment
+          const foundInLogs = await solanaChainService.findDepositInLogs(invoice.commitment);
+          if (foundInLogs) {
+            paid = true;
+          }
+        }
+
+        if (paid) {
+          await updateInvoiceStatus(invoice.id, "paid", txHash);
+          setInvoice((prev) => (prev ? { ...prev, status: "paid", paidAt: Date.now(), paidTxHash: txHash } : prev));
+          await createReceipt({
+            invoiceId: invoice.id,
+            type: "invoice_paid",
+            from: { name: invoice.to.name, walletAddress: invoice.to.walletAddress || "Unknown" },
+            to: { name: invoice.from.companyName, walletAddress: invoice.from.walletAddress },
+            amount: invoice.total,
+            asset: invoice.asset,
+            chain: invoice.chain,
+            txHash: txHash || "",
+            companyName: invoice.from.companyName,
+            companyLogo: invoice.from.logo,
+          });
+          setPolling(false);
+          clearInterval(interval);
+        }
+      } catch (err) {
+        // Ignore polling errors (e.g., network issues)
+      }
+    };
+
+    const interval = setInterval(checkPayment, 15000);
+    checkPayment(); // initial check
     return () => clearInterval(interval);
   }, [invoice]);
 
