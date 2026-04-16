@@ -1240,13 +1240,25 @@ export function createRelayer(config: RelayerConfig): RelayerService {
 /**
  * Example usage / entry point
  */
+function parseRelayerKeypair(): Uint8Array {
+  const raw = process.env.RELAYER_KEYPAIR || '[]';
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      throw new Error(`RELAYER_KEYPAIR parsed as non-array: ${typeof parsed}`);
+    }
+    return Uint8Array.from(parsed);
+  } catch (err: any) {
+    logger.error('Failed to parse RELAYER_KEYPAIR', { rawLength: raw.length, rawPreview: raw.slice(0, 200), error: err?.message });
+    throw new Error(`Invalid RELAYER_KEYPAIR: ${err?.message}. Ensure it is a valid JSON array of 64 numbers with no line breaks or extra quotes.`);
+  }
+}
+
 export async function main(): Promise<void> {
   // Load configuration from environment
   const config: RelayerConfig = {
     rpcEndpoint: process.env.RPC_ENDPOINT || 'https://api.devnet.solana.com',
-    walletKeypair: Keypair.fromSecretKey(
-      Uint8Array.from(JSON.parse(process.env.RELAYER_KEYPAIR || '[]'))
-    ),
+    walletKeypair: Keypair.fromSecretKey(parseRelayerKeypair()),
     programId: new PublicKey(process.env.PROGRAM_ID || 'C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW'),
     poolConfig: new PublicKey(process.env.POOL_CONFIG || '11111111111111111111111111111111'),
     feeBps: parseInt(process.env.FEE_BPS || '50', 10),
