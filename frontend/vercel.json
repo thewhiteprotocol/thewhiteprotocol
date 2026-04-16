@@ -1,0 +1,7 @@
+{
+  "buildCommand": "npx vite build",
+  "outputDirectory": "dist/public",
+  "framework": null,
+  "installCommand": "npm install",
+  "regions": ["iad1"]
+}
