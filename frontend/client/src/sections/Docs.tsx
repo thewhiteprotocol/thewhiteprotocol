@@ -35,7 +35,7 @@ const docs = [
   {
     icon: Code,
     title: "Technical Details",
-    content: "• Groth16 proofs on BN254 curve\n• Poseidon hash for commitments\n• 20-level Merkle tree (~1M capacity)\n• Nullifiers prevent double-spending\n• On-chain verification via alt_bn128\n• Circuits: Deposit, Withdraw, Membership, Merkle Batch Update\n• 100% open source: github.com/thewhiteprotocol/thewhiteprotocol",
+    content: "• Groth16 proofs on BN254 curve\n• Poseidon hash for commitments\n• 20-level Merkle tree (~1M capacity)\n• Nullifiers prevent double-spending\n• On-chain verification via alt_bn128\n• Circuits: Deposit, Withdraw, Membership, Merkle Batch Update\n• 100% open source: github.com/thewhiteprotocol",
   },
 ];
 

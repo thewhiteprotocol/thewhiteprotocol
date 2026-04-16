@@ -36,7 +36,7 @@ export function Hero() {
           <button onClick={() => scrollToSection("#docs")} className="px-8 py-4 bg-white/[0.04] rounded-2xl border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.06] active:bg-white/[0.08] transition-all duration-300 flex items-center gap-2 text-slate-300 font-bold backdrop-blur-sm">
             Read Docs
           </button>
-          <a href="https://github.com/thewhiteprotocol/thewhiteprotocol" target="_blank" rel="noopener noreferrer" className="px-8 py-4 bg-white/[0.04] rounded-2xl border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.06] active:bg-white/[0.08] transition-all duration-300 flex items-center gap-2 text-slate-300 font-bold backdrop-blur-sm">
+          <a href="https://github.com/thewhiteprotocol" target="_blank" rel="noopener noreferrer" className="px-8 py-4 bg-white/[0.04] rounded-2xl border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.06] active:bg-white/[0.08] transition-all duration-300 flex items-center gap-2 text-slate-300 font-bold backdrop-blur-sm">
             <Github size={18} /> GitHub <ExternalLink size={14} />
           </a>
         </div>

@@ -1,7 +1,7 @@
 import { Github, Twitter, ExternalLink, Code, MessageCircle } from "lucide-react";
 
 const links = [
-  { icon: Github, label: "GitHub", description: "View source code and contribute", href: "https://github.com/thewhiteprotocol/thewhiteprotocol" },
+  { icon: Github, label: "GitHub", description: "View source code and contribute", href: "https://github.com/thewhiteprotocol" },
   { icon: Twitter, label: "Twitter", description: "Follow for updates", href: "https://x.com/thewhiteprotocol" },
   { icon: MessageCircle, label: "Telegram", description: "Join the community chat", href: "https://t.me/thewhiteprotocol" },
 ];
