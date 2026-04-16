@@ -1,7 +1,7 @@
 "use client";
 
 import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { AnchorProvider, Program, BN, Idl } from "@coral-xyz/anchor";
 import { baseSepolia } from "wagmi/chains";
 import { createPublicClient, http, parseAbi } from "viem";
@@ -466,6 +466,19 @@ export class SolanaChainService {
     const vaultTokenAccount = await getAssociatedTokenAddress(mint, assetVault, true);
     const userTokenAccount = await getAssociatedTokenAddress(mint, depositor);
 
+    const preInstructions = [];
+    const userTokenAccountInfo = await this.connection.getAccountInfo(userTokenAccount);
+    if (!userTokenAccountInfo) {
+      preInstructions.push(
+        createAssociatedTokenAccountInstruction(
+          depositor,
+          userTokenAccount,
+          depositor,
+          mint
+        )
+      );
+    }
+
     const tx = await (program.methods as any)
       .depositMasp(
         new BN(amount.toString()),
@@ -488,6 +501,7 @@ export class SolanaChainService {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
+      .preInstructions(preInstructions)
       .rpc();
 
     return tx;
