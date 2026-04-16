@@ -58,6 +58,8 @@ psol-v2-actually-corrected*
 circuits/build/
 frontend/public/circuits/**/*.zkey
 frontend/public/circuits/**/*.wasm
+!app/public/circuits/**/*.zkey
+!app/public/circuits/**/*.wasm
 
 # Local test data
 data/
