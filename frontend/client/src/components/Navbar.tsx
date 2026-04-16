@@ -46,7 +46,7 @@ export function Navbar() {
       <div className="max-w-6xl mx-auto px-6">
         <div className="flex items-center justify-between h-16">
           <button onClick={() => scrollToSection("#overview")} className="flex items-center gap-3 group">
-            <img src="/logo.jpg" alt="White" className="w-9 h-9 rounded-xl shadow-[0_0_12px_rgba(0,200,240,0.15)] group-hover:shadow-[0_0_20px_rgba(0,200,240,0.25)] group-hover:scale-105 transition-all" />
+            <img src="/logo.png" alt="White" className="w-9 h-9 rounded-xl shadow-[0_0_12px_rgba(0,200,240,0.15)] group-hover:shadow-[0_0_20px_rgba(0,200,240,0.25)] group-hover:scale-105 transition-all" />
             <span className="font-bold text-lg text-white">The White Protocol</span>
           </button>
 

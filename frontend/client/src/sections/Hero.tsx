@@ -11,7 +11,7 @@ export function Hero() {
       <div className="max-w-4xl mx-auto text-center">
         <div className="flex justify-center mb-8">
           <div className="p-5 bg-white/[0.03] rounded-3xl border border-white/[0.06] shadow-[0_0_40px_rgba(0,200,240,0.08)] backdrop-blur-sm">
-            <img src="/logo.jpg" alt="The White Protocol" className="w-20 h-20 md:w-24 md:h-24 rounded-2xl" />
+            <img src="/logo.png" alt="The White Protocol" className="w-20 h-20 md:w-24 md:h-24 rounded-2xl" />
           </div>
         </div>
 

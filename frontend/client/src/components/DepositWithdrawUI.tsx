@@ -30,7 +30,7 @@ import {
 } from '../lib/relayer-api';
 import { ensureAtaAndWrapIfNeeded } from "../lib/token-prereqs";
 
-const RELAYER_API_URL = import.meta.env.VITE_RELAYER_API_URL;
+const RELAYER_API_URL = import.meta.env.VITE_RELAYER_API_URL || 'https://relayer.thewhiteprotocol.com';
 const WRAPPED_SOL_MINT = new PublicKey('So11111111111111111111111111111111111111112');
 
 // Dev-only logger - never logs in production
