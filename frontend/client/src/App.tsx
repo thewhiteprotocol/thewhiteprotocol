@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { WalletContextProvider } from "@/components/WalletContextProvider";
 import { Navbar } from "@/components/Navbar";
 import { Hero } from "@/sections/Hero";
-import { DepositWithdraw } from "@/sections/DepositWithdraw";
+import { ForBusiness } from "@/sections/ForBusiness";
 import { ProtocolFlow } from "@/sections/ProtocolFlow";
 import { Architecture } from "@/sections/Architecture";
 import { Docs } from "@/sections/Docs";
@@ -34,7 +34,7 @@ function App() {
             <Navbar />
             <main>
               <Hero />
-              <DepositWithdraw />
+              <ForBusiness />
               <ProtocolFlow />
               <Architecture />
               <Docs />

@@ -22,7 +22,8 @@ The protocol supports shielded pools for multiple token mints (SPL on Solana, ER
 | `chains/base/` | Solidity/Foundry contracts for the EVM port |
 | `packages/core/` | Shared TypeScript crypto primitives, types, and proof helpers |
 | `relayer/` | Off-chain sequencer and relayer service for batching, proof generation, and client endpoints |
-| `frontend/` | Next.js multi-chain UI supporting both Solana and Base |
+| `frontend/` | Vite marketing landing site |
+| `app/` | Next.js dApp — multi-chain privacy dashboard (Solana + Base) |
 | `scripts/` | Deployment, initialization, and registry management tooling |
 
 ## Deployments
@@ -60,6 +61,50 @@ The protocol supports shielded pools for multiple token mints (SPL on Solana, ER
 |-------|---------|
 | ETH | `0x0000000000000000000000000000000000000000` |
 | WETH | `0x4200000000000000000000000000000000000006` |
+
+## Tiers
+
+The White Protocol offers two product tiers:
+
+### Personal (Free)
+- Shielded deposits & withdrawals
+- Private send & receive via QR codes and payment links
+- Encrypted note storage with wallet-key backup
+- Full transaction history
+
+### Business
+- Everything in Personal, plus:
+- **Private Invoicing** — create branded invoices with shielded payment links
+- **Auto-Receipts** — PDF receipts generated automatically on every transaction
+- **Accounting Exports** — CSV exports for QuickBooks, Xero, and standard accounting formats
+- **Company Branding** — add your logo and business details to invoices and receipts
+- *Team Management (coming soon)*
+
+Business tier is free on testnet. On mainnet, it will require WHITE token staking or a USDC subscription.
+
+## Running Locally
+
+```bash
+# Install dependencies
+npm install
+
+# Run marketing site + app + relayer simultaneously
+npm run dev
+
+# Or run individually:
+npm run dev:site      # Vite marketing site (port 5173)
+npm run dev:app       # Next.js dApp (port 3000)
+npm run dev:relayer   # Relayer service (port 3001)
+```
+
+## Invoice Flow
+
+1. A Business user creates an invoice in the dApp (`/invoices/create`)
+2. A commitment is pre-generated for that invoice
+3. The invoice gets a unique public payment link (`/pay/invoice/[id]`)
+4. The client opens the link and pays via ZK deposit to the commitment
+5. The invoice status updates to **Paid** and a PDF receipt is auto-generated
+6. The sender can download the branded invoice PDF and export accounting data
 
 ## Protocol Overview
 
