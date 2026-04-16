@@ -29,6 +29,9 @@ export function Hero() {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+          <a href={import.meta.env.VITE_APP_URL || "http://localhost:3000"} className="px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-2xl hover:shadow-[0_0_30px_rgba(0,200,240,0.3)] active:scale-95 transition-all duration-300 flex items-center gap-2 text-white font-bold">
+            Launch App <ArrowRight size={18} />
+          </a>
           <button onClick={() => scrollToSection("#protocol")} className="px-8 py-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-2xl border border-cyan-400/20 hover:border-cyan-400/40 hover:shadow-[0_0_24px_rgba(0,200,240,0.12)] active:bg-cyan-500/15 transition-all duration-300 flex items-center gap-2 text-cyan-400 font-bold backdrop-blur-sm">
             Test Protocol <ArrowRight size={18} />
           </button>

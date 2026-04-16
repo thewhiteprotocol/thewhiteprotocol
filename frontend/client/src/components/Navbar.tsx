@@ -66,7 +66,13 @@ export function Navbar() {
             </div>
           </div>
 
-          <div className="hidden lg:block">
+          <div className="hidden lg:flex items-center gap-3">
+            <a
+              href={import.meta.env.VITE_APP_URL || "http://localhost:3000"}
+              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(0,200,240,0.3)] transition-all"
+            >
+              Launch App
+            </a>
             <WalletMultiButton />
           </div>
 
@@ -93,7 +99,13 @@ export function Navbar() {
                 </button>
               );
             })}
-            <div className="pt-2">
+            <div className="pt-2 flex flex-col gap-2">
+              <a
+                href={import.meta.env.VITE_APP_URL || "http://localhost:3000"}
+                className="w-full px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl text-white font-bold text-sm hover:shadow-[0_0_20px_rgba(0,200,240,0.3)] transition-all text-center"
+              >
+                Launch App
+              </a>
               <WalletMultiButton />
             </div>
           </div>
