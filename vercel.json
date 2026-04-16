@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd frontend && npm install && npx vite build",
+  "outputDirectory": "frontend/dist/public",
+  "framework": null,
+  "installCommand": "cd frontend && npm install"
+}

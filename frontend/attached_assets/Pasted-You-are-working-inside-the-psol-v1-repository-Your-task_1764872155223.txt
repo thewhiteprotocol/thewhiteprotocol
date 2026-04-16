@@ -1,0 +1,70 @@
+You are working inside the psol-v1 repository. Your task is to update the roadmap section based on the latest development progress.
+
+Context:
+- Phase 1, 2, 2.5 are completed.
+- Phase 3 is fully completed (core privacy protocol implemented end-to-end).
+- There is a working devnet deployment.
+- Current devnet program ID: 2uPHpGmCNoTk6mnzzuP3DGbVyMiDPrQYRxkYBHMxwhBi
+- Deployed pool PDAs on devnet:
+  Token Mint: 9cnm3fpXqBBUU8byYq8rZbeCbMxvCReh5LF6XSjqaaoJ
+  Pool Config: EmeSBaC18Arn626HjyvYicGjXzjg4cx1wA1jV91w1NFD
+  Merkle Tree: D1Fx4ts24q81dKc9UMAyDoXhT5b7nyFTBVccmCJWy85H
+  Vault: 82amuqkKZQUnMnaq2Z9dDotafYicCoAwtPLyYatgbS3B
+
+Update instructions:
+1. Locate the roadmap section in the README (or roadmap.md if it exists).
+2. Replace the entire old roadmap with the updated, cleaned version below.
+3. Do not remove any other sections. Only update the roadmap.
+4. Maintain simple formatting. No emojis. No marketing tone.
+5. After updating, verify markdown formatting is correct.
+
+Insert this updated roadmap:
+
+## Roadmap
+
+### Phase 1 – Prototype  
+Completed  
+- First working prototype on Solana  
+- Deposit and withdrawal flows proven feasible  
+
+### Phase 2 – Security Skeleton  
+Completed  
+- Full Anchor program structure  
+- On-chain state: pool config, Merkle tree, nullifiers, vault  
+- Instruction layout and invariants  
+
+### Phase 2.5 – Cryptographic Wiring  
+Completed  
+- Groth16 verifier integrated  
+- Poseidon commitments and nullifier hash  
+- Merkle tree with on-chain root history  
+
+### Phase 3 – Core Privacy Protocol  
+Completed  
+- End-to-end private transaction flow  
+- 2-input / 2-output proof system integrated  
+- Full Groth16 verification enforced on-chain  
+- Nullifier, Merkle, and proof invariants validated  
+- Successful devnet deployment  
+- Program ID: 2uPHpGmCNoTk6mnzzuP3DGbVyMiDPrQYRxkYBHMxwhBi  
+- Test pool addresses:  
+  - Token Mint: 9cnm3fpXqBBUU8byYq8rZbeCbMxvCReh5LF6XSjqaaoJ  
+  - Pool Config: EmeSBaC18Arn626HjyvYicGjXzjg4cx1wA1jV91w1NFD  
+  - Merkle Tree: D1Fx4ts24q81dKc9UMAyDoXhT5b7nyFTBVccmCJWy85H  
+  - Vault: 82amuqkKZQUnMnaq2Z9dDotafYicCoAwtPLyYatgbS3B  
+
+### Phase 4 – Security Hardening  
+Upcoming  
+- Full invariant suite  
+- Additional negative tests  
+- Documentation improvements  
+- Audit preparation  
+
+### Phase 5 – SDK and Ecosystem  
+Upcoming  
+- Finalized TypeScript SDK  
+- Example dApps and UI flows  
+- ZK prover service reference implementation  
+- Mainnet deployment after audit
+
+Make no other edits. Save the file. 
