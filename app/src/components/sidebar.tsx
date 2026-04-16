@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useChain } from "@/providers/ChainContext";
 import { getTierConfig, isBusinessUser, type UserTier } from "@/lib/userTier";
+import { getRelayerHealth } from "@/lib/relayerClient";
 import {
   LayoutDashboard,
   ArrowUpRight,
@@ -38,11 +39,30 @@ export function Sidebar() {
   const pathname = usePathname();
   const { walletAddress, isConnected } = useChain();
   const [tier, setTier] = useState<UserTier>("personal");
+  const [relayerOnline, setRelayerOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!isConnected || !walletAddress) return;
     getTierConfig().then((config) => setTier(config.tier)).catch(() => setTier("personal"));
   }, [isConnected, walletAddress]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function check() {
+      try {
+        await getRelayerHealth();
+        if (mounted) setRelayerOnline(true);
+      } catch {
+        if (mounted) setRelayerOnline(false);
+      }
+    }
+    check();
+    const interval = setInterval(check, 30000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const renderNavItem = (item: { href: string; label: string; icon: React.ElementType }) => {
     const isActive = pathname === item.href;
@@ -81,7 +101,22 @@ export function Sidebar() {
         )}
       </nav>
 
-      <div className="border-t border-white/10 p-4">
+      <div className="border-t border-white/10 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex h-2.5 w-2.5 rounded-full ${
+              relayerOnline === true ? "bg-emerald-500" : relayerOnline === false ? "bg-red-500" : "bg-zinc-500"
+            }`}
+          />
+          <span className="text-xs text-zinc-400">
+            {relayerOnline === true ? "Relayer online" : relayerOnline === false ? "Relayer offline" : "Checking relayer..."}
+          </span>
+        </div>
+        {relayerOnline === false && (
+          <p className="text-xs text-red-400">
+            Relayer offline. Withdrawals available in direct mode only.
+          </p>
+        )}
         <TierBadge tier={tier} />
       </div>
     </aside>

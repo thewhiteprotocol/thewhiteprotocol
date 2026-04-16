@@ -17,6 +17,7 @@ import { createApiExtensions } from './api-extensions';
 import * as fs from 'fs';
 import * as snarkjs from 'snarkjs';
 import { logger } from './logger';
+import { BaseAdapter } from './chains/base';
 import { loadRelayerState, saveRelayerState } from './state-store';
 import { CircuitBreaker } from './circuit-breaker';
 import { withRetry } from './retry';
@@ -76,6 +77,12 @@ interface RelayerConfig {
   circuitsPath: string;
   /** Merkle tree depth */
   treeDepth: number;
+  /** Base RPC endpoint */
+  baseRpcUrl?: string;
+  /** Base protocol contract address */
+  baseProtocolAddress?: string;
+  /** Base deployer private key */
+  baseDeployerPrivateKey?: string;
 }
 
 /** Withdrawal request interface */
@@ -92,8 +99,10 @@ interface WithdrawRequest {
   amount: string;
   /** Asset ID (hex encoded) */
   assetId: string;
-  /** Token mint (base58) */
+  /** Token mint (base58 for Solana, address for Base) */
   mint: string;
+  /** Target chain */
+  chain?: 'solana' | 'base';
 }
 
 /** Withdrawal response interface */
@@ -129,9 +138,9 @@ interface VerifyProofParams {
   merkleRoot: Uint8Array;
   nullifierHash: Uint8Array;
   assetId: Uint8Array;
-  recipient: PublicKey;
+  recipient: PublicKey | string;
   amount: bigint;
-  relayer: PublicKey;
+  relayer: PublicKey | string;
   relayerFee: bigint;
   publicDataHash?: Uint8Array;
 }
@@ -180,6 +189,9 @@ export class RelayerService {
   /** Service start timestamp for uptime calculation */
   private startTime = Date.now();
   
+  /** Base chain adapter */
+  private baseAdapter?: BaseAdapter;
+  
   constructor(config: RelayerConfig) {
     this.config = config;
     this.connection = new Connection(config.rpcEndpoint, 'confirmed');
@@ -210,6 +222,15 @@ export class RelayerService {
     // Initialize Anchor program
     // Note: IDL is loaded dynamically - in production, embed the IDL
     this.program = null as any; // Will be initialized in start()
+    
+    // Setup Base adapter if configured
+    if (config.baseDeployerPrivateKey) {
+      this.baseAdapter = new BaseAdapter({
+        rpcEndpoint: config.baseRpcUrl || 'https://sepolia.base.org',
+        contractAddress: (config.baseProtocolAddress || '0xCE959493cf6F15314b4B9eEbb28369716341e7FE') as `0x${string}`,
+        privateKey: config.baseDeployerPrivateKey as `0x${string}`,
+      });
+    }
     
     // Setup Express app
     this.app = express();
@@ -434,11 +455,20 @@ export class RelayerService {
    * Process a withdrawal request
    */
   async processWithdrawal(request: WithdrawRequest): Promise<WithdrawResponse> {
-    const startTime = Date.now();
-    
     // 1. Validate request format
     this.validateWithdrawRequest(request);
     
+    if (request.chain === 'base') {
+      return this.processBaseWithdrawal(request);
+    }
+    return this.processSolanaWithdrawal(request);
+  }
+  
+  /**
+   * Process a Solana withdrawal request
+   */
+  private async processSolanaWithdrawal(request: WithdrawRequest): Promise<WithdrawResponse> {
+    const startTime = Date.now();
     const amount = BigInt(request.amount);
     const fee = this.calculateFee(amount);
     
@@ -545,6 +575,118 @@ export class RelayerService {
   }
   
   /**
+   * Process a Base withdrawal request
+   */
+  private async processBaseWithdrawal(request: WithdrawRequest): Promise<WithdrawResponse> {
+    if (!this.baseAdapter) {
+      throw new Error('Base adapter not initialized');
+    }
+    
+    const startTime = Date.now();
+    const amount = BigInt(request.amount);
+    const fee = this.calculateFee(amount);
+    
+    // Verify amount bounds
+    if (amount < this.config.minWithdrawalAmount) {
+      throw new Error(`Amount below minimum: ${this.config.minWithdrawalAmount}`);
+    }
+    if (amount > this.config.maxWithdrawalAmount) {
+      throw new Error(`Amount above maximum: ${this.config.maxWithdrawalAmount}`);
+    }
+    
+    // Check asset is supported BEFORE expensive proof verification
+    if (this.supportedAssets.size > 0 && !this.supportedAssets.has(request.assetId)) {
+      throw new Error(`Asset ${request.assetId} not supported by this relayer`);
+    }
+    
+    // Decode inputs
+    const proofData = hexToBytes(request.proofData);
+    const merkleRoot = hexToBytes(request.merkleRoot);
+    const nullifierHash = hexToBytes(request.nullifierHash);
+    const assetId = hexToBytes(request.assetId);
+    const recipient = request.recipient as `0x${string}`;
+    const tokenAddr = request.mint as `0x${string}`;
+    
+    // Locally verify the ZK proof before touching chain state
+    const proofVerifyStart = Date.now();
+    const isProofValid = await this.verifyWithdrawProofLocally({
+      proofData,
+      merkleRoot,
+      nullifierHash,
+      assetId,
+      recipient,
+      amount,
+      relayer: this.baseAdapter.getAddress(),
+      relayerFee: fee,
+      publicDataHash: undefined,
+    });
+    const proofVerifyTime = Date.now() - proofVerifyStart;
+    logger.info('Proof verification completed', { durationMs: proofVerifyTime, valid: isProofValid });
+    
+    if (!isProofValid) {
+      throw new Error('Invalid withdrawal proof (local verification failed)');
+    }
+    
+    const nullifierKey = bytesToHex(nullifierHash);
+    
+    // In-flight deduplication: prevent concurrent processing of the same nullifier
+    if (this.pendingNullifiers.has(nullifierKey)) {
+      throw new Error('Nullifier already being processed');
+    }
+    
+    this.pendingNullifiers.add(nullifierKey);
+    
+    try {
+      // Check nullifier hasn't been spent (with timeout)
+      const isSpent = await withTimeout(
+        this.baseAdapter.isSpent(`0x${bytesToHex(nullifierHash)}`),
+        15000,
+        'Nullifier check timed out'
+      );
+      if (isSpent) {
+        throw new Error('Nullifier already spent');
+      }
+      
+      // Submit transaction (with timeout)
+      const signature = await withTimeout(
+        this.baseAdapter.submitWithdrawal(
+          `0x${request.proofData}` as `0x${string}`,
+          `0x${request.nullifierHash}` as `0x${string}`,
+          `0x${request.merkleRoot}` as `0x${string}`,
+          recipient,
+          tokenAddr,
+          amount,
+          fee
+        ),
+        90000,
+        'Transaction submission timed out'
+      );
+      
+      // Update statistics
+      this.totalTransactions++;
+      this.totalFeesEarned += fee;
+      this.persistState();
+      metrics.recordWithdrawal(true);
+      
+      const totalTime = Date.now() - startTime;
+      logger.info('Base withdrawal processed successfully', {
+        durationMs: totalTime,
+        signature,
+        recipient,
+        amount: amount.toString(),
+        fee: fee.toString(),
+      });
+      
+      return {
+        success: true,
+        signature,
+      };
+    } finally {
+      this.pendingNullifiers.delete(nullifierKey);
+    }
+  }
+  
+  /**
    * Locally verify a withdraw proof using snarkjs before submitting on-chain.
    *
    * This mirrors WithdrawPublicInputs::to_field_elements in the on-chain program
@@ -569,8 +711,8 @@ export class RelayerService {
       const merkleRootScalar = bytesToBigInt(params.merkleRoot);
       const nullifierHashScalar = bytesToBigInt(params.nullifierHash);
       const assetIdScalar = bytesToBigInt(params.assetId);
-      const recipientScalar = pubkeyToScalar(params.recipient);
-      const relayerScalar = pubkeyToScalar(params.relayer);
+      const recipientScalar = typeof params.recipient === 'string' ? BigInt(params.recipient) : pubkeyToScalar(params.recipient);
+      const relayerScalar = typeof params.relayer === 'string' ? BigInt(params.relayer) : pubkeyToScalar(params.relayer);
       const publicDataHashScalar = params.publicDataHash
         ? bytesToBigInt(params.publicDataHash)
         : 0n;
@@ -641,11 +783,32 @@ export class RelayerService {
       throw new Error('Missing recipient');
     }
     
-    // Validate recipient is a valid Solana public key
-    try {
-      new PublicKey(request.recipient);
-    } catch {
-      throw new Error('Invalid recipient public key');
+    if (request.chain === 'base') {
+      // Validate recipient is a valid Ethereum address
+      if (!/^0x[a-fA-F0-9]{40}$/.test(request.recipient)) {
+        throw new Error('Invalid recipient Ethereum address');
+      }
+      if (!request.mint || !/^0x[a-fA-F0-9]{40}$/.test(request.mint)) {
+        throw new Error('Invalid token address');
+      }
+    } else {
+      // Validate recipient is a valid Solana public key
+      try {
+        new PublicKey(request.recipient);
+      } catch {
+        throw new Error('Invalid recipient public key');
+      }
+      
+      if (!request.mint) {
+        throw new Error('Missing mint');
+      }
+      
+      // Validate mint is a valid Solana public key
+      try {
+        new PublicKey(request.mint);
+      } catch {
+        throw new Error('Invalid mint public key');
+      }
     }
     
     if (!request.amount || !/^\d+$/.test(request.amount) || request.amount.length > 30) {
@@ -656,16 +819,6 @@ export class RelayerService {
     }
     if (!request.assetId || request.assetId.length !== 64) {
       throw new Error('Invalid asset ID length');
-    }
-    if (!request.mint) {
-      throw new Error('Missing mint');
-    }
-    
-    // Validate mint is a valid Solana public key
-    try {
-      new PublicKey(request.mint);
-    } catch {
-      throw new Error('Invalid mint public key');
     }
     
     // Validate hex strings are valid
@@ -892,6 +1045,28 @@ export class RelayerService {
   }
   
   /**
+   * Run Base sequencer loop
+   */
+  private runBaseSequencer(): void {
+    const loop = async () => {
+      while (true) {
+        try {
+          if (this.baseAdapter) {
+            const pending = this.baseAdapter.getPendingCount();
+            if (pending > 0) {
+              logger.info('Base settlement needed', { pendingDeposits: pending });
+            }
+          }
+        } catch (err) {
+          logger.error('Base sequencer error', { error: String(err) });
+        }
+        await sleep(60000);
+      }
+    };
+    loop();
+  }
+  
+  /**
    * Start the relayer service
    */
   async start(): Promise<void> {
@@ -915,6 +1090,10 @@ export class RelayerService {
         apiExtensions: true,
       });
     });
+    
+    if (this.baseAdapter) {
+      this.runBaseSequencer();
+    }
     
     // Graceful shutdown: persist state before exit
     const shutdown = (signal: string) => {
@@ -1077,6 +1256,9 @@ export async function main(): Promise<void> {
     withdrawVkPath: process.env.WITHDRAW_VK_PATH || './circuits/build/withdraw_vk.json',
     circuitsPath: process.env.CIRCUITS_PATH || "../circuits/build",
     treeDepth: parseInt(process.env.TREE_DEPTH || "20", 10),
+    baseRpcUrl: process.env.BASE_RPC_URL || 'https://sepolia.base.org',
+    baseProtocolAddress: process.env.BASE_PROTOCOL_ADDRESS || '0xCE959493cf6F15314b4B9eEbb28369716341e7FE',
+    baseDeployerPrivateKey: process.env.BASE_DEPLOYER_PRIVATE_KEY,
   };
   
   const relayer = createRelayer(config);

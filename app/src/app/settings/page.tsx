@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShieldAlert, Trash2, Download, Upload, Key, Server, Wallet, Loader2 } from "lucide-react";
+import { ShieldAlert, Trash2, Download, Upload, Key, Server, Wallet, Loader2, Check, X } from "lucide-react";
 import { useChain } from "@/providers/ChainContext";
 import { exportNotes, importNotes, getNotes } from "@/lib/noteStore";
 import { CHAINS } from "@/config/chains";
 import { StoredNote } from "@/lib/types";
+import { getRelayerHealth } from "@/lib/relayerClient";
 
 export default function SettingsPage() {
   const { isConnected } = useChain();
@@ -66,15 +67,30 @@ export default function SettingsPage() {
 
 function RelayerCard() {
   const [url, setUrl] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<boolean | null>(null);
 
   useEffect(() => {
-    setUrl(localStorage.getItem("white_protocol_relayer_url") || "");
+    setUrl(localStorage.getItem("white_protocol_relayer_url") || "https://relayer.thewhiteprotocol.com");
   }, []);
 
   function save() {
     if (url) localStorage.setItem("white_protocol_relayer_url", url);
     else localStorage.removeItem("white_protocol_relayer_url");
     alert("Relayer settings saved");
+  }
+
+  async function testConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      await getRelayerHealth();
+      setTestResult(true);
+    } catch {
+      setTestResult(false);
+    } finally {
+      setTesting(false);
+    }
   }
 
   return (
@@ -91,13 +107,29 @@ function RelayerCard() {
           <Input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://relayer.thewhiteprotocol.org"
+            placeholder="https://relayer.thewhiteprotocol.com"
             className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500"
           />
         </div>
-        <Button variant="outline" className="border-white/10 hover:bg-white/[0.03]" onClick={save}>
-          Save
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="outline" className="border-white/10 hover:bg-white/[0.03]" onClick={save}>
+            Save
+          </Button>
+          <Button variant="outline" className="border-white/10 hover:bg-white/[0.03]" onClick={testConnection} disabled={testing}>
+            {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Test Connection
+          </Button>
+          {testResult === true && (
+            <span className="inline-flex items-center gap-1 text-sm text-emerald-400">
+              <Check className="h-4 w-4" /> Connected
+            </span>
+          )}
+          {testResult === false && (
+            <span className="inline-flex items-center gap-1 text-sm text-red-400">
+              <X className="h-4 w-4" /> Unreachable
+            </span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

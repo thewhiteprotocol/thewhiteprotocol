@@ -5,15 +5,19 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CircuitBreaker = void 0;
 class CircuitBreaker {
+    name;
+    failureThreshold;
+    successThreshold;
+    timeoutMs;
+    state = 'CLOSED';
+    failureCount = 0;
+    successCount = 0;
+    nextAttempt = 0;
     constructor(name, failureThreshold = 5, successThreshold = 2, timeoutMs = 30000) {
         this.name = name;
         this.failureThreshold = failureThreshold;
         this.successThreshold = successThreshold;
         this.timeoutMs = timeoutMs;
-        this.state = 'CLOSED';
-        this.failureCount = 0;
-        this.successCount = 0;
-        this.nextAttempt = 0;
     }
     canExecute() {
         if (this.state === 'CLOSED')

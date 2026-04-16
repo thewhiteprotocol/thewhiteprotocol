@@ -109,6 +109,9 @@ function poseidonHash(inputs) {
  * Server-side Merkle Tree implementation
  */
 class ServerMerkleTree {
+    depth;
+    leaves;
+    zeros;
     constructor(depth = 20) {
         this.depth = depth;
         this.leaves = [];
@@ -314,16 +317,20 @@ function withTimeout(promise, ms, message) {
 // API EXTENSIONS CLASS
 // =============================================================================
 class RelayerApiExtensions {
+    config;
+    connection;
+    router;
+    merkleTree;
+    // Circuit artifacts (loaded once)
+    depositWasm = null;
+    depositZkey = null;
+    depositVk = null;
+    withdrawWasm = null;
+    withdrawZkey = null;
+    withdrawVk = null;
+    // RPC response cache (5s TTL default)
+    rpcCache = new ttl_cache_1.TtlCache(5000);
     constructor(config) {
-        // Circuit artifacts (loaded once)
-        this.depositWasm = null;
-        this.depositZkey = null;
-        this.depositVk = null;
-        this.withdrawWasm = null;
-        this.withdrawZkey = null;
-        this.withdrawVk = null;
-        // RPC response cache (5s TTL default)
-        this.rpcCache = new ttl_cache_1.TtlCache(5000);
         this.config = config;
         this.connection = new web3_js_1.Connection(config.rpcEndpoint, 'confirmed');
         this.router = express_1.default.Router();

@@ -5,16 +5,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.metrics = void 0;
 class MetricsCollector {
-    constructor() {
-        this.requestsTotal = 0;
-        this.requestsByPath = {};
-        this.withdrawalsTotal = 0;
-        this.withdrawalsSuccess = 0;
-        this.withdrawalsFailure = 0;
-        this.responseTimeSum = 0;
-        this.responseTimeCount = 0;
-        this.maxResponseTimeMs = 0;
-    }
+    requestsTotal = 0;
+    requestsByPath = {};
+    withdrawalsTotal = 0;
+    withdrawalsSuccess = 0;
+    withdrawalsFailure = 0;
+    responseTimeSum = 0;
+    responseTimeCount = 0;
+    maxResponseTimeMs = 0;
     recordRequest(path) {
         this.requestsTotal++;
         this.requestsByPath[path] = (this.requestsByPath[path] || 0) + 1;

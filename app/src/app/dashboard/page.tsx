@@ -11,6 +11,7 @@ import { getNotes } from "@/lib/noteStore";
 import { StoredNote } from "@/lib/types";
 import { getTotalBalanceUsd, formatTokenAmount, getPendingBalance } from "@/lib/balanceService";
 import { useChain } from "@/providers/ChainContext";
+import { getRelayerHealth } from "@/lib/relayerClient";
 
 const ASSET_DECIMALS: Record<string, number> = {
   SOL: 9,
@@ -28,6 +29,7 @@ export default function DashboardPage() {
   >([]);
   const [pendingBalance, setPendingBalance] = useState<bigint>(0n);
   const [loading, setLoading] = useState(true);
+  const [relayerOnline, setRelayerOnline] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!isConnected) {
@@ -58,6 +60,24 @@ export default function DashboardPage() {
       clearInterval(interval);
     };
   }, [isConnected, walletAddress]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function check() {
+      try {
+        await getRelayerHealth();
+        if (mounted) setRelayerOnline(true);
+      } catch {
+        if (mounted) setRelayerOnline(false);
+      }
+    }
+    check();
+    const interval = setInterval(check, 30000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const recentNotes = notes.slice(-5).reverse();
 
@@ -91,41 +111,64 @@ export default function DashboardPage() {
         </Card>
       ) : (
         <>
-          <Card className="glass-card border-white/10">
-            <CardContent className="p-8">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-zinc-400">Total Shielded Balance</p>
-                <p className="text-5xl font-bold tracking-tight gradient-text">
-                  ${totalUsd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "0.00"}
-                </p>
-                {pendingBalance > 0n && (
-                  <p className="text-sm text-amber-400">
-                    + {formatTokenAmount(pendingBalance, 9)} pending
+          <div className="grid gap-4 lg:grid-cols-4">
+            <Card className="glass-card border-white/10 lg:col-span-3">
+              <CardContent className="p-8">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-zinc-400">Total Shielded Balance</p>
+                  <p className="text-5xl font-bold tracking-tight gradient-text">
+                    ${totalUsd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "0.00"}
+                  </p>
+                  {pendingBalance > 0n && (
+                    <p className="text-sm text-amber-400">
+                      + {formatTokenAmount(pendingBalance, 9)} pending
+                    </p>
+                  )}
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link href="/send">
+                    <Button className="bg-emerald-600 hover:bg-emerald-700">
+                      <ArrowUpRight className="mr-2 h-4 w-4" />
+                      Send
+                    </Button>
+                  </Link>
+                  <Link href="/receive">
+                    <Button variant="outline" className="border-white/10 hover:bg-white/[0.03]">
+                      <ArrowDownLeft className="mr-2 h-4 w-4" />
+                      Receive
+                    </Button>
+                  </Link>
+                  <Link href="/shield">
+                    <Button variant="outline" className="border-white/10 hover:bg-white/[0.03]">
+                      <Shield className="mr-2 h-4 w-4" />
+                      Deposit
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-card border-white/10">
+              <CardContent className="p-6">
+                <p className="text-sm font-medium text-zinc-400">Relayer Status</p>
+                <div className="mt-3 flex items-center gap-2">
+                  <span
+                    className={`inline-flex h-3 w-3 rounded-full ${
+                      relayerOnline === true ? "bg-emerald-500" : relayerOnline === false ? "bg-red-500" : "bg-zinc-500"
+                    }`}
+                  />
+                  <span className="font-medium">
+                    {relayerOnline === true ? "Online" : relayerOnline === false ? "Offline" : "Checking..."}
+                  </span>
+                </div>
+                {relayerOnline === false && (
+                  <p className="mt-2 text-xs text-red-400">
+                    Relayer offline. Withdrawals available in direct mode only.
                   </p>
                 )}
-              </div>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link href="/send">
-                  <Button className="bg-emerald-600 hover:bg-emerald-700">
-                    <ArrowUpRight className="mr-2 h-4 w-4" />
-                    Send
-                  </Button>
-                </Link>
-                <Link href="/receive">
-                  <Button variant="outline" className="border-white/10 hover:bg-white/[0.03]">
-                    <ArrowDownLeft className="mr-2 h-4 w-4" />
-                    Receive
-                  </Button>
-                </Link>
-                <Link href="/shield">
-                  <Button variant="outline" className="border-white/10 hover:bg-white/[0.03]">
-                    <Shield className="mr-2 h-4 w-4" />
-                    Deposit
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
 
           {breakdown.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -33,6 +33,12 @@ interface RelayerConfig {
     circuitsPath: string;
     /** Merkle tree depth */
     treeDepth: number;
+    /** Base RPC endpoint */
+    baseRpcUrl?: string;
+    /** Base protocol contract address */
+    baseProtocolAddress?: string;
+    /** Base deployer private key */
+    baseDeployerPrivateKey?: string;
 }
 /** Withdrawal request interface */
 interface WithdrawRequest {
@@ -48,8 +54,10 @@ interface WithdrawRequest {
     amount: string;
     /** Asset ID (hex encoded) */
     assetId: string;
-    /** Token mint (base58) */
+    /** Token mint (base58 for Solana, address for Base) */
     mint: string;
+    /** Target chain */
+    chain?: 'solana' | 'base';
 }
 /** Withdrawal response interface */
 interface WithdrawResponse {
@@ -89,6 +97,8 @@ export declare class RelayerService {
     private nullifierCache;
     /** Service start timestamp for uptime calculation */
     private startTime;
+    /** Base chain adapter */
+    private baseAdapter?;
     constructor(config: RelayerConfig);
     /**
      * Load persisted relayer state
@@ -124,6 +134,14 @@ export declare class RelayerService {
      */
     processWithdrawal(request: WithdrawRequest): Promise<WithdrawResponse>;
     /**
+     * Process a Solana withdrawal request
+     */
+    private processSolanaWithdrawal;
+    /**
+     * Process a Base withdrawal request
+     */
+    private processBaseWithdrawal;
+    /**
      * Locally verify a withdraw proof using snarkjs before submitting on-chain.
      *
      * This mirrors WithdrawPublicInputs::to_field_elements in the on-chain program
@@ -154,6 +172,10 @@ export declare class RelayerService {
      * Remove asset from supported list
      */
     removeSupportedAsset(assetId: string): void;
+    /**
+     * Run Base sequencer loop
+     */
+    private runBaseSequencer;
     /**
      * Start the relayer service
      */

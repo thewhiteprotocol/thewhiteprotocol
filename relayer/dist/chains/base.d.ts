@@ -3,20 +3,24 @@
  */
 export interface BaseConfig {
     rpcEndpoint: string;
-    contractAddress: string;
-    privateKey: string;
-    chainId: number;
+    contractAddress: `0x${string}`;
+    privateKey: `0x${string}`;
 }
 export declare class BaseAdapter {
-    private config;
-    private provider;
-    private wallet;
-    private contract;
+    private publicClient;
+    private walletClient;
+    private contractAddress;
+    private account;
     constructor(config: BaseConfig);
-    initialize(abi: any): Promise<void>;
-    submitWithdrawal(proofData: string, merkleRoot: string, nullifierHash: string, recipient: string, amount: bigint, assetId: string): Promise<string>;
-    getMerkleRoot(): Promise<string>;
-    getProvider(): any;
-    getWallet(): any;
+    getAddress(): `0x${string}`;
+    submitWithdrawal(proofDataHex: `0x${string}`, nullifierHashHex: `0x${string}`, merkleRootHex: `0x${string}`, recipient: `0x${string}`, tokenAddr: `0x${string}`, amount: bigint, fee: bigint): Promise<`0x${string}`>;
+    isSpent(nullifierHash: bigint | string): Promise<boolean>;
+    getCommitmentPendingIndex(commitment: bigint | string): Promise<bigint>;
+    getPoolState(): Promise<{
+        currentRoot: bigint;
+        currentRootIndex: bigint;
+        levels: bigint;
+    }>;
+    getPendingCount(): number;
 }
 //# sourceMappingURL=base.d.ts.map

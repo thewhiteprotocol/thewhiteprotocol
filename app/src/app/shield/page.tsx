@@ -24,6 +24,7 @@ import { maybeCreateReceipt } from "@/lib/autoReceipt";
 import { StoredNote } from "@/lib/types";
 import { formatTokenAmount, parseTokenAmount } from "@/lib/balanceService";
 import { keccak_256 } from "@noble/hashes/sha3.js";
+import { getRelayerQuote, submitRelayedWithdrawal, RelayerQuote } from "@/lib/relayerClient";
 
 function truncate(str: string, len = 8) {
   if (str.length <= len * 2 + 4) return str;
@@ -328,6 +329,12 @@ function DepositTab({
 }
 
 // ─── Withdraw Tab ───
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 function WithdrawTab({
   activeChain,
   solanaWallet,
@@ -348,110 +355,195 @@ function WithdrawTab({
   const [recipient, setRecipient] = useState("");
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState("");
-  const [result, setResult] = useState<{ txHash?: string } | null>(null);
+  const [result, setResult] = useState<{ txHash?: string; relayer?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showFallback, setShowFallback] = useState(false);
+  const [relayerQuote, setRelayerQuote] = useState<RelayerQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedNote) {
+      setRelayerQuote(null);
+      setShowFallback(false);
+      setError(null);
+      return;
+    }
+    let mounted = true;
+    setQuoteLoading(true);
+    getRelayerQuote(selectedNote.amount)
+      .then((q) => {
+        if (mounted) setRelayerQuote(q);
+      })
+      .catch(() => {
+        if (mounted) setRelayerQuote(null);
+      })
+      .finally(() => {
+        if (mounted) setQuoteLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [selectedNote]);
+
+  async function buildWithdrawalProof() {
+    if (!selectedNote) throw new Error("No note selected");
+    await initializePoseidon();
+    const secret = BigInt(selectedNote.secret);
+    const nullifier = BigInt(selectedNote.nullifier);
+    const amount = BigInt(selectedNote.amount);
+    const assetId = BigInt(selectedNote.assetId);
+    const nullifierHash = computeNullifierHash(nullifier, secret, selectedNote.leafIndex ?? 0);
+
+    setStep("Fetching Merkle proof...");
+    let pathElements: bigint[];
+    let pathIndices: number[];
+    let merkleRoot: bigint;
+
+    if (activeChain === "solana") {
+      const tree = await solanaChainService.getMerkleTree();
+      merkleRoot = bytes32ToBigint(tree.currentRoot);
+      const path = await solanaChainService.getMerklePath(selectedNote.leafIndex ?? 0);
+      pathElements = path.pathElements;
+      pathIndices = path.pathIndices;
+    } else {
+      const state = await baseChainService.getPoolState();
+      merkleRoot = state.currentRoot;
+      const path = await baseChainService.getMerklePath(selectedNote.leafIndex ?? 0);
+      pathElements = path.pathElements;
+      pathIndices = path.pathIndices;
+    }
+
+    const recipientScalar = activeChain === "solana"
+      ? pubkeyToScalar(recipient)
+      : BigInt(recipient);
+    const relayerScalar = 0n;
+    const relayerFee = 0n;
+
+    setStep("Generating ZK proof...");
+    const { proof } = await generateWithdrawProof({
+      secret,
+      nullifier,
+      amount,
+      assetId,
+      leafIndex: BigInt(selectedNote.leafIndex ?? 0),
+      merkleRoot,
+      pathElements,
+      pathIndices,
+      recipient: recipientScalar,
+      relayer: relayerScalar,
+      relayerFee,
+    });
+    const proofBytes = formatProofForOnChain(proof);
+
+    return { secret, nullifier, amount, assetId, nullifierHash, merkleRoot, proofBytes };
+  }
+
+  async function submitDirectWithdrawal(
+    proofBytes: Uint8Array,
+    nullifierHash: bigint,
+    merkleRoot: bigint,
+    amount: bigint,
+    assetId: bigint
+  ) {
+    let txHash: string | undefined;
+    if (activeChain === "solana") {
+      if (!solanaWallet.publicKey) throw new Error("Solana wallet not connected");
+      const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote!.asset);
+      txHash = await solanaChainService.withdraw(
+        solanaWallet,
+        proofBytes,
+        nullifierHash,
+        merkleRoot,
+        new PublicKey(recipient),
+        amount,
+        bigintToBytes32(assetId),
+        new PublicKey(asset?.address || "So11111111111111111111111111111111111111112"),
+        0n
+      );
+    } else {
+      if (!evmWalletClient) throw new Error("EVM wallet not connected");
+      const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote!.asset);
+      const tokenAddr = (asset?.address || "0x0000000000000000000000000000000000000000") as `0x${string}`;
+      txHash = await baseChainService.withdraw(
+        evmWalletClient,
+        proofBytes,
+        nullifierHash,
+        merkleRoot,
+        recipient as `0x${string}`,
+        tokenAddr,
+        amount,
+        0n,
+        "0x0000000000000000000000000000000000000000"
+      );
+    }
+    return txHash;
+  }
+
+  async function finalizeWithdrawal(txHash: string | undefined, viaRelayer: boolean) {
+    await markSpent(selectedNote!.nullifier, txHash);
+    onWithdraw();
+    setResult({ txHash, relayer: viaRelayer });
+    setSelectedNote(null);
+    setRecipient("");
+    setShowFallback(false);
+    await maybeCreateReceipt({
+      type: "payment_received",
+      from: { walletAddress: "Shielded Pool" },
+      to: { walletAddress: recipient },
+      amount: Number(selectedNote!.amount) / 1e9,
+      asset: selectedNote!.asset,
+      chain: activeChain,
+      txHash: txHash || "",
+    });
+    showToast("Withdrawal submitted successfully", "success");
+  }
 
   async function handleWithdraw() {
     if (!selectedNote || !recipient) return;
     setBusy(true);
     setError(null);
+    setShowFallback(false);
     try {
-      await initializePoseidon();
-      const secret = BigInt(selectedNote.secret);
-      const nullifier = BigInt(selectedNote.nullifier);
-      const amount = BigInt(selectedNote.amount);
-      const assetId = BigInt(selectedNote.assetId);
-      const nullifierHash = computeNullifierHash(nullifier, secret, selectedNote.leafIndex ?? 0);
+      const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof();
 
-      setStep("Fetching Merkle proof...");
-      let pathElements: bigint[];
-      let pathIndices: number[];
-      let merkleRoot: bigint;
-
-      if (activeChain === "solana") {
-        const tree = await solanaChainService.getMerkleTree();
-        merkleRoot = bytes32ToBigint(tree.currentRoot);
-        const path = await solanaChainService.getMerklePath(selectedNote.leafIndex ?? 0);
-        pathElements = path.pathElements;
-        pathIndices = path.pathIndices;
-      } else {
-        const state = await baseChainService.getPoolState();
-        merkleRoot = state.currentRoot;
-        const path = await baseChainService.getMerklePath(selectedNote.leafIndex ?? 0);
-        pathElements = path.pathElements;
-        pathIndices = path.pathIndices;
-      }
-
-      const recipientScalar = activeChain === "solana"
-        ? pubkeyToScalar(recipient)
-        : BigInt(recipient);
-      const relayerScalar = 0n;
-      const relayerFee = 0n;
-
-      setStep("Generating ZK proof...");
-      const { proof } = await generateWithdrawProof({
-        secret,
-        nullifier,
-        amount,
-        assetId,
-        leafIndex: BigInt(selectedNote.leafIndex ?? 0),
-        merkleRoot,
-        pathElements,
-        pathIndices,
-        recipient: recipientScalar,
-        relayer: relayerScalar,
-        relayerFee,
-      });
-      const proofBytes = formatProofForOnChain(proof);
-
-      setStep("Sending transaction...");
-      let txHash: string | undefined;
-      if (activeChain === "solana") {
-        if (!solanaWallet.publicKey) throw new Error("Solana wallet not connected");
-        const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote.asset);
-        txHash = await solanaChainService.withdraw(
-          solanaWallet,
-          proofBytes,
-          nullifierHash,
-          merkleRoot,
-          new PublicKey(recipient),
-          amount,
-          bigintToBytes32(assetId),
-          new PublicKey(asset?.address || "So11111111111111111111111111111111111111112"),
-          relayerFee
-        );
-      } else {
-        if (!evmWalletClient) throw new Error("EVM wallet not connected");
-        const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote.asset);
-        const tokenAddr = (asset?.address || "0x0000000000000000000000000000000000000000") as `0x${string}`;
-        txHash = await baseChainService.withdraw(
-          evmWalletClient,
-          proofBytes,
-          nullifierHash,
-          merkleRoot,
-          recipient as `0x${string}`,
-          tokenAddr,
-          amount,
-          relayerFee,
-          "0x0000000000000000000000000000000000000000"
-        );
-      }
-
-      await markSpent(selectedNote.nullifier, txHash);
-      onWithdraw();
-      setResult({ txHash });
-      setSelectedNote(null);
-      setRecipient("");
-      await maybeCreateReceipt({
-        type: "payment_received",
-        from: { walletAddress: "Shielded Pool" },
-        to: { walletAddress: recipient },
-        amount: Number(selectedNote.amount) / 1e9,
-        asset: selectedNote.asset,
+      setStep("Submitting to relayer...");
+      const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote.asset);
+      const res = await submitRelayedWithdrawal({
         chain: activeChain,
-        txHash: txHash || "",
+        proofData: bytesToHex(proofBytes),
+        merkleRoot: merkleRoot.toString(16).padStart(64, "0"),
+        nullifierHash: nullifierHash.toString(16).padStart(64, "0"),
+        recipient,
+        amount: selectedNote.amount,
+        assetId: assetId.toString(16).padStart(64, "0"),
+        mint: asset?.address || (activeChain === "solana" ? "So11111111111111111111111111111111111111112" : "0x0000000000000000000000000000000000000000"),
       });
-      showToast("Withdrawal submitted successfully", "success");
+
+      if (res.success && res.signature) {
+        await finalizeWithdrawal(res.signature, true);
+      } else {
+        throw new Error(res.error || "Relayer rejected withdrawal");
+      }
+    } catch (err: any) {
+      setError(err?.message || "Relayer failed. Try direct withdrawal?");
+      setShowFallback(true);
+      showToast(err?.message || "Relayer failed", "error");
+    } finally {
+      setBusy(false);
+      setStep("");
+    }
+  }
+
+  async function handleDirectWithdraw() {
+    if (!selectedNote || !recipient) return;
+    setBusy(true);
+    setError(null);
+    setShowFallback(false);
+    try {
+      const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof();
+      setStep("Sending transaction...");
+      const txHash = await submitDirectWithdrawal(proofBytes, nullifierHash, merkleRoot, amount, assetId);
+      await finalizeWithdrawal(txHash, false);
     } catch (err: any) {
       setError(err?.message || "Withdrawal failed");
       showToast(err?.message || "Withdrawal failed", "error");
@@ -476,6 +568,25 @@ function WithdrawTab({
             </p>
           </div>
 
+          {quoteLoading ? (
+            <div className="flex items-center gap-2 text-sm text-zinc-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Fetching relayer quote...
+            </div>
+          ) : relayerQuote ? (
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm">
+              <p className="text-zinc-300">
+                Relayer fee: <span className="font-medium text-white">{relayerQuote.feeBps / 100}%</span>
+              </p>
+              <p className="text-zinc-300">
+                You receive: <span className="font-medium text-white">{formatTokenAmount(BigInt(relayerQuote.netAmount), asset?.decimals || 9)} {selectedNote.asset}</span>
+              </p>
+              <p className="text-zinc-300">
+                Gas: <span className="font-medium text-white">Paid by relayer</span>
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <label className="text-sm font-medium text-zinc-300">
               Recipient {activeChain === "solana" ? "Address" : "Address"}
@@ -489,6 +600,15 @@ function WithdrawTab({
           </div>
 
           {error && <p className="text-sm text-red-400">{error}</p>}
+
+          {showFallback && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" className="border-white/10 hover:bg-white/[0.03]" onClick={handleDirectWithdraw} disabled={busy}>
+                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Try direct withdrawal
+              </Button>
+            </div>
+          )}
 
           <div className="flex gap-2">
             <Button variant="outline" className="flex-1 border-white/10 hover:bg-white/[0.03]" onClick={() => setSelectedNote(null)}>

@@ -5,9 +5,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TtlCache = void 0;
 class TtlCache {
+    defaultTtlMs;
+    cache = new Map();
     constructor(defaultTtlMs = 5000) {
         this.defaultTtlMs = defaultTtlMs;
-        this.cache = new Map();
     }
     get(key) {
         const entry = this.cache.get(key);

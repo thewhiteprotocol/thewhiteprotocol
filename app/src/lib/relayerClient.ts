@@ -1,0 +1,52 @@
+"use client";
+
+const DEFAULT_RELAYER_URL = "https://relayer.thewhiteprotocol.com";
+
+function getRelayerUrl(): string {
+  if (typeof window === "undefined") return DEFAULT_RELAYER_URL;
+  const custom = localStorage.getItem("white_protocol_relayer_url");
+  return custom ? custom.replace(/\/$/, "") : DEFAULT_RELAYER_URL;
+}
+
+export interface RelayerStatus {
+  status: "ok" | "error";
+}
+
+export async function getRelayerHealth(): Promise<RelayerStatus> {
+  const res = await fetch(`${getRelayerUrl()}/health`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Relayer health check failed");
+  return res.json();
+}
+
+export interface RelayerQuote {
+  amount: string;
+  fee: string;
+  feeBps: number;
+  netAmount: string;
+}
+
+export async function getRelayerQuote(amount: string): Promise<RelayerQuote> {
+  const res = await fetch(`${getRelayerUrl()}/quote?amount=${amount}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch relayer quote");
+  return res.json();
+}
+
+export interface RelayedWithdrawalParams {
+  chain: "solana" | "base";
+  proofData: string; // hex string, 512 chars = 256 bytes
+  merkleRoot: string; // hex string, 64 chars = 32 bytes
+  nullifierHash: string; // hex string, 64 chars = 32 bytes
+  recipient: string;
+  amount: string;
+  assetId: string; // hex string, 64 chars = 32 bytes
+  mint: string; // token address / mint address
+}
+
+export async function submitRelayedWithdrawal(params: RelayedWithdrawalParams): Promise<{ success: boolean; signature?: string; error?: string }> {
+  const res = await fetch(`${getRelayerUrl()}/withdraw`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  return res.json();
+}

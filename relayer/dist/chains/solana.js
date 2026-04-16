@@ -41,10 +41,12 @@ const web3_js_1 = require("@solana/web3.js");
 const anchor_1 = require("@coral-xyz/anchor");
 const fs = __importStar(require("fs"));
 class SolanaAdapter {
+    config;
+    connection;
+    program = null;
+    provider = null;
     constructor(config) {
         this.config = config;
-        this.program = null;
-        this.provider = null;
         this.connection = new web3_js_1.Connection(config.rpcEndpoint, 'confirmed');
     }
     async initialize(idlPath) {
@@ -70,6 +72,7 @@ class SolanaAdapter {
 }
 exports.SolanaAdapter = SolanaAdapter;
 class AnchorWallet {
+    payer;
     constructor(payer) {
         this.payer = payer;
     }

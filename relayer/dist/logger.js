@@ -12,6 +12,8 @@ const LEVEL_PRIORITY = {
     error: 3,
 };
 class Logger {
+    service;
+    minLevel;
     constructor(service, minLevel = 'info') {
         this.service = service;
         this.minLevel = minLevel;

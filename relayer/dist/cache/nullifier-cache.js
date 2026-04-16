@@ -12,9 +12,7 @@ const logger_1 = require("../logger");
  * In-memory nullifier cache
  */
 class NullifierCache {
-    constructor() {
-        this.cache = new Map();
-    }
+    cache = new Map();
     /**
      * Generate cache key for a nullifier
      */
