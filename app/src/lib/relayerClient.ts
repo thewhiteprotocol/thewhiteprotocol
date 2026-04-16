@@ -1,6 +1,7 @@
 "use client";
 
-const DEFAULT_RELAYER_URL = "https://relayer.thewhiteprotocol.com";
+const DEFAULT_RELAYER_URL =
+  process.env.NEXT_PUBLIC_RELAYER_URL || "https://relayer.thewhiteprotocol.com";
 
 function getRelayerUrl(): string {
   if (typeof window === "undefined") return DEFAULT_RELAYER_URL;

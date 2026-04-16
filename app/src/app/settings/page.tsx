@@ -71,7 +71,7 @@ function RelayerCard() {
   const [testResult, setTestResult] = useState<boolean | null>(null);
 
   useEffect(() => {
-    setUrl(localStorage.getItem("white_protocol_relayer_url") || "https://relayer.thewhiteprotocol.com");
+    setUrl(localStorage.getItem("white_protocol_relayer_url") || process.env.NEXT_PUBLIC_RELAYER_URL || "https://relayer.thewhiteprotocol.com");
   }, []);
 
   function save() {
@@ -107,7 +107,7 @@ function RelayerCard() {
           <Input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://relayer.thewhiteprotocol.com"
+            placeholder={process.env.NEXT_PUBLIC_RELAYER_URL || "https://relayer.thewhiteprotocol.com"}
             className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500"
           />
         </div>
