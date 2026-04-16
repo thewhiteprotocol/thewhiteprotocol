@@ -20,6 +20,7 @@ import { initializePoseidon, computeCommitment, computeNullifierHash, computeAss
 import { generateDepositProof, generateWithdrawProof } from "@/lib/proofService";
 import { solanaChainService, baseChainService } from "@/lib/chainService";
 import { getNotes, addNote, markSpent } from "@/lib/noteStore";
+import { maybeCreateReceipt } from "@/lib/autoReceipt";
 import { StoredNote } from "@/lib/types";
 import { formatTokenAmount, parseTokenAmount } from "@/lib/balanceService";
 import { keccak_256 } from "@noble/hashes/sha3.js";
@@ -207,6 +208,15 @@ function DepositTab({
       onDeposit(note);
       setResult({ txHash, commitment: commitment.toString() });
       setAmount("");
+      await maybeCreateReceipt({
+        type: "payment_sent",
+        from: { walletAddress: solanaWallet.publicKey?.toBase58() || evmWalletClient?.account?.address || "" },
+        to: { walletAddress: "Shielded Pool" },
+        amount: Number(amount),
+        asset: asset.symbol,
+        chain: activeChain,
+        txHash: txHash || "",
+      });
       showToast("Deposit submitted successfully", "success");
     } catch (err: any) {
       setError(err?.message || "Deposit failed");
@@ -432,6 +442,15 @@ function WithdrawTab({
       setResult({ txHash });
       setSelectedNote(null);
       setRecipient("");
+      await maybeCreateReceipt({
+        type: "payment_received",
+        from: { walletAddress: "Shielded Pool" },
+        to: { walletAddress: recipient },
+        amount: Number(selectedNote.amount) / 1e9,
+        asset: selectedNote.asset,
+        chain: activeChain,
+        txHash: txHash || "",
+      });
       showToast("Withdrawal submitted successfully", "success");
     } catch (err: any) {
       setError(err?.message || "Withdrawal failed");

@@ -21,6 +21,7 @@ import { generateDepositProof } from "@/lib/proofService";
 import { solanaChainService, baseChainService } from "@/lib/chainService";
 import { useToast } from "@/providers/ToastContext";
 import { addNote } from "@/lib/noteStore";
+import { maybeCreateReceipt } from "@/lib/autoReceipt";
 
 function truncate(str: string, len = 8) {
   if (str.length <= len * 2 + 4) return str;
@@ -230,6 +231,15 @@ function PaymentConfirm({ parsed, onReset }: { parsed: PaymentRequest; onReset: 
 
       setTxHash(hash);
       setSuccess(true);
+      await maybeCreateReceipt({
+        type: "payment_sent",
+        from: { walletAddress: walletAddress || "" },
+        to: { walletAddress: "Payment Link Recipient" },
+        amount: parsed.amount ? Number(parsed.amount) : 0,
+        asset: parsed.asset,
+        chain: parsed.chain,
+        txHash: hash || "",
+      });
       showToast("Payment sent successfully", "success");
     } catch (err: any) {
       setError(err?.message || "Payment failed");

@@ -14,6 +14,7 @@ import { createPaymentRequest, PaymentLinkResult } from "@/lib/paymentLink";
 import { formatTokenAmount } from "@/lib/balanceService";
 import { useToast } from "@/providers/ToastContext";
 import { getNotes } from "@/lib/noteStore";
+import { maybeCreateReceipt } from "@/lib/autoReceipt";
 import { StoredNote } from "@/lib/types";
 
 export default function ReceivePage() {
@@ -70,7 +71,21 @@ export default function ReceivePage() {
     try {
       const notes = await getNotes();
       const note = notes.find((n) => n.commitment === result.note.commitment);
-      if (note) setNoteStatus(note.status);
+      if (note) {
+        setNoteStatus(note.status);
+        if (note.status === "settled" || note.status === "spent") {
+          await maybeCreateReceipt({
+            type: "payment_received",
+            from: { walletAddress: "Payment Link Sender" },
+            to: { walletAddress: note.recipient || "You" },
+            amount: Number(note.amount) / 1e9,
+            asset: note.asset,
+            chain: note.chain,
+            txHash: note.txHash || "",
+          });
+          showToast("Receipt saved automatically", "success");
+        }
+      }
     } finally {
       setChecking(false);
     }
