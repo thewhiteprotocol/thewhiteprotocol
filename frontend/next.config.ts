@@ -10,9 +10,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  turbopack: {
-    root: "/workspaces/thewhiteprotocol/frontend",
-  },
+
 };
 
 export default nextConfig;

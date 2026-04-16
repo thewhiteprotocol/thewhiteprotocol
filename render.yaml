@@ -3,7 +3,7 @@ services:
     name: white-protocol-relayer
     runtime: node
     rootDir: relayer
-    buildCommand: npm ci && npm run build
+    buildCommand: bash ../tools/setup-relayer-circuits.sh && npm ci && npm run build
     startCommand: npm start
     plan: starter
     healthCheckPath: /health
@@ -31,13 +31,14 @@ services:
       - key: MAX_WITHDRAWAL
         value: "1000000000000"
       - key: WITHDRAW_VK_PATH
-        value: "./circuits/withdraw/withdraw.vkey.json"
+        value: "./circuits/build/withdraw_vk.json"
       - key: CIRCUITS_PATH
-        value: "../circuits/build"
+        value: "./circuits/build"
       - key: TREE_DEPTH
         value: "20"
       - key: CORS_ORIGIN
-        # Set this to your deployed frontend domain(s), e.g. "https://your-app.vercel.app"
+        # Set this in your Render environment group to your Vercel domain(s)
+        # e.g. "https://your-app.vercel.app"
         fromGroup: white-protocol
       - key: SEQUENCER_AUTH_TOKEN
         generateValue: true

@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/*",
     "chains/*/",
-    "relayer/"
+    "relayer/",
+    "frontend"
   ],
   "scripts": {
     "build:core": "cd packages/core && npm run build",

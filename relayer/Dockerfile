@@ -1,6 +1,9 @@
 # =============================================================================
 # The White Protocol Relayer — Production Dockerfile
 # =============================================================================
+# Build context should be the repo root:
+#   docker build -f relayer/Dockerfile .
+# =============================================================================
 
 # -----------------------------------------------------------------------------
 # Stage 1: Builder
@@ -16,12 +19,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package files and install all dependencies (including devDeps for build)
-COPY package*.json ./
-RUN npm ci
+# Copy relayer package files and install all dependencies (including devDeps for build)
+COPY ./relayer/package*.json ./
+RUN npm install
 
-# Copy source and build
-COPY . .
+# Copy relayer source and build
+COPY ./relayer/ .
 RUN npm run build
 
 # -----------------------------------------------------------------------------
@@ -38,12 +41,15 @@ RUN chown -R node:node /app
 USER node
 
 # Copy package files and install production dependencies only
-COPY --chown=node:node package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+COPY --chown=node:node ./relayer/package*.json ./
+RUN npm install --omit=dev && npm cache clean --force
 
 # Copy built artifacts and required runtime assets
 COPY --chown=node:node --from=builder /app/dist ./dist
 COPY --chown=node:node --from=builder /app/src ./src
+
+# Copy ZK circuit artifacts required at runtime
+COPY --chown=node:node ./relayer/circuits ./circuits
 
 # Create persistent state directory
 RUN mkdir -p /app/data
