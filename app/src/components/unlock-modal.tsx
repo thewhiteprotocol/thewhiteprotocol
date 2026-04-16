@@ -5,6 +5,7 @@ import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { useSignMessage as useWagmiSignMessage } from "wagmi";
 import { useChain } from "@/providers/ChainContext";
 import { initNoteStore, isStoreInitialized, hasSessionKey } from "@/lib/noteStore";
+import { initTierStore } from "@/lib/userTier";
 import { initializePoseidon } from "@/lib/crypto";
 import {
   Dialog,
@@ -55,6 +56,7 @@ export function UnlockModal() {
       }
       await initializePoseidon();
       await initNoteStore(walletAddress, signature);
+      await initTierStore();
       setOpen(false);
     } catch (err: any) {
       setError(err.message || "Failed to unlock wallet");
