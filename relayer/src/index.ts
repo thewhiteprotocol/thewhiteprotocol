@@ -1074,7 +1074,7 @@ export async function main(): Promise<void> {
     minWithdrawalAmount: BigInt(process.env.MIN_WITHDRAWAL || '1000000'),
     maxWithdrawalAmount: BigInt(process.env.MAX_WITHDRAWAL || '1000000000000'),
     port: parseInt(process.env.PORT || '3000', 10),
-    withdrawVkPath: process.env.WITHDRAW_VK_PATH || './circuits/withdraw/withdraw.vkey.json',
+    withdrawVkPath: process.env.WITHDRAW_VK_PATH || './circuits/build/withdraw_vk.json',
     circuitsPath: process.env.CIRCUITS_PATH || "../circuits/build",
     treeDepth: parseInt(process.env.TREE_DEPTH || "20", 10),
   };
