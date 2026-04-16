@@ -1,0 +1,162 @@
+"use client";
+
+import { StoredNote } from "./types";
+import { formatTokenAmount } from "./balanceService";
+import { SUPPORTED_ASSETS } from "@/config/constants";
+import type { Receipt } from "./receiptService";
+import type { BusinessProfile } from "./userTier";
+
+export function exportCSV(notes: StoredNote[]): string {
+  const headers = ["Date", "Type", "Asset", "Chain", "Amount", "Status", "Commitment", "TxHash"];
+  const rows = notes.map((n) => [
+    new Date(n.timestamp).toISOString(),
+    n.status,
+    n.asset,
+    n.chain,
+    formatTokenAmount(BigInt(n.amount), SUPPORTED_ASSETS.find((a) => a.symbol === n.asset)?.decimals || 9),
+    n.status,
+    n.commitment,
+    n.txHash || "",
+  ]);
+  return [headers.join(","), ...rows.map((r) => r.map(escapeCsv).join(","))].join("\n");
+}
+
+export function exportQuickBooksCSV(notes: StoredNote[]): string {
+  // QuickBooks import format: Date, Description, Amount, Account
+  const headers = ["Date", "Description", "Amount", "Account"];
+  const rows = notes.map((n) => {
+    const amount = Number(formatTokenAmount(BigInt(n.amount), SUPPORTED_ASSETS.find((a) => a.symbol === n.asset)?.decimals || 9));
+    const desc = `${n.status === "spent" ? "Withdrawal" : n.status === "pending" ? "Deposit" : "Shielded"} of ${amount} ${n.asset} on ${n.chain}`;
+    const signedAmount = n.status === "spent" ? -amount : amount;
+    return [new Date(n.timestamp).toISOString().split("T")[0], desc, signedAmount.toFixed(4), `Crypto:${n.asset}`];
+  });
+  return [headers.join(","), ...rows.map((r) => r.map(escapeCsv).join(","))].join("\n");
+}
+
+export function exportXeroCSV(notes: StoredNote[]): string {
+  // Xero bank statement import: Date, Payee, Description, Reference, Amount
+  const headers = ["Date", "Payee", "Description", "Reference", "Amount"];
+  const rows = notes.map((n) => {
+    const amount = Number(formatTokenAmount(BigInt(n.amount), SUPPORTED_ASSETS.find((a) => a.symbol === n.asset)?.decimals || 9));
+    const desc = `${n.status === "spent" ? "Withdrawal" : "Deposit"} of ${amount} ${n.asset}`;
+    const signedAmount = n.status === "spent" ? -amount : amount;
+    return [
+      new Date(n.timestamp).toISOString().split("T")[0],
+      "The White Protocol",
+      desc,
+      n.txHash || n.commitment.slice(0, 16),
+      signedAmount.toFixed(4),
+    ];
+  });
+  return [headers.join(","), ...rows.map((r) => r.map(escapeCsv).join(","))].join("\n");
+}
+
+export async function exportPDFStatement(notes: StoredNote[], profile?: BusinessProfile): Promise<Blob> {
+  const html = renderStatementHTML(notes, profile);
+  return printToPDF("statement", html);
+}
+
+function renderStatementHTML(notes: StoredNote[], profile?: BusinessProfile): string {
+  const logoHtml = profile?.logo
+    ? `<img src="${profile.logo}" style="height:48px;object-fit:contain" />`
+    : profile?.companyName
+    ? `<div style="font-size:24px;font-weight:700;color:#10b981">${profile.companyName}</div>`
+    : `<div style="font-size:24px;font-weight:700;color:#10b981">The White Protocol</div>`;
+
+  const rowsHtml = notes
+    .map((n) => {
+      const amount = formatTokenAmount(BigInt(n.amount), SUPPORTED_ASSETS.find((a) => a.symbol === n.asset)?.decimals || 9);
+      return `
+        <tr>
+          <td style="padding:10px;border-bottom:1px solid #e5e7eb">${new Date(n.timestamp).toLocaleDateString()}</td>
+          <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-transform:capitalize">${n.status}</td>
+          <td style="padding:10px;border-bottom:1px solid #e5e7eb">${n.asset}</td>
+          <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-transform:capitalize">${n.chain}</td>
+          <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right">${amount}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `
+    <div style="font-family:system-ui,-apple-system,sans-serif;color:#111827;max-width:800px;margin:0 auto;padding:40px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:30px">
+        <div>${logoHtml}</div>
+        <div style="text-align:right">
+          <div style="font-size:22px;font-weight:700">Statement</div>
+          <div style="color:#6b7280">${new Date().toLocaleDateString()}</div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f3f4f6">
+            <th style="padding:10px;text-align:left;font-weight:600">Date</th>
+            <th style="padding:10px;text-align:left;font-weight:600">Type</th>
+            <th style="padding:10px;text-align:left;font-weight:600">Asset</th>
+            <th style="padding:10px;text-align:left;font-weight:600">Chain</th>
+            <th style="padding:10px;text-align:right;font-weight:600">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+      <div style="margin-top:30px;text-align:center;color:#9ca3af;font-size:12px">
+        Generated by The White Protocol · Private & Secure
+      </div>
+    </div>
+  `;
+}
+
+function escapeCsv(val: any): string {
+  const str = String(val ?? "");
+  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function printToPDF(filenamePrefix: string, html: string): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.top = "-9999px";
+    iframe.style.left = "-9999px";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    document.body.appendChild(iframe);
+
+    iframe.onload = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (!doc) return reject(new Error("Failed to access iframe document"));
+        doc.open();
+        doc.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>${filenamePrefix}</title>
+              <style>
+                @media print {
+                  body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+              </style>
+            </head>
+            <body>${html}</body>
+          </html>
+        `);
+        doc.close();
+        setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          resolve(new Blob([html], { type: "text/html" }));
+          setTimeout(() => document.body.removeChild(iframe), 1000);
+        }, 500);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    iframe.src = "about:blank";
+  });
+}

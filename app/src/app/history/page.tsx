@@ -6,13 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Download, FileText, Search, Wallet, Loader2 } from "lucide-react";
+import { Download, FileText, Search, Wallet, Loader2, Briefcase } from "lucide-react";
 import { getNotes } from "@/lib/noteStore";
 import { StoredNote } from "@/lib/types";
 import { useChain } from "@/providers/ChainContext";
 import { CHAINS } from "@/config/chains";
 import { SUPPORTED_ASSETS } from "@/config/constants";
 import { formatTokenAmount } from "@/lib/balanceService";
+import { exportCSV, exportQuickBooksCSV, exportXeroCSV, exportPDFStatement } from "@/lib/exportService";
+import { getTierConfig, isBusinessUser } from "@/lib/userTier";
 
 function truncate(str: string, len = 8) {
   if (str.length <= len * 2 + 4) return str;
@@ -54,19 +56,8 @@ export default function HistoryPage() {
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [notes, filterChain, filterAsset, filterStatus, search]);
 
-  function exportCSV() {
-    const headers = ["Date", "Type", "Asset", "Chain", "Amount", "Status", "Commitment", "TxHash"];
-    const rows = filtered.map((n) => [
-      new Date(n.timestamp).toISOString(),
-      n.status,
-      n.asset,
-      n.chain,
-      formatTokenAmount(BigInt(n.amount), SUPPORTED_ASSETS.find((a) => a.symbol === n.asset)?.decimals || 9),
-      n.status,
-      n.commitment,
-      n.txHash || "",
-    ]);
-    const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${c}"`).join(","))].join("\n");
+  async function handleExportCSV() {
+    const csv = exportCSV(filtered);
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -76,34 +67,31 @@ export default function HistoryPage() {
     URL.revokeObjectURL(url);
   }
 
-  function exportPDF() {
-    // Minimal PDF export via printable window
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-    const html = `
-      <html><head><title>Transaction History</title>
-      <style>body{font-family:system-ui,sans-serif;padding:40px;color:#111}h1{font-size:24px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f5f5f5}</style>
-      </head><body>
-      <h1>White Protocol - Transaction History</h1>
-      <p>Generated on ${new Date().toLocaleString()}</p>
-      <table>
-        <tr><th>Date</th><th>Type</th><th>Asset</th><th>Chain</th><th>Amount</th><th>Status</th></tr>
-        ${filtered
-          .map(
-            (n) =>
-              `<tr><td>${new Date(n.timestamp).toLocaleString()}</td><td>${n.status}</td><td>${n.asset}</td><td>${n.chain}</td><td>${formatTokenAmount(
-                BigInt(n.amount),
-                SUPPORTED_ASSETS.find((a) => a.symbol === n.asset)?.decimals || 9
-              )}</td><td>${n.status}</td></tr>`
-          )
-          .join("")}
-      </table>
-      </body></html>
-    `;
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+  async function handleExportQuickBooks() {
+    const csv = exportQuickBooksCSV(filtered);
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `white-protocol-quickbooks-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleExportXero() {
+    const csv = exportXeroCSV(filtered);
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `white-protocol-xero-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleExportPDF() {
+    const tierConfig = await getTierConfig();
+    await exportPDFStatement(filtered, tierConfig.businessProfile);
   }
 
   if (!isConnected) {
@@ -141,14 +129,22 @@ export default function HistoryPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Transaction History</h1>
           <p className="text-zinc-400">All your private transactions in one place.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={exportCSV}>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={handleExportCSV}>
             <Download className="mr-2 h-4 w-4" />
             CSV
           </Button>
-          <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={exportPDF}>
+          <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={handleExportQuickBooks}>
+            <Briefcase className="mr-2 h-4 w-4" />
+            QuickBooks
+          </Button>
+          <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={handleExportXero}>
+            <Briefcase className="mr-2 h-4 w-4" />
+            Xero
+          </Button>
+          <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={handleExportPDF}>
             <FileText className="mr-2 h-4 w-4" />
-            PDF
+            PDF Statement
           </Button>
         </div>
       </div>
