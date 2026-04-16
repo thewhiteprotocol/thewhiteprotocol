@@ -640,7 +640,7 @@ export class RelayerApiExtensions {
         };
         
         const { proof, publicSignals } = await withTimeout(
-          snarkjs.groth16.fullProve(circuitInput, this.depositWasm, this.depositZkey),
+          snarkjs.groth16.fullProve(circuitInput, this.depositWasm, this.depositZkey) as Promise<{ proof: any; publicSignals: any }>,
           60000,
           'Proof generation timed out'
         );
@@ -774,7 +774,7 @@ export class RelayerApiExtensions {
         };
         
         const { proof, publicSignals } = await withTimeout(
-          snarkjs.groth16.fullProve(circuitInput, this.withdrawWasm, this.withdrawZkey),
+          snarkjs.groth16.fullProve(circuitInput, this.withdrawWasm, this.withdrawZkey) as Promise<{ proof: any; publicSignals: any }>,
           60000,
           'Proof generation timed out'
         );
