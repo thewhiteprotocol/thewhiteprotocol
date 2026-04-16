@@ -3,7 +3,7 @@ services:
     name: white-protocol-relayer
     runtime: node
     rootDir: relayer
-    buildCommand: bash ../tools/setup-relayer-circuits.sh && npm ci && npm run build
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     plan: starter
     healthCheckPath: /health
