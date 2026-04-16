@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { getReceipts, type Receipt } from "@/lib/receiptService";
 import { generateReceiptPDF } from "@/lib/pdfGenerator";
 import { useChain } from "@/providers/ChainContext";
-import { Loader2, Receipt, FileText, Download, Calendar } from "lucide-react";
+import { Loader2, Receipt as ReceiptIcon, FileText, Download, Calendar } from "lucide-react";
 
 export default function ReceiptsPage() {
   const { isConnected, walletAddress } = useChain();
@@ -57,7 +57,7 @@ export default function ReceiptsPage() {
 
       {receipts.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-12 text-center">
-          <Receipt className="mx-auto h-10 w-10 text-zinc-600" />
+          <ReceiptIcon className="mx-auto h-10 w-10 text-zinc-600" />
           <p className="mt-4 text-zinc-400">No receipts yet.</p>
           <p className="text-sm text-zinc-500">Business users get automatic receipts on every transaction.</p>
         </div>

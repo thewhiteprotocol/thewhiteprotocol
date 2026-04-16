@@ -90,7 +90,7 @@ export async function createInvoice(params: CreateInvoiceParams): Promise<Invoic
   const amount = Math.floor(
     params.lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) * 1e9
   ).toString();
-  const commitment = computeCommitment(secret, nullifier, amount, assetId);
+  const commitment = computeCommitment(secret, nullifier, BigInt(amount), BigInt(assetId));
 
   const subtotal = params.lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const taxRate = params.taxRate ?? 0;
@@ -111,9 +111,9 @@ export async function createInvoice(params: CreateInvoiceParams): Promise<Invoic
     total,
     asset: params.asset,
     chain: params.chain,
-    commitment,
-    secret,
-    nullifier,
+    commitment: commitment.toString(),
+    secret: secret.toString(),
+    nullifier: nullifier.toString(),
     paymentLink: `https://app.thewhiteprotocol.com/pay/invoice/${id}`,
     createdAt: Date.now(),
     dueDate: params.dueDate,
