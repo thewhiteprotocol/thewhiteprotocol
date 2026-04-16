@@ -481,7 +481,11 @@ export class RelayerService {
     }
     
     // 3. Check asset is supported BEFORE expensive proof verification
-    if (this.supportedAssets.size > 0 && !this.supportedAssets.has(request.assetId)) {
+    if (
+      this.supportedAssets.size > 0 &&
+      !this.supportedAssets.has(request.assetId) &&
+      !this.supportedAssets.has(request.mint)
+    ) {
       throw new Error(`Asset ${request.assetId} not supported by this relayer`);
     }
     
@@ -595,7 +599,11 @@ export class RelayerService {
     }
     
     // Check asset is supported BEFORE expensive proof verification
-    if (this.supportedAssets.size > 0 && !this.supportedAssets.has(request.assetId)) {
+    if (
+      this.supportedAssets.size > 0 &&
+      !this.supportedAssets.has(request.assetId) &&
+      !this.supportedAssets.has(request.mint)
+    ) {
       throw new Error(`Asset ${request.assetId} not supported by this relayer`);
     }
     
@@ -1026,9 +1034,11 @@ export class RelayerService {
    * Register asset as supported
    */
   addSupportedAsset(assetId: string): void {
-    // Validate asset ID format
-    if (!/^[0-9a-fA-F]{64}$/.test(assetId)) {
-      throw new Error('Invalid asset ID format: must be 64 hex characters');
+    // Accept 64-char hex asset IDs or Solana base58 mint addresses (32-44 chars)
+    const isHexAssetId = /^[0-9a-fA-F]{64}$/.test(assetId);
+    const isBase58Mint = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(assetId);
+    if (!isHexAssetId && !isBase58Mint) {
+      throw new Error('Invalid asset ID format: must be 64 hex characters or a valid Solana mint address');
     }
     this.supportedAssets.add(assetId.toLowerCase());
     this.persistState();
