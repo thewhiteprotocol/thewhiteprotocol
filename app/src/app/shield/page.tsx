@@ -2,13 +2,12 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowDownLeft, ArrowUpRight, Loader2, CheckCircle2, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Loader2, CheckCircle2, Wallet, ShieldCheck, AlertCircle } from "lucide-react";
 import { useChain } from "@/providers/ChainContext";
 import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { useWalletClient } from "wagmi";
@@ -64,56 +63,42 @@ export default function ShieldPage() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="mx-auto max-w-2xl space-y-6"
+      className="mx-auto max-w-6xl space-y-8"
     >
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Deposit & Withdraw</h1>
-        <p className="text-zinc-400">Shield your assets into the privacy pool or withdraw them.</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-white">Deposit & Withdraw</h1>
+        <p className="text-zinc-400">Shield your assets into the privacy pool or withdraw them privately.</p>
       </div>
 
       {!isConnected ? (
         <Card className="glass-card border-white/10">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Wallet className="h-12 w-12 text-zinc-600" />
-            <h3 className="mt-4 text-lg font-medium">Connect your wallet</h3>
-            <p className="mt-1 text-sm text-zinc-400">Connect a wallet to deposit or withdraw.</p>
+          <CardContent className="flex flex-col items-center justify-center py-20">
+            <div className="rounded-2xl bg-white/[0.03] p-4 border border-white/10">
+              <Wallet className="h-10 w-10 text-zinc-400" />
+            </div>
+            <h3 className="mt-6 text-xl font-medium text-white">Connect your wallet</h3>
+            <p className="mt-2 text-base text-zinc-400">Connect a wallet to deposit or withdraw from the shielded pool.</p>
           </CardContent>
         </Card>
       ) : (
-        <Tabs defaultValue="deposit" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-white/[0.03]">
-            <TabsTrigger value="deposit" className="data-[state=active]:bg-white/10">
-              <ArrowDownLeft className="mr-2 h-4 w-4" />
-              Deposit
-            </TabsTrigger>
-            <TabsTrigger value="withdraw" className="data-[state=active]:bg-white/10">
-              <ArrowUpRight className="mr-2 h-4 w-4" />
-              Withdraw
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="deposit">
-            <DepositTab
-              activeChain={activeChain}
-              solanaWallet={solanaWallet}
-              evmWalletClient={evmWalletClient}
-              onDeposit={(note) => setNotes((prev) => [...prev, note])}
-            />
-          </TabsContent>
-
-          <TabsContent value="withdraw">
-            <WithdrawTab
-              activeChain={activeChain}
-              solanaWallet={solanaWallet}
-              evmWalletClient={evmWalletClient}
-              notes={settledNotes}
-              loadingNotes={loadingNotes}
-              onWithdraw={() =>
-                getNotes().then((n) => setNotes(n)).catch(() => {})
-              }
-            />
-          </TabsContent>
-        </Tabs>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-stretch">
+          <DepositTab
+            activeChain={activeChain}
+            solanaWallet={solanaWallet}
+            evmWalletClient={evmWalletClient}
+            onDeposit={(note) => setNotes((prev) => [...prev, note])}
+          />
+          <WithdrawTab
+            activeChain={activeChain}
+            solanaWallet={solanaWallet}
+            evmWalletClient={evmWalletClient}
+            notes={settledNotes}
+            loadingNotes={loadingNotes}
+            onWithdraw={() =>
+              getNotes().then((n) => setNotes(n)).catch(() => {})
+            }
+          />
+        </div>
       )}
     </motion.div>
   );
@@ -230,17 +215,25 @@ function DepositTab({
 
   return (
     <>
-      <Card className="glass-card border-white/10">
-        <CardHeader>
-          <CardTitle className="text-lg">Deposit to Shielded Pool</CardTitle>
+      <Card className="glass-card border-white/10 h-full flex flex-col">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <ArrowDownLeft className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <CardTitle className="text-lg text-white">Deposit</CardTitle>
+              <CardDescription className="text-zinc-400">Shield tokens into the privacy pool</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="flex-1 space-y-5">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">Asset</label>
+            <label className="text-sm font-medium text-zinc-200">Asset</label>
             <select
               value={selectedAsset}
               onChange={(e) => setSelectedAsset(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-white outline-none focus:ring-1 focus:ring-emerald-500"
             >
               {assets.map((a) => (
                 <option key={a.symbol} value={a.symbol}>
@@ -251,7 +244,7 @@ function DepositTab({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">Amount</label>
+            <label className="text-sm font-medium text-zinc-200">Amount</label>
             <div className="flex gap-2">
               <Input
                 type="number"
@@ -260,12 +253,12 @@ function DepositTab({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500"
+                className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500 py-5"
               />
               <Button
                 variant="outline"
                 size="sm"
-                className="shrink-0 border-white/10 hover:bg-white/[0.03]"
+                className="shrink-0 border-white/10 hover:bg-white/[0.03] px-4"
                 onClick={() => setAmount("100")}
               >
                 MAX
@@ -276,7 +269,7 @@ function DepositTab({
           <Button
             onClick={handleDeposit}
             disabled={busy || !amount || Number(amount) <= 0}
-            className="w-full bg-emerald-600 hover:bg-emerald-700"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 h-11"
           >
             {busy ? (
               <>
@@ -288,7 +281,21 @@ function DepositTab({
             )}
           </Button>
 
-          {error && <p className="text-center text-sm text-red-400">{error}</p>}
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="h-5 w-5 text-emerald-400 mt-0.5" />
+              <p className="text-sm text-zinc-300 leading-relaxed">
+                Your secret and nullifier are generated in your browser. The protocol only stores the commitment on-chain.
+              </p>
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
+              <AlertCircle className="h-4 w-4" />
+              {error}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -556,14 +563,22 @@ function WithdrawTab({
   if (selectedNote) {
     const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote.asset);
     return (
-      <Card className="glass-card border-white/10">
-        <CardHeader>
-          <CardTitle className="text-lg">Withdraw {selectedNote.asset}</CardTitle>
+      <Card className="glass-card border-white/10 h-full flex flex-col">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 border border-blue-500/20">
+              <ArrowUpRight className="h-5 w-5 text-blue-400" />
+            </div>
+            <div>
+              <CardTitle className="text-lg text-white">Withdraw {selectedNote.asset}</CardTitle>
+              <CardDescription className="text-zinc-400">Send privately to any address</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="flex-1 space-y-5">
           <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
             <p className="text-sm text-zinc-400">Amount</p>
-            <p className="text-xl font-semibold">
+            <p className="text-2xl font-semibold text-white">
               {formatTokenAmount(BigInt(selectedNote.amount), asset?.decimals || 9)} {selectedNote.asset}
             </p>
           </div>
@@ -574,48 +589,54 @@ function WithdrawTab({
               Fetching relayer quote...
             </div>
           ) : relayerQuote ? (
-            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm">
-              <p className="text-zinc-300">
-                Relayer fee: <span className="font-medium text-white">{relayerQuote.feeBps / 100}%</span>
-              </p>
-              <p className="text-zinc-300">
-                You receive: <span className="font-medium text-white">{formatTokenAmount(BigInt(relayerQuote.netAmount), asset?.decimals || 9)} {selectedNote.asset}</span>
-              </p>
-              <p className="text-zinc-300">
-                Gas: <span className="font-medium text-white">Paid by relayer</span>
-              </p>
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">Relayer fee</span>
+                <span className="font-medium text-white">{relayerQuote.feeBps / 100}%</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">You receive</span>
+                <span className="font-medium text-white">{formatTokenAmount(BigInt(relayerQuote.netAmount), asset?.decimals || 9)} {selectedNote.asset}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">Gas</span>
+                <span className="font-medium text-white">Paid by relayer</span>
+              </div>
             </div>
           ) : null}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-300">
+            <label className="text-sm font-medium text-zinc-200">
               Recipient {activeChain === "solana" ? "Address" : "Address"}
             </label>
             <Input
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder={activeChain === "solana" ? "Solana address..." : "0x..."}
-              className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500"
+              className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500 py-5"
             />
           </div>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
-
-          {showFallback && (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" className="border-white/10 hover:bg-white/[0.03]" onClick={handleDirectWithdraw} disabled={busy}>
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Try direct withdrawal
-              </Button>
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
+              <AlertCircle className="h-4 w-4" />
+              {error}
             </div>
           )}
 
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 border-white/10 hover:bg-white/[0.03]" onClick={() => setSelectedNote(null)}>
+          {showFallback && (
+            <Button variant="outline" className="w-full border-white/10 hover:bg-white/[0.03] h-11" onClick={handleDirectWithdraw} disabled={busy}>
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Try direct withdrawal
+            </Button>
+          )}
+
+          <div className="flex gap-3">
+            <Button variant="outline" className="flex-1 border-white/10 hover:bg-white/[0.03] h-11" onClick={() => setSelectedNote(null)}>
               Back
             </Button>
             <Button
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 h-11"
               disabled={busy || !recipient}
               onClick={handleWithdraw}
             >
@@ -635,18 +656,29 @@ function WithdrawTab({
   }
 
   return (
-    <Card className="glass-card border-white/10">
-      <CardHeader>
-        <CardTitle className="text-lg">Withdraw from Shielded Pool</CardTitle>
+    <Card className="glass-card border-white/10 h-full flex flex-col">
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <ArrowUpRight className="h-5 w-5 text-blue-400" />
+          </div>
+          <div>
+            <CardTitle className="text-lg text-white">Withdraw</CardTitle>
+            <CardDescription className="text-zinc-400">Withdraw from the shielded pool</CardDescription>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="flex-1 space-y-4">
         {loadingNotes ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
           </div>
         ) : notes.length === 0 ? (
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 text-center text-sm text-zinc-400">
-            No settled notes available for withdrawal on {activeChain}.
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
+            <p className="text-base text-zinc-300 font-medium">No settled notes</p>
+            <p className="text-sm text-zinc-500 mt-1">
+              No settled notes available for withdrawal on {activeChain}.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -656,18 +688,18 @@ function WithdrawTab({
                 <button
                   key={note.commitment}
                   onClick={() => setSelectedNote(note)}
-                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:bg-white/[0.05]"
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:bg-white/[0.05] hover:border-white/15"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">
+                      <p className="text-base font-medium text-white">
                         {formatTokenAmount(BigInt(note.amount), asset?.decimals || 9)} {note.asset}
                       </p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-sm text-zinc-500">
                         {new Date(note.timestamp).toLocaleDateString()} · Leaf #{note.leafIndex ?? "?"}
                       </p>
                     </div>
-                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
                       Settled
                     </Badge>
                   </div>
