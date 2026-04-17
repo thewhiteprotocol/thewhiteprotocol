@@ -471,7 +471,10 @@ export class SolanaChainService {
       );
     }
 
-    const vaultTokenAccount = getAssociatedTokenAddressSync(mint, assetVault, true);
+    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault_token"), assetVault.toBuffer()],
+      SOLANA_PROGRAM_ID
+    );
     const userTokenAccount = getAssociatedTokenAddressSync(mint, depositor);
 
     const preInstructions: any[] = [];
@@ -576,7 +579,10 @@ export class SolanaChainService {
       SOLANA_PROGRAM_ID
     );
 
-    const vaultTokenAccount = getAssociatedTokenAddressSync(mint, assetVault, true);
+    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault_token"), assetVault.toBuffer()],
+      SOLANA_PROGRAM_ID
+    );
     const recipientTokenAccount = getAssociatedTokenAddressSync(mint, recipient);
     const relayerTokenAccount = getAssociatedTokenAddressSync(mint, actualRelayer);
 

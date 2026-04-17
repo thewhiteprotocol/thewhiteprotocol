@@ -490,7 +490,7 @@ export class RelayerApiExtensions {
   private async syncMerkleTree(): Promise<void> {
     try {
       const [merkleTreePda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('merkle_tree_v2'), this.config.poolConfig.toBuffer()],
+        [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
         this.config.programId
       );
       
@@ -817,12 +817,12 @@ export class RelayerApiExtensions {
       try {
         // Derive PDAs
         const [merkleTreePda] = PublicKey.findProgramAddressSync(
-          [Buffer.from('merkle_tree_v2'), this.config.poolConfig.toBuffer()],
+          [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
           this.config.programId
         );
         
         const [pendingBufferPda] = PublicKey.findProgramAddressSync(
-          [Buffer.from('pending_deposits'), this.config.poolConfig.toBuffer()],
+          [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
           this.config.programId
         );
         
@@ -1017,7 +1017,7 @@ export class RelayerApiExtensions {
         
         // Check pending buffer on-chain
         const [pendingBufferPda] = PublicKey.findProgramAddressSync(
-          [Buffer.from('pending_deposits'), this.config.poolConfig.toBuffer()],
+          [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
           this.config.programId
         );
         
@@ -1193,18 +1193,18 @@ export class RelayerApiExtensions {
         const authority = new PublicKey(poolConfigInfo.data.slice(8, 40));
         
         const [merkleTree] = PublicKey.findProgramAddressSync(
-          [Buffer.from('merkle_tree_v2'), this.config.poolConfig.toBuffer()],
+          [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
           this.config.programId
         );
         
         const [pendingBuffer] = PublicKey.findProgramAddressSync(
-          [Buffer.from('pending_deposits'), this.config.poolConfig.toBuffer()],
+          [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
           this.config.programId
         );
         
         const assetIdBytes = hexToBytes(assetId);
         const [assetVault] = PublicKey.findProgramAddressSync(
-          [Buffer.from('vault_v2'), this.config.poolConfig.toBuffer(), assetIdBytes],
+          [Buffer.from('vault'), this.config.poolConfig.toBuffer(), assetIdBytes],
           this.config.programId
         );
         

@@ -445,7 +445,7 @@ class RelayerApiExtensions {
     }
     async syncMerkleTree() {
         try {
-            const [merkleTreePda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree_v2'), this.config.poolConfig.toBuffer()], this.config.programId);
+            const [merkleTreePda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()], this.config.programId);
             const accountInfo = await this.getAccountInfoCached(merkleTreePda);
             if (!accountInfo) {
                 logger_1.logger.info('Merkle tree not found on chain, starting fresh');
@@ -710,8 +710,8 @@ class RelayerApiExtensions {
         this.router.get('/pool-state', async (req, res) => {
             try {
                 // Derive PDAs
-                const [merkleTreePda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree_v2'), this.config.poolConfig.toBuffer()], this.config.programId);
-                const [pendingBufferPda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending_deposits'), this.config.poolConfig.toBuffer()], this.config.programId);
+                const [merkleTreePda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()], this.config.programId);
+                const [pendingBufferPda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending'), this.config.poolConfig.toBuffer()], this.config.programId);
                 // Fetch accounts
                 const [merkleInfo, pendingInfo] = await Promise.all([
                     this.getAccountInfoCached(merkleTreePda),
@@ -884,7 +884,7 @@ class RelayerApiExtensions {
                     });
                 }
                 // Check pending buffer on-chain
-                const [pendingBufferPda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending_deposits'), this.config.poolConfig.toBuffer()], this.config.programId);
+                const [pendingBufferPda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending'), this.config.poolConfig.toBuffer()], this.config.programId);
                 const pendingInfo = await this.getAccountInfoCached(pendingBufferPda);
                 if (pendingInfo) {
                     const data = pendingInfo.data;
@@ -1040,10 +1040,10 @@ class RelayerApiExtensions {
                 if (!poolConfigInfo)
                     throw new Error("Pool config not found");
                 const authority = new web3_js_1.PublicKey(poolConfigInfo.data.slice(8, 40));
-                const [merkleTree] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree_v2'), this.config.poolConfig.toBuffer()], this.config.programId);
-                const [pendingBuffer] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending_deposits'), this.config.poolConfig.toBuffer()], this.config.programId);
+                const [merkleTree] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()], this.config.programId);
+                const [pendingBuffer] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending'), this.config.poolConfig.toBuffer()], this.config.programId);
                 const assetIdBytes = hexToBytes(assetId);
-                const [assetVault] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vault_v2'), this.config.poolConfig.toBuffer(), assetIdBytes], this.config.programId);
+                const [assetVault] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vault'), this.config.poolConfig.toBuffer(), assetIdBytes], this.config.programId);
                 const [depositVk] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vk_deposit'), this.config.poolConfig.toBuffer()], this.config.programId);
                 // Fetch vault token account from AssetVault state (stored, not derived)
                 const assetVaultInfo = await this.getAccountInfoCached(assetVault, 30000);
@@ -1054,14 +1054,26 @@ class RelayerApiExtensions {
                 const vaultTokenAccount = new web3_js_1.PublicKey(assetVaultInfo.data.slice(104, 136));
                 logger_1.logger.info('build-deposit-tx vault token account resolved', { vaultTokenAccount: vaultTokenAccount.toBase58() });
                 // Get user token account
-                const { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction } = await Promise.resolve().then(() => __importStar(require('@solana/spl-token')));
+                const { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction, createSyncNativeInstruction, NATIVE_MINT, TOKEN_PROGRAM_ID } = await Promise.resolve().then(() => __importStar(require('@solana/spl-token')));
+                const { SystemProgram } = await Promise.resolve().then(() => __importStar(require('@solana/web3.js')));
                 const userTokenAccount = getAssociatedTokenAddressSync(mintPubkey, depositor);
                 const preInstructions = [];
-                // Check if user ATA exists
+                // Check if user ATA exists and is a valid token account
                 const userAtaInfo = await this.getAccountInfoCached(userTokenAccount, 30000);
-                if (!userAtaInfo) {
-                    logger_1.logger.info('build-deposit-tx user ATA does not exist, adding create instruction');
+                const ataMissing = !userAtaInfo || !userAtaInfo.owner.equals(TOKEN_PROGRAM_ID);
+                if (ataMissing) {
+                    logger_1.logger.info('build-deposit-tx user ATA does not exist or is not initialized, adding create instruction');
                     preInstructions.push(createAssociatedTokenAccountInstruction(depositor, userTokenAccount, depositor, mintPubkey));
+                }
+                // Auto-wrap native SOL into wSOL before deposit
+                if (mintPubkey.equals(NATIVE_MINT)) {
+                    logger_1.logger.info('build-deposit-tx native SOL deposit, adding wrap instructions');
+                    preInstructions.push(SystemProgram.transfer({
+                        fromPubkey: depositor,
+                        toPubkey: userTokenAccount,
+                        lamports: BigInt(amount),
+                    }));
+                    preInstructions.push(createSyncNativeInstruction(userTokenAccount));
                 }
                 // Build instruction data manually (discriminator + args)
                 const discriminator = Buffer.from([53, 229, 96, 103, 104, 75, 182, 133]);
@@ -1084,7 +1096,6 @@ class RelayerApiExtensions {
                 ]);
                 // Build instruction
                 const { TransactionInstruction, Transaction } = await Promise.resolve().then(() => __importStar(require('@solana/web3.js')));
-                const TOKEN_PROGRAM_ID = new web3_js_1.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
                 const SYSTEM_PROGRAM_ID = new web3_js_1.PublicKey('11111111111111111111111111111111');
                 const ix = new TransactionInstruction({
                     programId: this.config.programId,

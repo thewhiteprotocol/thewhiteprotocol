@@ -667,7 +667,7 @@ class RelayerService {
      */
     async checkNullifierSpent(nullifierHash) {
         const [nullifierPda] = web3_js_1.PublicKey.findProgramAddressSync([
-            Buffer.from('nullifier_v2'),
+            Buffer.from('nullifier'),
             this.config.poolConfig.toBuffer(),
             Buffer.from(nullifierHash),
         ], this.config.programId);
@@ -722,15 +722,15 @@ class RelayerService {
      */
     async submitWithdrawal(params) {
         // Derive PDAs
-        const [merkleTree] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree_v2'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const [merkleTree] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()], this.config.programId);
         const [assetVault] = web3_js_1.PublicKey.findProgramAddressSync([
-            Buffer.from('vault_v2'),
+            Buffer.from('vault'),
             this.config.poolConfig.toBuffer(),
             Buffer.from(params.assetId),
         ], this.config.programId);
         const [vkAccount] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vk_withdraw'), this.config.poolConfig.toBuffer()], this.config.programId);
         const [nullifierPda] = web3_js_1.PublicKey.findProgramAddressSync([
-            Buffer.from('nullifier_v2'),
+            Buffer.from('nullifier'),
             this.config.poolConfig.toBuffer(),
             Buffer.from(params.nullifierHash),
         ], this.config.programId);
@@ -741,7 +741,7 @@ class RelayerService {
             this.config.walletKeypair.publicKey.toBuffer(),
         ], this.config.programId);
         // Get token accounts
-        const vaultTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, assetVault, true);
+        const [vaultTokenAccount] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vault_token'), assetVault.toBuffer()], this.config.programId);
         const recipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, params.recipient);
         const relayerTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, this.config.walletKeypair.publicKey);
         // Build instruction - FIXED: correct args and snake_case accounts

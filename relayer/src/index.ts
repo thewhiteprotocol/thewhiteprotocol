@@ -858,7 +858,7 @@ export class RelayerService {
   private async checkNullifierSpent(nullifierHash: Uint8Array): Promise<boolean> {
     const [nullifierPda] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from('nullifier_v2'),
+        Buffer.from('nullifier'),
         this.config.poolConfig.toBuffer(),
         Buffer.from(nullifierHash),
       ],
@@ -927,13 +927,13 @@ export class RelayerService {
   private async submitWithdrawal(params: SubmitWithdrawalParams): Promise<string> {
     // Derive PDAs
     const [merkleTree] = PublicKey.findProgramAddressSync(
-      [Buffer.from('merkle_tree_v2'), this.config.poolConfig.toBuffer()],
+      [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
       this.config.programId
     );
     
     const [assetVault] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from('vault_v2'),
+        Buffer.from('vault'),
         this.config.poolConfig.toBuffer(),
         Buffer.from(params.assetId),
       ],
@@ -947,7 +947,7 @@ export class RelayerService {
     
     const [nullifierPda] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from('nullifier_v2'),
+        Buffer.from('nullifier'),
         this.config.poolConfig.toBuffer(),
         Buffer.from(params.nullifierHash),
       ],
@@ -969,7 +969,10 @@ export class RelayerService {
     );
     
     // Get token accounts
-    const vaultTokenAccount = getAssociatedTokenAddressSync(params.mint, assetVault, true);
+    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault_token'), assetVault.toBuffer()],
+      this.config.programId
+    );
     const recipientTokenAccount = getAssociatedTokenAddressSync(params.mint, params.recipient);
     const relayerTokenAccount = getAssociatedTokenAddressSync(
       params.mint,
