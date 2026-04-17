@@ -257,7 +257,8 @@ export class WhiteProtocolClient {
     const userTokenAccountInfo = await connection.getAccountInfo(userTokenAccount);
     const preInstructions: any[] = [];
     
-    if (!userTokenAccountInfo) {
+    const ataMissing = !userTokenAccountInfo || !userTokenAccountInfo.owner.equals(TOKEN_PROGRAM_ID);
+    if (ataMissing) {
       const { createAssociatedTokenAccountInstruction, NATIVE_MINT: NM } = await import('@solana/spl-token');
       const createAtaIx = createAssociatedTokenAccountInstruction(
         depositor,

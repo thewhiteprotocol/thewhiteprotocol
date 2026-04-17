@@ -2,7 +2,7 @@
 
 import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
-  getAssociatedTokenAddress,
+  getAssociatedTokenAddressSync,
   createAssociatedTokenAccountInstruction,
   createSyncNativeInstruction,
   createCloseAccountInstruction,
@@ -471,14 +471,15 @@ export class SolanaChainService {
       );
     }
 
-    const vaultTokenAccount = await getAssociatedTokenAddress(mint, assetVault, true);
-    const userTokenAccount = await getAssociatedTokenAddress(mint, depositor);
+    const vaultTokenAccount = getAssociatedTokenAddressSync(mint, assetVault, true);
+    const userTokenAccount = getAssociatedTokenAddressSync(mint, depositor);
 
     const preInstructions: any[] = [];
     const postInstructions: any[] = [];
 
     const userTokenAccountInfo = await this.connection.getAccountInfo(userTokenAccount);
-    if (!userTokenAccountInfo) {
+    const ataMissing = !userTokenAccountInfo || !userTokenAccountInfo.owner.equals(TOKEN_PROGRAM_ID);
+    if (ataMissing) {
       preInstructions.push(
         createAssociatedTokenAccountInstruction(
           depositor,

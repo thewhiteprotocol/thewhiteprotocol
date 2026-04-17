@@ -1222,16 +1222,17 @@ export class RelayerApiExtensions {
         logger.info('build-deposit-tx vault token account resolved', { vaultTokenAccount: vaultTokenAccount.toBase58() });
 
         // Get user token account
-        const { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction, createSyncNativeInstruction, NATIVE_MINT } = await import('@solana/spl-token');
+        const { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction, createSyncNativeInstruction, NATIVE_MINT, TOKEN_PROGRAM_ID } = await import('@solana/spl-token');
         const { SystemProgram } = await import('@solana/web3.js');
         const userTokenAccount = getAssociatedTokenAddressSync(mintPubkey, depositor);
         
         const preInstructions: any[] = [];
         
-        // Check if user ATA exists
+        // Check if user ATA exists and is a valid token account
         const userAtaInfo = await this.getAccountInfoCached(userTokenAccount, 30000);
-        if (!userAtaInfo) {
-          logger.info('build-deposit-tx user ATA does not exist, adding create instruction');
+        const ataMissing = !userAtaInfo || !userAtaInfo.owner.equals(TOKEN_PROGRAM_ID);
+        if (ataMissing) {
+          logger.info('build-deposit-tx user ATA does not exist or is not initialized, adding create instruction');
           preInstructions.push(createAssociatedTokenAccountInstruction(
             depositor, userTokenAccount, depositor, mintPubkey
           ));
