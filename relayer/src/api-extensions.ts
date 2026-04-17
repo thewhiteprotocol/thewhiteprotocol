@@ -1275,7 +1275,6 @@ export class RelayerApiExtensions {
 
         // Build instruction
         const { TransactionInstruction, Transaction } = await import('@solana/web3.js');
-        const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
         const SYSTEM_PROGRAM_ID = new PublicKey('11111111111111111111111111111111');
 
         const ix = new TransactionInstruction({
