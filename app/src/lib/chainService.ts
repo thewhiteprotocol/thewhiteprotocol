@@ -576,9 +576,9 @@ export class SolanaChainService {
       SOLANA_PROGRAM_ID
     );
 
-    const vaultTokenAccount = await getAssociatedTokenAddress(mint, assetVault, true);
-    const recipientTokenAccount = await getAssociatedTokenAddress(mint, recipient);
-    const relayerTokenAccount = await getAssociatedTokenAddress(mint, actualRelayer);
+    const vaultTokenAccount = getAssociatedTokenAddressSync(mint, assetVault, true);
+    const recipientTokenAccount = getAssociatedTokenAddressSync(mint, recipient);
+    const relayerTokenAccount = getAssociatedTokenAddressSync(mint, actualRelayer);
 
     const preInstructions: any[] = [];
     const postInstructions: any[] = [];
