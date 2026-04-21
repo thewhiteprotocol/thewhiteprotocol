@@ -19,6 +19,7 @@ import * as snarkjs from 'snarkjs';
 import { logger } from './logger';
 import { BaseAdapter } from './chains/base';
 import { loadRelayerState, saveRelayerState } from './state-store';
+import * as path from 'path';
 import { CircuitBreaker } from './circuit-breaker';
 import { withRetry } from './retry';
 import { NullifierCache } from './cache/nullifier-cache';
@@ -220,7 +221,7 @@ export class RelayerService {
     });
     
     // Initialize Anchor program
-    // Note: IDL is loaded dynamically - in production, embed the IDL
+    // Note: IDL is loaded in start() after all dependencies are ready
     this.program = null as any; // Will be initialized in start()
     
     // Setup Base adapter if configured
@@ -397,6 +398,10 @@ export class RelayerService {
         fee: fee.toString(),
         feeBps: this.config.feeBps,
         netAmount: (amount - fee).toString(),
+        relayer: {
+          solana: this.config.walletKeypair.publicKey.toBase58(),
+          base: this.baseAdapter?.getAddress() || null,
+        },
       });
     });
     
@@ -1083,6 +1088,12 @@ export class RelayerService {
    * Start the relayer service
    */
   async start(): Promise<void> {
+    // Initialize Anchor program from embedded IDL
+    const idlPath = path.join(__dirname, 'idl', 'white_protocol.json');
+    const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
+    this.program = new Program(idl, this.provider);
+    logger.info('Anchor program initialized', { programId: this.config.programId.toBase58() });
+    
     // Initialize API extensions for proof generation
     const apiExtensions = await createApiExtensions({
       circuitsPath: this.config.circuitsPath,
@@ -1094,6 +1105,9 @@ export class RelayerService {
     
     // Mount API extensions
     this.app.use("/api", apiExtensions.getRouter());
+    
+    // Start background tree sync
+    apiExtensions.startSyncLoop(30000);
     
     this.app.listen(this.config.port, () => {
       logger.info('The White Protocol Relayer Service Started', {
@@ -1156,15 +1170,19 @@ function bytesToBigInt(bytes: Uint8Array): bigint {
 
 /**
  * Convert Solana PublicKey to scalar field element (BN254).
- * Mirrors pubkeyToScalar in the SDK.
+ * Matches on-chain: scalar_bytes = [0x00, pubkey_bytes[0..31]]
  */
 function pubkeyToScalar(pubkey: PublicKey): bigint {
   const bytes = pubkey.toBytes();
+  const scalarBytes = new Uint8Array(32);
+  scalarBytes[0] = 0;
+  scalarBytes.set(bytes.slice(0, 31), 1);
+  
   let result = 0n;
-  for (let i = 0; i < bytes.length; i++) {
-    result = (result << 8n) | BigInt(bytes[i]);
+  for (let i = 0; i < 32; i++) {
+    result = (result << 8n) | BigInt(scalarBytes[i]);
   }
-  return result % BN254_FIELD_ORDER;
+  return result;
 }
 
 /**

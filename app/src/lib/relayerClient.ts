@@ -24,6 +24,10 @@ export interface RelayerQuote {
   fee: string;
   feeBps: number;
   netAmount: string;
+  relayer: {
+    solana: string;
+    base: string | null;
+  };
 }
 
 export async function getRelayerQuote(amount: string): Promise<RelayerQuote> {
@@ -48,6 +52,53 @@ export async function submitRelayedWithdrawal(params: RelayedWithdrawalParams): 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
+export interface NoteStatusResponse {
+  success: boolean;
+  status?: "pending" | "settled" | "unknown";
+  leafIndex?: number;
+  pendingIndex?: number;
+  commitment?: string;
+  error?: string;
+  hint?: string;
+}
+
+export async function checkNoteStatus(commitment: string): Promise<NoteStatusResponse> {
+  const res = await fetch(`${getRelayerUrl()}/api/note/${commitment}`, { cache: "no-store" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "Unknown error");
+    return { success: false, error: `Relayer returned ${res.status}: ${text}` };
+  }
+  return res.json();
+}
+
+export interface MerkleProofResponse {
+  success: boolean;
+  leafIndex: number;
+  merkleRoot: string;
+  merkleRootHex: string;
+  pathElements: string[];
+  pathIndices: number[];
+  error?: string;
+}
+
+export async function getMerkleProof(leafIndex: number): Promise<MerkleProofResponse> {
+  const res = await fetch(`${getRelayerUrl()}/api/merkle/proof/${leafIndex}`, { cache: "no-store" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "Unknown error");
+    return { success: false, error: `Relayer returned ${res.status}: ${text}` } as MerkleProofResponse;
+  }
+  return res.json();
+}
+
+export async function trackDeposit(commitment: string, txHash?: string): Promise<{ success: boolean; pendingCount?: number; error?: string }> {
+  const res = await fetch(`${getRelayerUrl()}/api/track-deposit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ commitment, txHash }),
   });
   return res.json();
 }

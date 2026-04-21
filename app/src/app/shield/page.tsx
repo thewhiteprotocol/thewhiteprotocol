@@ -18,12 +18,12 @@ import { CHAINS } from "@/config/chains";
 import { initializePoseidon, computeCommitment, computeNullifierHash, computeAssetIdBigInt, randomFieldElement, formatProofForOnChain, MERKLE_TREE_DEPTH } from "@/lib/crypto";
 import { generateDepositProof, generateWithdrawProof } from "@/lib/proofService";
 import { solanaChainService, baseChainService } from "@/lib/chainService";
-import { getNotes, addNote, markSpent } from "@/lib/noteStore";
+import { getNotes, addNote, updateNote, markSpent } from "@/lib/noteStore";
 import { maybeCreateReceipt } from "@/lib/autoReceipt";
 import { StoredNote } from "@/lib/types";
 import { formatTokenAmount, parseTokenAmount } from "@/lib/balanceService";
 import { keccak_256 } from "@noble/hashes/sha3.js";
-import { getRelayerQuote, submitRelayedWithdrawal, RelayerQuote } from "@/lib/relayerClient";
+import { getRelayerQuote, submitRelayedWithdrawal, checkNoteStatus, getMerkleProof, trackDeposit, RelayerQuote } from "@/lib/relayerClient";
 
 function truncate(str: string, len = 8) {
   if (str.length <= len * 2 + 4) return str;
@@ -87,6 +87,10 @@ export default function ShieldPage() {
             solanaWallet={solanaWallet}
             evmWalletClient={evmWalletClient}
             onDeposit={(note) => setNotes((prev) => [...prev, note])}
+            onNoteUpdated={async () => {
+              const n = await getNotes();
+              setNotes(n);
+            }}
           />
           <WithdrawTab
             activeChain={activeChain}
@@ -110,11 +114,13 @@ function DepositTab({
   solanaWallet,
   evmWalletClient,
   onDeposit,
+  onNoteUpdated,
 }: {
   activeChain: "solana" | "base";
   solanaWallet: any;
   evmWalletClient: any;
   onDeposit: (note: StoredNote) => void;
+  onNoteUpdated?: () => void;
 }) {
   const { showToast } = useToast();
   const assets = getAssetsForChain(activeChain);
@@ -191,6 +197,30 @@ function DepositTab({
         txHash,
       };
       await addNote(note);
+      
+      // Notify relayer about this deposit so it can track it
+      trackDeposit(note.commitment, txHash).catch((err: any) => {
+        console.warn("Failed to track deposit with relayer:", err?.message);
+      });
+      
+      // Poll relayer for note status until settled
+      const pollInterval = setInterval(async () => {
+        try {
+          const status = await checkNoteStatus(note.commitment);
+          if (status.status === "settled" && status.leafIndex !== undefined) {
+            await updateNote(note.commitment, { status: "settled", leafIndex: status.leafIndex });
+            clearInterval(pollInterval);
+            // Refresh notes list
+            onNoteUpdated?.();
+          }
+        } catch {
+          // Silently ignore polling errors
+        }
+      }, 10000);
+      
+      // Stop polling after 10 minutes
+      setTimeout(() => clearInterval(pollInterval), 600000);
+      
       onDeposit(note);
       setResult({ txHash, commitment: commitment.toString() });
       setAmount("");
@@ -394,37 +424,44 @@ function WithdrawTab({
 
   async function buildWithdrawalProof() {
     if (!selectedNote) throw new Error("No note selected");
+    if (selectedNote.leafIndex === undefined) {
+      throw new Error("Note has not been settled yet. leafIndex is missing.");
+    }
     await initializePoseidon();
     const secret = BigInt(selectedNote.secret);
     const nullifier = BigInt(selectedNote.nullifier);
     const amount = BigInt(selectedNote.amount);
     const assetId = BigInt(selectedNote.assetId);
-    const nullifierHash = computeNullifierHash(nullifier, secret, selectedNote.leafIndex ?? 0);
+    const nullifierHash = computeNullifierHash(nullifier, secret, selectedNote.leafIndex);
 
     setStep("Fetching Merkle proof...");
     let pathElements: bigint[];
     let pathIndices: number[];
     let merkleRoot: bigint;
-
-    if (activeChain === "solana") {
-      const tree = await solanaChainService.getMerkleTree();
-      merkleRoot = bytes32ToBigint(tree.currentRoot);
-      const path = await solanaChainService.getMerklePath(selectedNote.leafIndex ?? 0);
-      pathElements = path.pathElements;
-      pathIndices = path.pathIndices;
-    } else {
-      const state = await baseChainService.getPoolState();
-      merkleRoot = state.currentRoot;
-      const path = await baseChainService.getMerklePath(selectedNote.leafIndex ?? 0);
-      pathElements = path.pathElements;
-      pathIndices = path.pathIndices;
+    
+    const proofRes = await getMerkleProof(selectedNote.leafIndex);
+    if (!proofRes.success) {
+      throw new Error(proofRes.error || "Failed to fetch Merkle proof from relayer");
     }
+    merkleRoot = BigInt(proofRes.merkleRoot);
+    pathElements = proofRes.pathElements.map((p) => BigInt(p));
+    pathIndices = proofRes.pathIndices;
 
     const recipientScalar = activeChain === "solana"
       ? pubkeyToScalar(recipient)
       : BigInt(recipient);
-    const relayerScalar = 0n;
-    const relayerFee = 0n;
+    
+    // Fetch relayer quote for gasless withdrawal
+    setStep("Fetching relayer quote...");
+    const quote = await getRelayerQuote(selectedNote.amount);
+    const relayerFee = BigInt(quote.fee);
+    const relayerAddress = activeChain === "solana" ? quote.relayer.solana : quote.relayer.base;
+    if (!relayerAddress) {
+      throw new Error("Relayer address not available for this chain");
+    }
+    const relayerScalar = activeChain === "solana"
+      ? pubkeyToScalar(relayerAddress)
+      : BigInt(relayerAddress);
 
     setStep("Generating ZK proof...");
     const { proof } = await generateWithdrawProof({
@@ -432,7 +469,7 @@ function WithdrawTab({
       nullifier,
       amount,
       assetId,
-      leafIndex: BigInt(selectedNote.leafIndex ?? 0),
+      leafIndex: BigInt(selectedNote.leafIndex),
       merkleRoot,
       pathElements,
       pathIndices,

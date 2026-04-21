@@ -57,8 +57,8 @@ const CONFIG = {
 export interface CommitmentResult {
   commitment: string;
   commitmentHex: string;
-  nullifierHash: string;
-  nullifierHashHex: string;
+  nullifierHash?: string;
+  nullifierHashHex?: string;
 }
 
 export interface AssetIdResult {
@@ -106,6 +106,10 @@ export interface WithdrawQuote {
   fee: string;
   feeBps: number;
   netAmount: string;
+  relayer: {
+    solana: string;
+    base: string | null;
+  };
 }
 
 export interface WithdrawResult {
@@ -434,8 +438,6 @@ export async function generateCommitment(
   return {
     commitment: result.commitment,
     commitmentHex: result.commitmentHex,
-    nullifierHash: result.nullifierHash,
-    nullifierHashHex: result.nullifierHashHex,
   };
 }
 
@@ -655,7 +657,6 @@ export async function submitWithdrawal(params: {
   assetId: string;
   mint: string;
   relayerFee?: string;
-  assetId?: string;
   changeCommitment?: string;
 }): Promise<WithdrawResult> {
   devLog('[RelayerAPI] Submitting withdrawal...');
@@ -914,7 +915,6 @@ export async function createDepositNote(
   nullifier: string;
   commitment: string;
   commitmentHex: string;
-  nullifierHash: string;
   assetId: string;
   assetIdHex: string;
   proofData: string;
@@ -954,12 +954,29 @@ export async function createDepositNote(
     nullifier,
     commitment: commitmentResult.commitment,
     commitmentHex: commitmentResult.commitmentHex,
-    nullifierHash: commitmentResult.nullifierHash,
     assetId: assetIdResult.assetId,
     assetIdHex: assetIdResult.assetIdHex,
     proofData: proofResult.proofData,
     proofTimeMs: proofResult.proofTimeMs,
   };
+}
+
+/**
+ * Compute nullifier hash matching the circuit: Poseidon(Poseidon(nullifier, secret), leafIndex)
+ */
+export async function computeNullifierHash(
+  secret: string,
+  nullifier: string,
+  leafIndex: number
+): Promise<string> {
+  const result = await apiRequest<{ success: true; nullifierHash: string }>(
+    '/compute-nullifier-hash',
+    {
+      method: 'POST',
+      body: JSON.stringify({ secret, nullifier, leafIndex }),
+    }
+  );
+  return result.nullifierHash;
 }
 
 /**
@@ -971,10 +988,8 @@ export async function prepareWithdrawal(
     nullifier: string;
     amount: string;
     assetId: string;
-    nullifierHash: string;
   },
   recipient: string,
-  relayer: string,
   leafIndex: number,
   withdrawAmount?: string
 ): Promise<{
@@ -984,34 +999,40 @@ export async function prepareWithdrawal(
   fee: string;
   netAmount: string;
   proofTimeMs: number;
+  relayerFee: string;
+  assetId: string;
+  changeCommitment: string;
   changeNote?: { secret: string; nullifier: string; amount: string; assetId: string; commitment: string } | null;
 }> {
   devLog('[RelayerAPI] Preparing withdrawal...');
 
-  // Step 1: Get merkle proof
+  // Step 1: Compute correct nullifier hash
+  const nullifierHash = await computeNullifierHash(note.secret, note.nullifier, leafIndex);
+  devLog('[RelayerAPI] Computed nullifier hash');
+
+  // Step 2: Get merkle proof
   const merkleProof = await getMerkleProof(leafIndex);
   devLog('[RelayerAPI] Got merkle proof');
 
-  // Step 2: Get fee quote (based on actual withdrawal amount)
+  // Step 3: Get fee quote (based on actual withdrawal amount)
   const effectiveAmount = withdrawAmount || note.amount;
   const quote = await getWithdrawQuote(effectiveAmount);
   devLog('[RelayerAPI] Got fee quote:', quote);
 
-  // Step 3: Convert pubkeys to scalars
-  // Relayer computes scalars server-side now
-  // (scalars computed from base58 pubkeys on server)
-  devLog('[RelayerAPI] Sending base58 pubkeys to relayer');
+  // Step 4: Use actual relayer address from quote
+  const relayer = quote.relayer.solana;
+  devLog('[RelayerAPI] Using relayer:', relayer);
 
-  // Step 4: Generate withdraw proof
+  // Step 5: Generate withdraw proof
   const proofResult = await generateWithdrawProof({
     merkleRoot: merkleProof.merkleRoot,
-    nullifierHash: note.nullifierHash,
+    nullifierHash,
     relayerFee: quote.fee,
     assetId: note.assetId,
     amount: effectiveAmount,
     noteAmount: note.amount,
-    relayer: relayer,       // Send base58 pubkey, relayer computes scalar
-    recipient: recipient,  // Send base58 pubkey, relayer computes scalar
+    relayer: relayer,
+    recipient: recipient,
     publicDataHash: '0',
     nullifier: note.nullifier,
     secret: note.secret,
@@ -1024,7 +1045,7 @@ export async function prepareWithdrawal(
   return {
     proofData: proofResult.proofData,
     merkleRoot: merkleProof.merkleRoot,
-    nullifierHash: proofResult.nullifierHash || note.nullifierHash,
+    nullifierHash,
     relayerFee: proofResult.relayerFee || quote.fee,
     assetId: proofResult.assetId || note.assetId,
     changeCommitment: proofResult.changeCommitment || "0",

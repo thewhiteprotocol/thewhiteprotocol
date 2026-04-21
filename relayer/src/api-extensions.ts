@@ -21,7 +21,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { keccak_256 } from '@noble/hashes/sha3';
 import { logger } from './logger';
-import { loadMerkleTreeState, saveMerkleTreeState } from './state-store';
+import { loadMerkleTreeState, saveMerkleTreeState, loadPendingState, savePendingState } from './state-store';
 import { withRetry } from './retry';
 import { TtlCache } from './cache/ttl-cache';
 
@@ -353,6 +353,14 @@ export class RelayerApiExtensions {
   // RPC response cache (5s TTL default)
   private rpcCache = new TtlCache<any>(5000);
   
+  // Pending state tracking for sync
+  private pendingState: {
+    pendingCommitments: bigint[];
+    nextLeafIndex: number;
+  } = { pendingCommitments: [], nextLeafIndex: 0 };
+  
+  private syncIntervalId: ReturnType<typeof setInterval> | null = null;
+  
   constructor(config: ApiExtensionsConfig) {
     this.config = config;
     this.connection = new Connection(config.rpcEndpoint, 'confirmed');
@@ -419,7 +427,43 @@ export class RelayerApiExtensions {
     // Sync merkle tree from chain
     await this.syncMerkleTree();
     
+    // Restore pending state
+    const persistedPending = loadPendingState();
+    if (persistedPending) {
+      this.pendingState.pendingCommitments = persistedPending.pendingCommitments.map(c => BigInt(c));
+      this.pendingState.nextLeafIndex = persistedPending.nextLeafIndex;
+      logger.info('Restored pending state', {
+        pendingCount: this.pendingState.pendingCommitments.length,
+        nextLeafIndex: this.pendingState.nextLeafIndex,
+      });
+    }
+    
     logger.info('API Extensions initialization complete');
+  }
+  
+  /**
+   * Start background sync loop (call from main relayer start())
+   */
+  startSyncLoop(intervalMs: number = 30000): void {
+    if (this.syncIntervalId) {
+      clearInterval(this.syncIntervalId);
+    }
+    this.syncIntervalId = setInterval(() => {
+      this.syncMerkleTree().catch(err => {
+        logger.error('Background sync failed', { error: String(err) });
+      });
+    }, intervalMs);
+    logger.info('Started merkle tree sync loop', { intervalMs });
+  }
+  
+  /**
+   * Stop background sync loop
+   */
+  stopSyncLoop(): void {
+    if (this.syncIntervalId) {
+      clearInterval(this.syncIntervalId);
+      this.syncIntervalId = null;
+    }
   }
   
   private async loadCircuitArtifacts(): Promise<void> {
@@ -494,20 +538,80 @@ export class RelayerApiExtensions {
         this.config.programId
       );
       
-      const accountInfo = await this.getAccountInfoCached(merkleTreePda);
-      if (!accountInfo) {
+      const [pendingBufferPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
+        this.config.programId
+      );
+      
+      const [merkleInfo, pendingInfo] = await Promise.all([
+        this.getAccountInfoCached(merkleTreePda),
+        this.getAccountInfoCached(pendingBufferPda),
+      ]);
+      
+      if (!merkleInfo) {
         logger.info('Merkle tree not found on chain, starting fresh');
         return;
       }
       
       // Parse next_leaf_index from account data
-      const data = accountInfo.data;
-      const nextLeafIndex = data.readUInt32LE(40);
+      const merkleData = merkleInfo.data;
+      const currentNextLeafIndex = merkleData.readUInt32LE(40);
       
-      logger.info('Merkle tree synced from chain', { nextLeafIndex });
+      // Read current pending buffer
+      const currentPending: bigint[] = [];
+      if (pendingInfo) {
+        const pendingData = pendingInfo.data;
+        const pendingCount = pendingData.readUInt32LE(40);
+        for (let i = 0; i < pendingCount; i++) {
+          const start = 44 + i * 32;
+          let c = 0n;
+          for (let j = 0; j < 32; j++) {
+            c = (c << 8n) | BigInt(pendingData[start + j]);
+          }
+          currentPending.push(c);
+        }
+      }
       
-      // TODO: Fetch actual commitments from events or database
-      // For now, tree starts empty and gets populated via API calls
+      // Detect settled commitments by comparing with previous state
+      const prevPending = this.pendingState.pendingCommitments;
+      const prevNextLeafIndex = this.pendingState.nextLeafIndex;
+      
+      if (prevPending.length > 0 && currentNextLeafIndex > prevNextLeafIndex) {
+        const numSettled = currentNextLeafIndex - prevNextLeafIndex;
+        // Settled commitments are the first N from the previous pending buffer (FIFO)
+        const settledCommitments = prevPending.slice(0, numSettled);
+        
+        for (let i = 0; i < settledCommitments.length; i++) {
+          const leafIndex = prevNextLeafIndex + i;
+          this.merkleTree.insertAt(leafIndex, settledCommitments[i]);
+          logger.info('Settled commitment inserted into local tree', {
+            leafIndex,
+            commitment: settledCommitments[i].toString(),
+          });
+        }
+        
+        this.persistMerkleTree();
+        logger.info('Batch settlement detected', {
+          numSettled,
+          oldNextLeafIndex: prevNextLeafIndex,
+          newNextLeafIndex: currentNextLeafIndex,
+        });
+      }
+      
+      // Update pending state
+      this.pendingState.pendingCommitments = currentPending;
+      this.pendingState.nextLeafIndex = currentNextLeafIndex;
+      savePendingState({
+        pendingCommitments: currentPending.map(c => c.toString()),
+        nextLeafIndex: currentNextLeafIndex,
+        lastSyncedAt: Date.now(),
+      });
+      
+      logger.info('Merkle tree synced from chain', {
+        nextLeafIndex: currentNextLeafIndex,
+        pendingCount: currentPending.length,
+        treeLeafCount: this.merkleTree.getLeafCount(),
+      });
     } catch (err) {
       logger.error('Failed to sync merkle tree', { error: String(err) });
     }
@@ -552,18 +656,56 @@ export class RelayerApiExtensions {
           assetIdBigInt,
         ]);
         
-        // Compute nullifier hash: Poseidon(nullifier, secret)
-        const nullifierHash = poseidonHash([nullifierBigInt, secretBigInt]);
-        
         res.json({
           success: true,
           commitment: commitment.toString(),
           commitmentHex: bytesToHex(feToBytes32BE(commitment)),
+          note: 'nullifierHash will be computed at withdrawal time using leafIndex',
+        });
+      } catch (error: any) {
+        logger.error('generate-commitment failed', { error: error.message });
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+    
+    // =========================================================================
+    // POST /api/compute-nullifier-hash
+    // Compute nullifier hash: Poseidon(Poseidon(nullifier, secret), leafIndex)
+    // Matches circuit constraint in withdraw.circom
+    // =========================================================================
+    this.router.post('/compute-nullifier-hash', async (req: Request, res: Response) => {
+      try {
+        const { secret, nullifier, leafIndex } = req.body;
+        
+        if (!secret || !nullifier || leafIndex === undefined) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required fields: secret, nullifier, leafIndex',
+          });
+        }
+        
+        if (![secret, nullifier, leafIndex].every(isValidBigIntString)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid numeric field format',
+          });
+        }
+        
+        const secretBigInt = BigInt(secret);
+        const nullifierBigInt = BigInt(nullifier);
+        const leafIndexBigInt = BigInt(leafIndex);
+        
+        // Circuit: nullifier_hash = Poseidon(Poseidon(nullifier, secret), leaf_index)
+        const inner = poseidonHash([nullifierBigInt, secretBigInt]);
+        const nullifierHash = poseidonHash([inner, leafIndexBigInt]);
+        
+        res.json({
+          success: true,
           nullifierHash: nullifierHash.toString(),
           nullifierHashHex: bytesToHex(feToBytes32BE(nullifierHash)),
         });
       } catch (error: any) {
-        logger.error('generate-commitment failed', { error: error.message });
+        logger.error('compute-nullifier-hash failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });
@@ -757,9 +899,26 @@ export class RelayerApiExtensions {
         const recipientScalar = pubkeyToScalar(recipientPubkey);
         const relayerScalar = pubkeyToScalar(relayerPubkey);
         
+        // Compute nullifier hash internally to ensure circuit consistency
+        // Circuit: nullifier_hash = Poseidon(Poseidon(nullifier, secret), leaf_index)
+        const secretBigInt = BigInt(secret);
+        const nullifierBigInt = BigInt(nullifier);
+        const leafIndexBigInt = BigInt(leafIndex);
+        const inner = poseidonHash([nullifierBigInt, secretBigInt]);
+        const computedNullifierHash = poseidonHash([inner, leafIndexBigInt]);
+        
+        // Validate client's nullifierHash matches our computation (if they provided one)
+        const clientNullifierHash = BigInt(nullifierHash);
+        if (clientNullifierHash !== computedNullifierHash) {
+          logger.warn('Client nullifierHash mismatch, using computed value', {
+            client: clientNullifierHash.toString(),
+            computed: computedNullifierHash.toString(),
+          });
+        }
+        
         const circuitInput = {
           merkle_root: merkleRoot.toString(),
-          nullifier_hash: nullifierHash.toString(),
+          nullifier_hash: computedNullifierHash.toString(),
           asset_id: assetId.toString(),
           recipient: recipientScalar.toString(),
           amount: amount.toString(),
@@ -1053,6 +1212,46 @@ export class RelayerApiExtensions {
         });
       } catch (error: any) {
         logger.error('note/:commitment failed', { error: error.message });
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+    
+    // =========================================================================
+    // POST /api/track-deposit
+    // Track a deposit made outside of /build-deposit-tx (e.g. from app/)
+    // No auth required — this just adds the commitment to our pending tracking
+    // =========================================================================
+    this.router.post('/track-deposit', async (req: Request, res: Response) => {
+      try {
+        const { commitment, txHash } = req.body;
+        
+        if (!commitment || !isValidBigIntString(commitment)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid commitment: must be a valid integer string',
+          });
+        }
+        
+        const commitmentBigInt = BigInt(commitment);
+        
+        // Add to pending tracking if not already present
+        if (!this.pendingState.pendingCommitments.find(c => c === commitmentBigInt)) {
+          this.pendingState.pendingCommitments.push(commitmentBigInt);
+          savePendingState({
+            pendingCommitments: this.pendingState.pendingCommitments.map(c => c.toString()),
+            nextLeafIndex: this.pendingState.nextLeafIndex,
+            lastSyncedAt: Date.now(),
+          });
+        }
+        
+        res.json({
+          success: true,
+          commitment: commitmentBigInt.toString(),
+          txHash: txHash || null,
+          pendingCount: this.pendingState.pendingCommitments.length,
+        });
+      } catch (error: any) {
+        logger.error('track-deposit failed', { error: error.message });
         res.status(500).json({ success: false, error: error.message });
       }
     });

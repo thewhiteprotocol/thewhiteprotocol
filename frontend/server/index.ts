@@ -26,45 +26,6 @@ app.use(express.urlencoded({ extended: false }));
 
 const RELAYER_API_URL = (process.env.VITE_RELAYER_API_URL || process.env.RELAYER_API_URL || "https://sequencerp-sol.replit.app/api").replace(/\/$/, "");
 
-app.all("/api/*", async (req, res) => {
-  try {
-    const upstreamPath = req.originalUrl.replace(/^\/api/, "");
-    const url = RELAYER_API_URL + upstreamPath;
-
-    const headers = { ...req.headers };
-    delete headers.host;
-
-    const method = String(req.method || "GET").toUpperCase();
-    const body =
-      method === "GET" || method === "HEAD" ? undefined : JSON.stringify(req.body ?? {});
-
-    const upstream = await fetch(url, {
-      method,
-      headers: {
-        ...headers,
-        "content-type": "application/json",
-        "accept": "application/json",
-      },
-      body,
-    });
-
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    res.status(upstream.status);
-
-    upstream.headers.forEach((v, k) => {
-      if (k.toLowerCase() === "transfer-encoding") return;
-      res.setHeader(k, v);
-    });
-
-    return res.send(buf);
-  } catch (e) {
-    return res.status(502).json({
-      success: false,
-      error: String(e && e.message ? e.message : e),
-    });
-  }
-});
-
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -146,6 +107,47 @@ function setupGracefulShutdown() {
 (async () => {
   try {
     await registerRoutes(httpServer, app);
+
+    // Proxy remaining /api/* requests to the relayer
+    // This must come AFTER registerRoutes so local routes take precedence
+    app.all("/api/*", async (req, res) => {
+      try {
+        const upstreamPath = req.originalUrl.replace(/^\/api/, "");
+        const url = RELAYER_API_URL + upstreamPath;
+
+        const headers = { ...req.headers };
+        delete headers.host;
+
+        const method = String(req.method || "GET").toUpperCase();
+        const body =
+          method === "GET" || method === "HEAD" ? undefined : JSON.stringify(req.body ?? {});
+
+        const upstream = await fetch(url, {
+          method,
+          headers: {
+            ...headers,
+            "content-type": "application/json",
+            "accept": "application/json",
+          },
+          body,
+        });
+
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        res.status(upstream.status);
+
+        upstream.headers.forEach((v, k) => {
+          if (k.toLowerCase() === "transfer-encoding") return;
+          res.setHeader(k, v);
+        });
+
+        return res.send(buf);
+      } catch (e) {
+        return res.status(502).json({
+          success: false,
+          error: String(e && e.message ? e.message : e),
+        });
+      }
+    });
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;

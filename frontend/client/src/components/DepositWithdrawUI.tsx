@@ -41,7 +41,6 @@ interface SerializedNote {
   secret: string;
   nullifier: string;
   commitment: string;
-  nullifierHash: string;
   amount: string;
   assetId: string;
   leafIndex?: number;
@@ -70,7 +69,7 @@ function formatAmount(amount: string): string {
 function validateNote(note: unknown): note is SerializedNote {
   if (!note || typeof note !== 'object') return false;
   const n = note as Record<string, unknown>;
-  const requiredStrings = ['secret', 'nullifier', 'commitment', 'nullifierHash', 'amount', 'assetId'];
+  const requiredStrings = ['secret', 'nullifier', 'commitment', 'amount', 'assetId'];
   for (const field of requiredStrings) {
     if (typeof n[field] !== 'string' || !n[field]) return false;
   }
@@ -260,7 +259,7 @@ export default function DepositWithdrawUI() {
 
       const serializedNote: SerializedNote = {
         secret: note.secret, nullifier: note.nullifier, commitment: note.commitment,
-        nullifierHash: note.nullifierHash, amount: amountBaseUnits, assetId: note.assetId,
+        amount: amountBaseUnits, assetId: note.assetId,
         depositTimestamp: Date.now(), depositSignature: signature,
       };
       saveNotes([...notes, serializedNote]);
@@ -355,8 +354,8 @@ export default function DepositWithdrawUI() {
 
       const withdrawResult = await prepareWithdrawal(
         { secret: selectedNote.secret, nullifier: selectedNote.nullifier, amount: selectedNote.amount,
-          assetId: selectedNote.assetId, nullifierHash: selectedNote.nullifierHash },
-        recipientPubkey.toBase58(), publicKey.toBase58(), selectedNote.leafIndex,
+          assetId: selectedNote.assetId },
+        recipientPubkey.toBase58(), selectedNote.leafIndex,
         effectiveWithdrawAmount
       );
 
@@ -382,7 +381,6 @@ export default function DepositWithdrawUI() {
           amount: withdrawResult.changeNote.amount,
           assetId: withdrawResult.changeNote.assetId,
           commitment: withdrawResult.changeNote.commitment,
-          nullifierHash: 'PENDING_COMPUTATION',
           status: 'pending' as const,
         };
         updatedNotes.push(changeNote as any);

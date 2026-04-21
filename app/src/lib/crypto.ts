@@ -80,7 +80,9 @@ export function computeNullifierHash(
   secret: bigint,
   leafIndex: bigint | number
 ): bigint {
-  return poseidonHash([nullifier, secret, BigInt(leafIndex)]);
+  // Circuit: nullifier_hash = Poseidon(Poseidon(nullifier, secret), leaf_index)
+  const inner = poseidonHash([nullifier, secret]);
+  return poseidonHash([inner, BigInt(leafIndex)]);
 }
 
 export function pubkeyToScalar(pubkey: string | Uint8Array): bigint {
@@ -89,13 +91,17 @@ export function pubkeyToScalar(pubkey: string | Uint8Array): bigint {
     if (pubkey.startsWith("0x")) {
       bytes = Uint8Array.from(Buffer.from(pubkey.slice(2), "hex"));
     } else {
-      bytes = keccak_256(new TextEncoder().encode(pubkey));
+      // Solana base58 pubkey — convert directly to bytes
+      bytes = new PublicKey(pubkey).toBytes();
     }
   } else {
     bytes = pubkey;
   }
-  const fieldBytes = bytes.slice(0, 31);
-  return BigInt("0x" + Buffer.from(fieldBytes).toString("hex"));
+  // Match on-chain: scalar_bytes = [0x00, pubkey_bytes[0..31]]
+  const scalarBytes = new Uint8Array(32);
+  scalarBytes[0] = 0;
+  scalarBytes.set(bytes.slice(0, 31), 1);
+  return BigInt("0x" + Buffer.from(scalarBytes).toString("hex"));
 }
 
 export function randomFieldElement(): bigint {

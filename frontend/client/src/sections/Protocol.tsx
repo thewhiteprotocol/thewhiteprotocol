@@ -594,10 +594,8 @@ export function Protocol() {
           nullifier: selectedNote.nullifier,
           amount: selectedNote.amount,
           assetId: selectedNote.assetId,
-          nullifierHash: selectedNote.nullifierHash,
         },
         recipientPubkey.toBase58(),
-        publicKey.toBase58(),
         selectedNote.leafIndex,
         effectiveWithdrawAmount
       );

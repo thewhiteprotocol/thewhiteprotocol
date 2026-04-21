@@ -125,4 +125,52 @@ export class BaseAdapter {
     // Placeholder: the contract does not expose a direct pending count
     return 0;
   }
+
+  async getDepositEvents(fromBlock?: bigint, toBlock?: bigint): Promise<
+    Array<{
+      commitment: bigint;
+      amount: bigint;
+      asset: `0x${string}`;
+      leafIndex: bigint;
+      blockNumber: bigint;
+    }>
+  > {
+    const logs = await this.publicClient.getContractEvents({
+      address: this.contractAddress,
+      abi,
+      eventName: 'Deposit',
+      fromBlock: fromBlock || 0n,
+      toBlock: toBlock || 'latest',
+    });
+    return logs.map((log: any) => ({
+      commitment: log.args.commitment as bigint,
+      amount: log.args.amount as bigint,
+      asset: log.args.asset as `0x${string}`,
+      leafIndex: log.args.leafIndex as bigint,
+      blockNumber: log.blockNumber as bigint,
+    }));
+  }
+
+  async getBatchSettlementEvents(fromBlock?: bigint, toBlock?: bigint): Promise<
+    Array<{
+      startIndex: bigint;
+      batchSize: bigint;
+      newRoot: bigint;
+      blockNumber: bigint;
+    }>
+  > {
+    const logs = await this.publicClient.getContractEvents({
+      address: this.contractAddress,
+      abi,
+      eventName: 'BatchSettlement',
+      fromBlock: fromBlock || 0n,
+      toBlock: toBlock || 'latest',
+    });
+    return logs.map((log: any) => ({
+      startIndex: log.args.startIndex as bigint,
+      batchSize: log.args.batchSize as bigint,
+      newRoot: log.args.newRoot as bigint,
+      blockNumber: log.blockNumber as bigint,
+    }));
+  }
 }
