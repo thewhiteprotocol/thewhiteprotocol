@@ -10,8 +10,6 @@
 //! 4. This instruction verifies proof and updates state
 
 use anchor_lang::prelude::*;
-use sha2::{Digest, Sha256};
-
 use crate::crypto::groth16::{verify, Proof, VerificationKey};
 use crate::error::WhiteProtocolError;
 use crate::events::{BatchSettledEvent, CommitmentInsertedEvent};

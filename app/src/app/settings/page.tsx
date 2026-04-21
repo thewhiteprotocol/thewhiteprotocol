@@ -7,12 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShieldAlert, Trash2, Download, Upload, Key, Server, Wallet, Loader2, Check, X } from "lucide-react";
+import { ShieldAlert, Trash2, Download, Upload, Key, Server, Wallet, Loader2, Check, X, Copy } from "lucide-react";
 import { useChain } from "@/providers/ChainContext";
 import { exportNotes, importNotes, getNotes } from "@/lib/noteStore";
 import { CHAINS } from "@/config/chains";
 import { StoredNote } from "@/lib/types";
 import { getRelayerHealth } from "@/lib/relayerClient";
+import { useToast } from "@/providers/ToastContext";
+import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
+import { useSignMessage as useWagmiSignMessage } from "wagmi";
 
 export default function SettingsPage() {
   const { isConnected } = useChain();
@@ -39,10 +42,11 @@ export default function SettingsPage() {
         </Card>
       ) : (
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-white/[0.03]">
+          <TabsList className="grid w-full grid-cols-4 bg-white/[0.03]">
             <TabsTrigger value="general" className="data-[state=active]:bg-white/10">General</TabsTrigger>
             <TabsTrigger value="backup" className="data-[state=active]:bg-white/10">Backup</TabsTrigger>
-            <TabsTrigger value="compliance" className="data-[state=active]:bg-white/10">Compliance</TabsTrigger>
+            <TabsTrigger value="stealth" className="data-[state=active]:bg-white/10">Stealth</TabsTrigger>
+          <TabsTrigger value="compliance" className="data-[state=active]:bg-white/10">Compliance</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-4 pt-2">
@@ -54,6 +58,10 @@ export default function SettingsPage() {
             <BackupCard />
             <RestoreCard />
             <ViewingKeyCard />
+          </TabsContent>
+
+          <TabsContent value="stealth" className="space-y-4 pt-2">
+            <StealthAddressCard />
           </TabsContent>
 
           <TabsContent value="compliance" className="space-y-4 pt-2">
@@ -329,6 +337,127 @@ function ComplianceCard() {
           {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
           Generate Report
         </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StealthAddressCard() {
+  const { activeChain } = useChain();
+  const solanaWallet = useSolanaWallet();
+  const { signMessageAsync: signEvmMessage } = useWagmiSignMessage();
+  const [metaAddress, setMetaAddress] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [autoEnable, setAutoEnable] = useState(true);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const saved = localStorage.getItem("white_protocol_meta_address_v1");
+    if (saved) setMetaAddress(saved);
+    const auto = localStorage.getItem("white_protocol_stealth_auto_enable");
+    if (auto !== null) setAutoEnable(auto === "true");
+  }, []);
+
+  async function generate() {
+    setGenerating(true);
+    try {
+      const { generateMetaAddressFromWallet, saveMetaAddress } = await import("@/lib/stealth");
+      const { ChainTag } = await import("@thewhiteprotocol/core");
+      
+      const META_ADDRESS_MESSAGE = "Generate White Protocol stealth address. Signing this message creates a deterministic stealth meta-address.";
+      let signature: Uint8Array;
+      
+      if (activeChain === "solana") {
+        if (!solanaWallet.signMessage) {
+          throw new Error("Solana wallet does not support message signing");
+        }
+        const msg = new TextEncoder().encode(META_ADDRESS_MESSAGE);
+        signature = await solanaWallet.signMessage(msg);
+      } else {
+        const sigHex = await signEvmMessage({ message: META_ADDRESS_MESSAGE });
+        signature = Uint8Array.from(Buffer.from(sigHex.slice(2), "hex"));
+      }
+      
+      const chainTag = activeChain === "solana" ? ChainTag.Solana : ChainTag.Base;
+      const { serialized } = await generateMetaAddressFromWallet(
+        async (_msg) => signature,
+        chainTag
+      );
+      setMetaAddress(serialized);
+      saveMetaAddress(serialized);
+      localStorage.setItem("white_protocol_stealth_auto_enable", "true");
+      setAutoEnable(true);
+      showToast("Stealth meta-address generated", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to generate stealth address", "error");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function copy() {
+    if (metaAddress) {
+      navigator.clipboard.writeText(metaAddress);
+      showToast("Meta-address copied", "success");
+    }
+  }
+
+  function toggleAutoEnable() {
+    const next = !autoEnable;
+    setAutoEnable(next);
+    localStorage.setItem("white_protocol_stealth_auto_enable", String(next));
+  }
+
+  return (
+    <Card className="glass-card border-white/10">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <ShieldAlert className="h-5 w-5 text-emerald-400" />
+          Stealth Address
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-zinc-400">
+          Stealth addresses ensure every withdrawal destination is a fresh, unlinkable address that only you can detect and spend from.
+        </p>
+
+        {!metaAddress ? (
+          <Button onClick={generate} disabled={generating} className="bg-emerald-600 hover:bg-emerald-700">
+            {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Key className="mr-2 h-4 w-4" />}
+            Generate Meta-Address
+          </Button>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-xs text-zinc-500">Your Meta-Address</p>
+              <p className="break-all font-mono text-xs text-zinc-300">{metaAddress}</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={copy}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copy
+              </Button>
+              <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={() => setMetaAddress(null)}>
+                Regenerate
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] p-3">
+          <div>
+            <p className="text-sm font-medium">Auto-enable stealth withdrawals</p>
+            <p className="text-xs text-zinc-500">Automatically use stealth addresses for all incoming withdrawals.</p>
+          </div>
+          <Button
+            variant={autoEnable ? "default" : "outline"}
+            size="sm"
+            onClick={toggleAutoEnable}
+            className={autoEnable ? "bg-emerald-600 hover:bg-emerald-700" : "border-white/10"}
+          >
+            {autoEnable ? "On" : "Off"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

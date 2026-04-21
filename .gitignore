@@ -1,13 +1,11 @@
 target/
-core
-**/core
+/core
 .DS_Store
 
 # Build artifacts
 target/
 **/target/
-core
-**/core
+/core
 .anchor/
 node_modules/
 *.log
@@ -18,12 +16,13 @@ target/deploy/*-keypair.json
 # Rust build output
 /target/
 **/target/
-core
+/core
+packages/*/dist/
 
 # Rust build output
 /target/
 **/target/
-core
+/core
 
 # Local archives
 psol-v2-wip.zip

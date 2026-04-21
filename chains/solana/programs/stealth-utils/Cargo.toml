@@ -1,0 +1,16 @@
+[package]
+name = "stealth-utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+curve25519-dalek = { version = "4.1", features = ["digest", "rand_core"] }
+sha2 = "0.10"
+hkdf = "0.12"
+bs58 = "0.5"
+thiserror = "1.0"
+getrandom = "0.2"
+
+[dev-dependencies]
+hex-literal = "0.4"
+hex = "0.4"

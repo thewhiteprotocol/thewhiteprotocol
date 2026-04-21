@@ -164,6 +164,26 @@ Users generate a ZK proof demonstrating:
 
 The relayer submits the withdrawal transaction, paying gas fees and earning a service fee.
 
+## Stealth Addresses
+
+The White Protocol includes a **dual-key stealth address layer** that closes the "recipient clustering" privacy hole. Every withdrawal destination is a fresh, unlinkable address derived from the recipient's meta-address. Only the recipient can detect and spend from these addresses.
+
+### How It Works
+
+1. **Meta-address generation:** Each user derives a meta-address from their wallet signature using HKDF-SHA256. The meta-address contains a spending keypair and a viewing keypair.
+2. **Stealth address derivation:** When sending funds, the sender derives a unique stealth address from the recipient's meta-address using ephemeral key exchange (`s = H(r · View_pub)`).
+3. **On-chain emission:** During withdrawal, the ephemeral pubkey `R = r · G` is emitted on-chain in a `StealthWithdrawal` event.
+4. **Scanner detection:** The recipient scans on-chain events with their viewing key, recomputes `s' = H(view_priv · R)`, and checks if the derived stealth address matches the withdrawal destination.
+
+### Key Properties
+
+- **No circuit changes:** The existing withdrawal circuit already accepts any destination pubkey.
+- **No trusted setup re-run:** Existing Groth16 proving keys remain valid.
+- **Cross-chain:** Same meta-address format supports both Solana (ed25519) and Base/EVM (secp256k1).
+- **Backward compatible:** Non-stealth withdrawals continue to work unchanged.
+
+See [`docs/stealth-addresses.md`](docs/stealth-addresses.md) for the full cryptographic specification and [`docs/stealth-integration.md`](docs/stealth-integration.md) for integration examples.
+
 ## Yield Earn
 
 The White Protocol supports yield-bearing assets such as Liquid Staking Tokens (JitoSOL, mSOL, bSOL, and similar). Users can deposit LSTs into the shielded pool while continuing to earn staking yield. The underlying tokens appreciate in value over time, and users retain privacy throughout.

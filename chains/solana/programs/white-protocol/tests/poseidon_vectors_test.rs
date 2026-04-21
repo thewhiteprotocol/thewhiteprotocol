@@ -39,7 +39,7 @@ fn scalar_to_hex(s: &Scalar) -> String {
 fn load_vectors() -> Vectors {
     let json = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../tools/poseidon-vectors/vectors.json"
+        "/../../../../tools/poseidon-vectors/vectors.json"
     ));
     serde_json::from_str(json).expect("parse vectors.json")
 }

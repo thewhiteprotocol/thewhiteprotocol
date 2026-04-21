@@ -10,7 +10,13 @@ export interface PaymentRequest {
   amount?: string;
   asset: string;
   chain: "solana" | "base";
-  encryptedNote: string;
+  encryptedNote?: string;
+  /** Optional ephemeral pubkey for stealth withdrawals (hex string) */
+  ephemeralPubkey?: string;
+  /** Whether this request was generated from a meta-address */
+  isMetaAddress?: boolean;
+  /** Original meta-address if applicable */
+  metaAddress?: string;
 }
 
 export interface PaymentLinkResult {

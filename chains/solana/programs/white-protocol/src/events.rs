@@ -213,6 +213,18 @@ pub struct WithdrawMaspEvent {
 /// - Does NOT include recipient or amounts (prevents correlation)
 /// - Includes change_commitment for sequencer indexing
 /// - Nullifier hashes are public (spent nullifier tracking)
+/// Stealth withdrawal event
+/// Emitted when a withdrawal includes an ephemeral pubkey for stealth address scanning.
+#[event]
+pub struct StealthWithdrawal {
+    /// Ephemeral public key R (32 bytes, ed25519 compressed)
+    pub ephemeral_pubkey: [u8; 32],
+    /// Destination stealth address (token account owner)
+    pub destination: Pubkey,
+    /// Slot number for ordering
+    pub slot: u64,
+}
+
 #[event]
 pub struct WithdrawV2Event {
     /// Pool this withdrawal belongs to

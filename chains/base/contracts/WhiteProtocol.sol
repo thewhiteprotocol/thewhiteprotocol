@@ -59,6 +59,12 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         uint256 fee
     );
     
+    event StealthWithdrawal(
+        bytes32 indexed ephemeralPubkey,
+        address indexed destination,
+        uint256 blockNumber
+    );
+    
     event BatchSettlement(
         uint256 indexed startIndex,
         uint256 batchSize,
@@ -148,6 +154,35 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         uint256 fee,
         address relayer
     ) external nonReentrant {
+        _withdrawInternal(proof, nullifierHash, root, recipient, token, amount, fee, relayer, bytes32(0));
+    }
+    
+    function withdrawStealth(
+        bytes calldata proof,
+        uint256 nullifierHash,
+        uint256 root,
+        address recipient,
+        address token,
+        uint256 amount,
+        uint256 fee,
+        address relayer,
+        bytes32 ephemeralPubkey
+    ) external nonReentrant {
+        require(ephemeralPubkey != bytes32(0), "Invalid ephemeral pubkey");
+        _withdrawInternal(proof, nullifierHash, root, recipient, token, amount, fee, relayer, ephemeralPubkey);
+    }
+    
+    function _withdrawInternal(
+        bytes calldata proof,
+        uint256 nullifierHash,
+        uint256 root,
+        address recipient,
+        address token,
+        uint256 amount,
+        uint256 fee,
+        address relayer,
+        bytes32 ephemeralPubkey
+    ) internal {
         require(proof.length == 256, "Invalid proof length");
         require(!spentNullifiers[nullifierHash], "Nullifier already spent");
         require(isKnownRoot(root), "Unknown Merkle root");
@@ -162,7 +197,6 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         uint256[8] memory p = _parseProof(proof);
         
         // Public inputs: [root, nullifierHash, assetId, recipient, amount, relayer, relayerFee, publicDataHash]
-        // Simplified - actual inputs depend on circuit
         uint256[8] memory pubSignals = [
             root,
             nullifierHash,
@@ -205,6 +239,10 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         }
 
         emit Withdrawal(nullifierHash, recipient, relayer, amount, fee);
+        
+        if (ephemeralPubkey != bytes32(0)) {
+            emit StealthWithdrawal(ephemeralPubkey, recipient, block.number);
+        }
     }
 
     /**

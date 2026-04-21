@@ -104,6 +104,8 @@ interface WithdrawRequest {
   mint: string;
   /** Target chain */
   chain?: 'solana' | 'base';
+  /** Optional ephemeral pubkey for stealth withdrawals (64 hex chars = 32 bytes) */
+  ephemeralPubkey?: string;
 }
 
 /** Withdrawal response interface */
@@ -156,6 +158,7 @@ interface SubmitWithdrawalParams {
   fee: bigint;
   assetId: Uint8Array;
   mint: PublicKey;
+  ephemeralPubkey?: Uint8Array;
 }
 
 // =============================================================================
@@ -553,6 +556,7 @@ export class RelayerService {
           fee,
           assetId,
           mint,
+          ephemeralPubkey: request.ephemeralPubkey ? hexToBytes(request.ephemeralPubkey) : undefined,
         }),
         90000,
         'Transaction submission timed out'
@@ -669,7 +673,8 @@ export class RelayerService {
           recipient,
           tokenAddr,
           amount,
-          fee
+          fee,
+          request.ephemeralPubkey ? (`0x${request.ephemeralPubkey}` as `0x${string}`) : undefined
         ),
         90000,
         'Transaction submission timed out'
@@ -821,6 +826,16 @@ export class RelayerService {
         new PublicKey(request.mint);
       } catch {
         throw new Error('Invalid mint public key');
+      }
+    }
+    
+    // Validate ephemeral pubkey if provided (32 bytes = 64 hex chars)
+    if (request.ephemeralPubkey) {
+      if (!/^[0-9a-fA-F]{64}$/.test(request.ephemeralPubkey)) {
+        throw new Error('Invalid ephemeral pubkey: must be 64 hex characters');
+      }
+      if (request.ephemeralPubkey === '0'.repeat(64)) {
+        throw new Error('Invalid ephemeral pubkey: all zeros');
       }
     }
     
@@ -983,33 +998,64 @@ export class RelayerService {
       params.mint,
       this.config.walletKeypair.publicKey
     );
-    // Build instruction - FIXED: correct args and snake_case accounts
-    const ix = await this.program.methods
-      .withdrawMasp(
-        Buffer.from(params.proofData),
-        Array.from(params.merkleRoot),
-        Array.from(params.nullifierHash),
-        params.recipient,
-        new BN(params.amount.toString()),
-        Array.from(params.assetId),
-        new BN(params.fee.toString())
-      )
-      .accountsStrict({
-        relayer: this.config.walletKeypair.publicKey,
-        pool_config: this.config.poolConfig,
-        merkle_tree: merkleTree,
-        vk_account: vkAccount,
-        asset_vault: assetVault,
-        vault_token_account: vaultTokenAccount,
-        recipient_token_account: recipientTokenAccount,
-        relayer_token_account: relayerTokenAccount,
-        spent_nullifier: nullifierPda,
-        relayer_registry: relayerRegistry,
-        relayer_node: relayerNode,
-        token_program: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
-        system_program: new PublicKey("11111111111111111111111111111111"),
-      })
-      .instruction();
+    // Build instruction - use withdrawMaspStealth if ephemeral pubkey provided
+    let ix;
+    if (params.ephemeralPubkey && params.ephemeralPubkey.length === 32) {
+      ix = await this.program.methods
+        .withdrawMaspStealth(
+          Buffer.from(params.proofData),
+          Array.from(params.merkleRoot),
+          Array.from(params.nullifierHash),
+          params.recipient,
+          new BN(params.amount.toString()),
+          Array.from(params.assetId),
+          new BN(params.fee.toString()),
+          Array.from(params.ephemeralPubkey)
+        )
+        .accountsStrict({
+          relayer: this.config.walletKeypair.publicKey,
+          pool_config: this.config.poolConfig,
+          merkle_tree: merkleTree,
+          vk_account: vkAccount,
+          asset_vault: assetVault,
+          vault_token_account: vaultTokenAccount,
+          recipient_token_account: recipientTokenAccount,
+          relayer_token_account: relayerTokenAccount,
+          spent_nullifier: nullifierPda,
+          relayer_registry: relayerRegistry,
+          relayer_node: relayerNode,
+          token_program: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+          system_program: new PublicKey("11111111111111111111111111111111"),
+        })
+        .instruction();
+    } else {
+      ix = await this.program.methods
+        .withdrawMasp(
+          Buffer.from(params.proofData),
+          Array.from(params.merkleRoot),
+          Array.from(params.nullifierHash),
+          params.recipient,
+          new BN(params.amount.toString()),
+          Array.from(params.assetId),
+          new BN(params.fee.toString())
+        )
+        .accountsStrict({
+          relayer: this.config.walletKeypair.publicKey,
+          pool_config: this.config.poolConfig,
+          merkle_tree: merkleTree,
+          vk_account: vkAccount,
+          asset_vault: assetVault,
+          vault_token_account: vaultTokenAccount,
+          recipient_token_account: recipientTokenAccount,
+          relayer_token_account: relayerTokenAccount,
+          spent_nullifier: nullifierPda,
+          relayer_registry: relayerRegistry,
+          relayer_node: relayerNode,
+          token_program: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+          system_program: new PublicKey("11111111111111111111111111111111"),
+        })
+        .instruction();
+    }
 
     // Build and send transaction
     const { blockhash, lastValidBlockHeight } = await withRetry(
@@ -1141,9 +1187,12 @@ export class RelayerService {
  * Convert hex string to Uint8Array
  */
 function hexToBytes(hex: string): Uint8Array {
+  if (hex.length % 2 !== 0) throw new Error('Invalid hex: odd length');
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    const byte = parseInt(hex.substr(i * 2, 2), 16);
+    if (Number.isNaN(byte)) throw new Error(`Invalid hex character at position ${i * 2}`);
+    bytes[i] = byte;
   }
   return bytes;
 }

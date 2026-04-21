@@ -327,6 +327,62 @@
       "args": []
     },
     {
+      "name": "close_vk_v2",
+      "docs": [
+        "Close VK account - allows authority to delete a VK to fix mistakes"
+      ],
+      "discriminator": [
+        50,
+        44,
+        61,
+        20,
+        28,
+        131,
+        144,
+        172
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "pool_config",
+          "writable": true
+        },
+        {
+          "name": "vk_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "arg",
+                "path": "proof_type"
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "proof_type",
+          "type": {
+            "defined": {
+              "name": "ProofType"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "configure_relayer_registry",
       "discriminator": [
         44,
@@ -2324,6 +2380,210 @@
       ]
     },
     {
+      "name": "withdraw_masp_stealth",
+      "docs": [
+        "Withdraw MASP with stealth address support"
+      ],
+      "discriminator": [
+        31,
+        100,
+        171,
+        121,
+        150,
+        11,
+        192,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "relayer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool_config",
+          "writable": true
+        },
+        {
+          "name": "merkle_tree",
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "vk_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  107,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "asset_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_token_account",
+          "writable": true
+        },
+        {
+          "name": "recipient_token_account",
+          "writable": true
+        },
+        {
+          "name": "relayer_token_account",
+          "writable": true
+        },
+        {
+          "name": "spent_nullifier",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  117,
+                  108,
+                  108,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "nullifier_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "relayer_registry",
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "relayer_node",
+          "optional": true
+        },
+        {
+          "name": "yield_registry",
+          "optional": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "proof_data",
+          "type": "bytes"
+        },
+        {
+          "name": "merkle_root",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nullifier_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "asset_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "relayer_fee",
+          "type": "u64"
+        },
+        {
+          "name": "ephemeral_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "withdraw_v2",
       "docs": [
         "Withdraw V2 (join-split with change output)"
@@ -3341,6 +3601,19 @@
         150,
         220,
         103
+      ]
+    },
+    {
+      "name": "StealthWithdrawal",
+      "discriminator": [
+        41,
+        245,
+        136,
+        45,
+        69,
+        211,
+        195,
+        32
       ]
     },
     {
@@ -5773,6 +6046,50 @@
       }
     },
     {
+      "name": "StealthWithdrawal",
+      "docs": [
+        "Withdrawal V2 event (join-split with change)",
+        "",
+        "Privacy considerations:",
+        "- Does NOT include recipient or amounts (prevents correlation)",
+        "- Includes change_commitment for sequencer indexing",
+        "- Nullifier hashes are public (spent nullifier tracking)",
+        "Stealth withdrawal event",
+        "Emitted when a withdrawal includes an ephemeral pubkey for stealth address scanning."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ephemeral_pubkey",
+            "docs": [
+              "Ephemeral public key R (32 bytes, ed25519 compressed)"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "destination",
+            "docs": [
+              "Destination stealth address (token account owner)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "docs": [
+              "Slot number for ordering"
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "VerificationKeyAccount",
       "type": {
         "kind": "struct",
@@ -6019,14 +6336,6 @@
     },
     {
       "name": "WithdrawV2Event",
-      "docs": [
-        "Withdrawal V2 event (join-split with change)",
-        "",
-        "Privacy considerations:",
-        "- Does NOT include recipient or amounts (prevents correlation)",
-        "- Includes change_commitment for sequencer indexing",
-        "- Nullifier hashes are public (spent nullifier tracking)"
-      ],
       "type": {
         "kind": "struct",
         "fields": [

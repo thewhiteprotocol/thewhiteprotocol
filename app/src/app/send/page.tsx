@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { QrCode, Link2, Camera, ArrowRight, Loader2, CheckCircle2, Wallet } from "lucide-react";
+import { QrCode, Link2, Camera, ArrowRight, Loader2, CheckCircle2, Wallet, Eye } from "lucide-react";
 import { useChain } from "@/providers/ChainContext";
 import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { useWalletClient } from "wagmi";
@@ -16,12 +16,13 @@ import { PublicKey } from "@solana/web3.js";
 import { parsePaymentLink, PaymentRequest } from "@/lib/paymentLink";
 import { SUPPORTED_ASSETS } from "@/config/constants";
 import { CHAINS } from "@/config/chains";
-import { initializePoseidon, computeAssetIdBigInt, formatProofForOnChain } from "@/lib/crypto";
+import { initializePoseidon, computeAssetIdBigInt, formatProofForOnChain, randomFieldElement } from "@/lib/crypto";
 import { generateDepositProof } from "@/lib/proofService";
 import { solanaChainService, baseChainService } from "@/lib/chainService";
 import { useToast } from "@/providers/ToastContext";
 import { addNote } from "@/lib/noteStore";
 import { maybeCreateReceipt } from "@/lib/autoReceipt";
+import { isMetaAddress } from "@/lib/stealth";
 
 function truncate(str: string, len = 8) {
   if (str.length <= len * 2 + 4) return str;
@@ -59,9 +60,11 @@ export default function SendPage() {
 }
 
 function PaymentForm() {
-  const [mode, setMode] = useState<"scan" | "link">("scan");
+  const [mode, setMode] = useState<"scan" | "link" | "stealth">("scan");
   const [parsed, setParsed] = useState<PaymentRequest | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [stealthAmount, setStealthAmount] = useState("");
+  const [stealthAsset, setStealthAsset] = useState("ETH");
   const videoRef = useRef<HTMLVideoElement>(null);
   const [scanning, setScanning] = useState(false);
 
@@ -74,13 +77,18 @@ function PaymentForm() {
     setScanning(true);
 
     reader
-      .decodeFromVideoDevice(undefined, videoRef.current!, (result, err) => {
+      .decodeFromVideoDevice(undefined, videoRef.current!, async (result, err) => {
         if (cancelled) return;
         if (result) {
           const text = result.getText();
           const payment = parsePaymentLink(text);
           if (payment) {
             setParsed(payment);
+            setScanning(false);
+            cancelled = true;
+            controls?.stop();
+          } else if (await isMetaAddress(text)) {
+            handleMetaAddress(text);
             setScanning(false);
             cancelled = true;
             controls?.stop();
@@ -103,13 +111,52 @@ function PaymentForm() {
     };
   }, [mode, parsed]);
 
-  function handleLinkPaste(raw: string) {
+  async function handleLinkPaste(raw: string) {
     const payment = parsePaymentLink(raw);
     if (payment) {
       setParsed(payment);
       setScanError(null);
+    } else if (await isMetaAddress(raw)) {
+      await handleMetaAddress(raw);
     } else {
-      setScanError("Invalid payment link");
+      setScanError("Invalid payment link or meta-address");
+    }
+  }
+
+  async function handleMetaAddress(raw: string) {
+    try {
+      const { parseMetaAddress, sendToStealthAddress } = await import("@thewhiteprotocol/core");
+      const meta = parseMetaAddress(raw);
+      const chain = meta.chainTag === 0x02 ? "base" : meta.chainTag === 0x01 ? "solana" : "solana";
+      const asset = chain === "solana" ? "wSOL" : "ETH";
+      const stealth = sendToStealthAddress(meta, chain);
+
+      // Generate a real note for the deposit
+      const secret = randomFieldElement();
+      const nullifier = randomFieldElement();
+      const assetConfig = SUPPORTED_ASSETS.find((a) => a.symbol === asset);
+      const assetId = computeAssetIdBigInt(assetConfig?.address || "0");
+      const rawAmount = stealthAmount && Number(stealthAmount) > 0
+        ? parseTokenAmount(stealthAmount, assetConfig?.decimals || 18)
+        : 0n;
+      const { computeCommitment } = await import("@thewhiteprotocol/core");
+      const commitment = computeCommitment(secret, nullifier, rawAmount, assetId);
+
+      const encryptedNote = btoa(JSON.stringify({ secret: secret.toString(), nullifier: nullifier.toString() }));
+
+      setParsed({
+        chain,
+        asset,
+        amount: stealthAmount || undefined,
+        commitment: commitment.toString(),
+        encryptedNote,
+        ephemeralPubkey: "0x" + Array.from(stealth.ephemeralPubkey, (b) => b.toString(16).padStart(2, "0")).join(""),
+        isMetaAddress: true,
+        metaAddress: raw,
+      });
+      setScanError(null);
+    } catch (err: any) {
+      setScanError("Invalid meta-address: " + (err?.message || "unknown error"));
     }
   }
 
@@ -124,7 +171,7 @@ function PaymentForm() {
       </CardHeader>
       <CardContent className="space-y-4">
         <Tabs value={mode} onValueChange={(v) => setMode(v as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-white/[0.03]">
+          <TabsList className="grid w-full grid-cols-3 bg-white/[0.03]">
             <TabsTrigger value="scan" className="data-[state=active]:bg-white/10">
               <Camera className="mr-2 h-4 w-4" />
               Scan QR
@@ -132,6 +179,10 @@ function PaymentForm() {
             <TabsTrigger value="link" className="data-[state=active]:bg-white/10">
               <Link2 className="mr-2 h-4 w-4" />
               Paste Link
+            </TabsTrigger>
+            <TabsTrigger value="stealth" className="data-[state=active]:bg-white/10">
+              <Eye className="mr-2 h-4 w-4" />
+              Stealth
             </TabsTrigger>
           </TabsList>
 
@@ -157,6 +208,39 @@ function PaymentForm() {
                 className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500"
               />
               <p className="text-xs text-zinc-500">Paste a White Protocol payment link above.</p>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="stealth" className="pt-2">
+            <div className="space-y-3">
+              <Input
+                placeholder="Paste meta-address (e.g., 1x2y3z...)"
+                onChange={async (e) => {
+                  if (await isMetaAddress(e.target.value)) {
+                    handleMetaAddress(e.target.value);
+                  }
+                }}
+                className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500"
+              />
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  placeholder="Amount"
+                  value={stealthAmount}
+                  onChange={(e) => setStealthAmount(e.target.value)}
+                  className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500"
+                />
+                <select
+                  value={stealthAsset}
+                  onChange={(e) => setStealthAsset(e.target.value)}
+                  className="rounded-md border border-white/10 bg-white/[0.03] px-3 text-sm text-white"
+                >
+                  {SUPPORTED_ASSETS.map((a) => (
+                    <option key={a.symbol} value={a.symbol}>{a.symbol}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-zinc-500">Paste a recipient&apos;s stealth meta-address and enter an amount. A unique stealth address will be generated for this payment.</p>
             </div>
           </TabsContent>
         </Tabs>
@@ -190,15 +274,24 @@ function PaymentConfirm({ parsed, onReset }: { parsed: PaymentRequest; onReset: 
       const rawAmount = parsed.amount && asset ? parseTokenAmount(parsed.amount, asset.decimals) : 0n;
       const assetId = computeAssetIdBigInt(asset?.address || "0");
 
-      // For payment links, we pay to the receiver's commitment
-      // We generate a "deposit proof" for that commitment (with dummy secret/nullifier)
-      // In reality, the sender doesn't need to know the secret - they just deposit to the commitment
+      // Decode the encrypted note to get the real secret/nullifier for proof generation
       setStep("Generating proof...");
-      const dummySecret = 1n;
-      const dummyNullifier = 1n;
+      let secret: bigint;
+      let nullifier: bigint;
+      if (parsed.encryptedNote) {
+        try {
+          const noteData = JSON.parse(atob(parsed.encryptedNote));
+          secret = BigInt(noteData.secret);
+          nullifier = BigInt(noteData.nullifier);
+        } catch {
+          throw new Error("Invalid encrypted note: cannot decode secret/nullifier");
+        }
+      } else {
+        throw new Error("Missing encrypted note: cannot generate valid deposit proof");
+      }
       const { proof } = await generateDepositProof({
-        secret: dummySecret,
-        nullifier: dummyNullifier,
+        secret,
+        nullifier,
         commitment,
         amount: rawAmount,
         assetId,
@@ -283,6 +376,16 @@ function PaymentConfirm({ parsed, onReset }: { parsed: PaymentRequest; onReset: 
         <CardTitle className="text-lg">Confirm Payment</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {parsed.isMetaAddress && (
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+            <p className="text-xs text-emerald-400">Stealth Payment</p>
+            <p className="font-mono text-sm text-zinc-200">{truncate(parsed.metaAddress || "", 20)}</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              A unique stealth address has been derived for this payment.
+            </p>
+          </div>
+        )}
+
         <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
           <p className="text-xs text-zinc-500">To</p>
           <p className="font-mono text-sm text-zinc-200">{truncate(parsed.commitment, 16)}</p>
@@ -300,6 +403,11 @@ function PaymentConfirm({ parsed, onReset }: { parsed: PaymentRequest; onReset: 
           <Badge variant="outline" className="border-white/10 text-zinc-400">
             {parsed.asset}
           </Badge>
+          {parsed.isMetaAddress && (
+            <Badge variant="outline" className="border-emerald-500/30 text-emerald-400">
+              Stealth
+            </Badge>
+          )}
         </div>
 
         {error && <p className="text-sm text-red-400">{error}</p>}

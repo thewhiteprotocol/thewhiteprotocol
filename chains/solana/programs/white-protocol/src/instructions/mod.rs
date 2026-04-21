@@ -39,7 +39,7 @@ pub use set_verification_key_chunked::{AppendVkIcV2, CloseVkV2, FinalizeVkV2, In
 pub use set_verification_key_v2::{LockVerificationKeyV2, SetVerificationKeyV2};
 pub use settle_deposits_batch::*;
 pub use shielded_cpi::ExecuteShieldedAction;
-pub use withdraw_masp::WithdrawMasp;
+pub use withdraw_masp::{WithdrawMasp, WithdrawMaspStealth};
 pub use withdraw_v2::WithdrawV2;
 
 pub mod withdraw_yield_v2;

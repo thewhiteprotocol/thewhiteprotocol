@@ -78,6 +78,9 @@ pub enum WhiteProtocolError {
     #[msg("Invalid nullifier: cannot be all zeros")]
     InvalidNullifier,
 
+    #[msg("Invalid ephemeral pubkey: cannot be all zeros")]
+    InvalidEphemeralPubkey,
+
     #[msg("Too many nullifiers for join-split (max 4)")]
     TooManyNullifiers,
 

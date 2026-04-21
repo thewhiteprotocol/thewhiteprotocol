@@ -399,6 +399,88 @@ export class WhiteProtocolClient {
   }
 
   /**
+   * Stealth withdrawal — same as withdraw but emits an ephemeral pubkey on-chain
+   * so the recipient can scan for and derive the stealth private key.
+   */
+  async withdrawStealth(
+    poolConfig: PublicKey,
+    mint: PublicKey,
+    recipient: PublicKey,
+    amount: bigint | BN,
+    merkleRoot: Uint8Array,
+    nullifierHash: Uint8Array,
+    proofData: Uint8Array,
+    ephemeralPubkey: Uint8Array,
+    relayerFee?: bigint | BN
+  ): Promise<{ signature: TransactionSignature }> {
+    const relayer = this.authority;
+    const assetId = computeAssetId(mint);
+
+    const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
+    const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
+    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault_token'), assetVault.toBuffer()],
+      this.programId
+    );
+    const [withdrawVk] = findVerificationKeyPda(this.programId, poolConfig, ProofType.Withdraw);
+    const [spentNullifier] = findSpentNullifierPda(this.programId, poolConfig, nullifierHash);
+    const [relayerRegistry] = findRelayerRegistryPda(this.programId, poolConfig);
+
+    const recipientTokenAccount = getAssociatedTokenAddressSync(mint, recipient);
+    const relayerTokenAccount = getAssociatedTokenAddressSync(mint, relayer);
+
+    const connection = this.provider.connection;
+    const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
+    const preInstructions: any[] = [];
+    
+    if (!recipientAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      preInstructions.push(
+        createAssociatedTokenAccountInstruction(relayer, recipientTokenAccount, recipient, mint)
+      );
+    }
+
+    const relayerAccountInfo = await connection.getAccountInfo(relayerTokenAccount);
+    if (!relayerAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      preInstructions.push(
+        createAssociatedTokenAccountInstruction(relayer, relayerTokenAccount, relayer, mint)
+      );
+    }
+
+    const tx = await (this.program.methods as any)
+      .withdrawMaspStealth(
+        Buffer.from(proofData),
+        Array.from(merkleRoot),
+        Array.from(nullifierHash),
+        recipient,
+        toBN(amount),
+        Array.from(assetId),
+        toBN(relayerFee ?? 0n),
+        Array.from(ephemeralPubkey)
+      )
+      .accounts({
+        relayer,
+        poolConfig,
+        merkleTree,
+        vkAccount: withdrawVk,
+        assetVault,
+        vaultTokenAccount,
+        recipientTokenAccount,
+        relayerTokenAccount,
+        spentNullifier,
+        relayerRegistry,
+        relayerNode: null,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .preInstructions(preInstructions)
+      .rpc();
+
+    return { signature: tx };
+  }
+
+  /**
    * Withdraw V2 (join-split with change)
    * Enables partial withdrawals with a change output
    * 

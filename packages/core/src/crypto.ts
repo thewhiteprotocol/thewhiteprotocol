@@ -1,0 +1,262 @@
+/**
+ * Shared cryptographic utilities for The White Protocol
+ * Chain-agnostic hash functions and ZK primitives
+ */
+
+import { keccak_256 } from '@noble/hashes/sha3';
+import { buildPoseidon, Poseidon } from 'circomlibjs';
+import bs58 from 'bs58';
+
+// Poseidon instance (lazy-loaded)
+let poseidonInstance: Poseidon | null = null;
+
+/**
+ * Initialize Poseidon hash function
+ */
+export async function initializePoseidon(): Promise<void> {
+  if (!poseidonInstance) {
+    poseidonInstance = await buildPoseidon();
+  }
+}
+
+/**
+ * Get Poseidon instance (throws if not initialized)
+ */
+function getPoseidon(): Poseidon {
+  if (!poseidonInstance) {
+    throw new Error('Poseidon not initialized. Call initializePoseidon() first.');
+  }
+  return poseidonInstance;
+}
+
+/**
+ * Poseidon hash of two field elements
+ * Returns result as bigint
+ */
+export function poseidonHash2(a: bigint, b: bigint): bigint {
+  const poseidon = getPoseidon();
+  const result = poseidon([a, b]);
+  return BigInt(poseidon.F.toString(result));
+}
+
+/**
+ * Poseidon hash of an array of field elements
+ */
+export function poseidonHash(inputs: bigint[]): bigint {
+  const poseidon = getPoseidon();
+  const result = poseidon(inputs.map(x => BigInt(x)));
+  return BigInt(poseidon.F.toString(result));
+}
+
+/**
+ * Compute asset ID from token address using Keccak256
+ * Returns 32-byte hash matching on-chain computation
+ */
+export function computeAssetId(tokenAddress: string | Uint8Array): Uint8Array {
+  let input: Uint8Array;
+  
+  if (typeof tokenAddress === 'string') {
+    // Handle hex string or base58
+    if (tokenAddress.startsWith('0x')) {
+      input = Uint8Array.from(Buffer.from(tokenAddress.slice(2), 'hex'));
+    } else {
+      // Assume base58 (Solana) - decode properly
+      // For now, treat as hex if no 0x prefix for EVM addresses
+      input = Uint8Array.from(Buffer.from(tokenAddress, 'hex'));
+    }
+  } else {
+    input = tokenAddress;
+  }
+  
+  return keccak_256(input);
+}
+
+/**
+ * Compute asset ID as bigint
+ */
+export function computeAssetIdBigInt(tokenAddress: string | Uint8Array): bigint {
+  const bytes = computeAssetId(tokenAddress);
+  return BigInt('0x' + Buffer.from(bytes).toString('hex'));
+}
+
+/**
+ * Compute commitment hash: Poseidon(secret, nullifier, amount, assetId)
+ */
+export function computeCommitment(
+  secret: bigint,
+  nullifier: bigint,
+  amount: bigint,
+  assetId: bigint
+): bigint {
+  return poseidonHash([secret, nullifier, amount, assetId]);
+}
+
+/**
+ * Compute nullifier hash: Poseidon(nullifier, secret, leafIndex)
+ */
+export function computeNullifierHash(
+  nullifier: bigint,
+  secret: bigint,
+  leafIndex: bigint | number
+): bigint {
+  // Circuit: nullifier_hash = Poseidon(Poseidon(nullifier, secret), leaf_index)
+  const inner = poseidonHash([nullifier, secret]);
+  return poseidonHash([inner, BigInt(leafIndex)]);
+}
+
+/**
+ * Convert public key to scalar field element
+ * Used for recipient/relayer addresses in circuits
+ */
+export function pubkeyToScalar(pubkey: string | Uint8Array): bigint {
+  let bytes: Uint8Array;
+  
+  if (typeof pubkey === 'string') {
+    if (pubkey.startsWith('0x')) {
+      bytes = Uint8Array.from(Buffer.from(pubkey.slice(2), 'hex'));
+    } else {
+      // Solana base58 pubkey
+      bytes = bs58.decode(pubkey);
+    }
+  } else {
+    bytes = pubkey;
+  }
+  
+  // Match on-chain: scalar_bytes = [0x00, pubkey_bytes[0..31]]
+  const scalarBytes = new Uint8Array(32);
+  scalarBytes[0] = 0;
+  scalarBytes.set(bytes.slice(0, 31), 1);
+  return BigInt('0x' + Buffer.from(scalarBytes).toString('hex'));
+}
+
+/**
+ * Generate random field element (safe for secrets/nullifiers)
+ */
+export function randomFieldElement(): bigint {
+  const bytes = new Uint8Array(31); // 31 bytes = 248 bits < 254 bits
+  crypto.getRandomValues(bytes);
+  
+  let result = 0n;
+  for (let i = 0; i < 31; i++) {
+    result = (result << 8n) | BigInt(bytes[i]);
+  }
+  return result;
+}
+
+/**
+ * Convert bigint to 32-byte Uint8Array (big-endian)
+ */
+export function bigintToBytes32(value: bigint): Uint8Array {
+  const hex = value.toString(16).padStart(64, '0');
+  return Uint8Array.from(Buffer.from(hex, 'hex'));
+}
+
+/**
+ * Convert 32-byte Uint8Array to bigint
+ */
+export function bytes32ToBigint(bytes: Uint8Array): bigint {
+  return BigInt('0x' + Buffer.from(bytes).toString('hex'));
+}
+
+/**
+ * Compute Merkle root from leaf and path
+ */
+export function computeMerkleRoot(
+  leaf: bigint,
+  pathElements: bigint[],
+  pathIndices: number[]
+): bigint {
+  let current = leaf;
+  for (let i = 0; i < pathElements.length; i++) {
+    if (pathIndices[i] === 0) {
+      // Current is left
+      current = poseidonHash2(current, pathElements[i]);
+    } else {
+      // Current is right
+      current = poseidonHash2(pathElements[i], current);
+    }
+  }
+  return current;
+}
+
+/**
+ * Compute zero values for Merkle tree levels
+ * Returns array of zero hashes for each level
+ */
+export function computeZeroValues(depth: number): bigint[] {
+  const zeros: bigint[] = [BigInt(0)];
+  for (let i = 1; i <= depth; i++) {
+    zeros.push(poseidonHash2(zeros[i - 1], zeros[i - 1]));
+  }
+  return zeros;
+}
+
+/**
+ * Verify a Merkle proof
+ */
+export function verifyMerkleProof(
+  leaf: bigint,
+  root: bigint,
+  pathElements: bigint[],
+  pathIndices: number[]
+): boolean {
+  const computedRoot = computeMerkleRoot(leaf, pathElements, pathIndices);
+  return computedRoot === root;
+}
+
+/**
+ * Format proof for on-chain submission (256 bytes for Groth16)
+ * Matches the format expected by both Solana and EVM contracts
+ */
+export function formatProofForOnChain(proof: any): Uint8Array {
+  const proofData = new Uint8Array(256);
+  
+  const toHex32 = (val: string | bigint) => BigInt(val).toString(16).padStart(64, '0');
+  
+  // pi_a (G1 point): x, y (64 bytes)
+  const ax = Uint8Array.from(Buffer.from(toHex32(proof.pi_a[0]), 'hex'));
+  const ay = Uint8Array.from(Buffer.from(toHex32(proof.pi_a[1]), 'hex'));
+  proofData.set(ax, 0);
+  proofData.set(ay, 32);
+  
+  // pi_b (G2 point): [0][1], [0][0], [1][1], [1][0] (128 bytes)
+  // EVM expects coordinates in a specific order for pairing
+  const bx01 = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[0][1]), 'hex'));
+  const bx00 = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[0][0]), 'hex'));
+  const bx11 = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[1][1]), 'hex'));
+  const bx10 = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[1][0]), 'hex'));
+  proofData.set(bx01, 64);
+  proofData.set(bx00, 96);
+  proofData.set(bx11, 128);
+  proofData.set(bx10, 160);
+  
+  // pi_c (G1 point): x, y (64 bytes)
+  const cx = Uint8Array.from(Buffer.from(toHex32(proof.pi_c[0]), 'hex'));
+  const cy = Uint8Array.from(Buffer.from(toHex32(proof.pi_c[1]), 'hex'));
+  proofData.set(cx, 192);
+  proofData.set(cy, 224);
+  
+  return proofData;
+}
+
+/**
+ * Parse on-chain proof data back to snarkjs format
+ */
+export function parseProofFromOnChain(proofData: Uint8Array): any {
+  if (proofData.length !== 256) {
+    throw new Error('Invalid proof data length. Expected 256 bytes.');
+  }
+  
+  const readField = (offset: number) => {
+    return BigInt('0x' + Buffer.from(proofData.slice(offset, offset + 32)).toString('hex'));
+  };
+  
+  return {
+    pi_a: [readField(0), readField(32)],
+    pi_b: [
+      [readField(96), readField(64)],  // Reversed from storage order
+      [readField(160), readField(128)],
+    ],
+    pi_c: [readField(192), readField(224)],
+  };
+}

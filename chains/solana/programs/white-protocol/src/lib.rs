@@ -47,6 +47,7 @@ pub(crate) use crate::instructions::set_verification_key_chunked::__client_accou
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
 pub(crate) use crate::instructions::withdraw_masp::__client_accounts_withdraw_masp;
+pub(crate) use crate::instructions::withdraw_masp::__client_accounts_withdraw_masp_stealth;
 pub(crate) use crate::instructions::withdraw_yield_v2::__client_accounts_withdraw_yield_v2;
 pub(crate) use crate::instructions::init_yield_registry::__client_accounts_init_yield_registry;
 pub(crate) use crate::instructions::manage_yield_mints::__client_accounts_manage_yield_mints;
@@ -283,6 +284,32 @@ pub mod white_protocol {
             amount,
             asset_id,
             relayer_fee,
+        )
+    }
+
+    /// Withdraw MASP with stealth address support
+    #[allow(clippy::too_many_arguments)]
+    pub fn withdraw_masp_stealth(
+        ctx: Context<WithdrawMaspStealth>,
+        proof_data: Vec<u8>,
+        merkle_root: [u8; 32],
+        nullifier_hash: [u8; 32],
+        recipient: Pubkey,
+        amount: u64,
+        asset_id: [u8; 32],
+        relayer_fee: u64,
+        ephemeral_pubkey: [u8; 32],
+    ) -> Result<()> {
+        instructions::withdraw_masp::handler_stealth(
+            ctx,
+            proof_data,
+            merkle_root,
+            nullifier_hash,
+            recipient,
+            amount,
+            asset_id,
+            relayer_fee,
+            ephemeral_pubkey,
         )
     }
 

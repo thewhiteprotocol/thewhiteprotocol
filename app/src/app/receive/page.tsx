@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { QRCodeSVG } from "qrcode.react";
-import { Copy, Share2, RefreshCw, QrCode, Loader2, Wallet } from "lucide-react";
+import { Copy, Share2, RefreshCw, QrCode, Loader2, Wallet, Eye } from "lucide-react";
 import { useChain } from "@/providers/ChainContext";
 import { getAssetsForChain } from "@/config/constants";
 import { createPaymentRequest, PaymentLinkResult } from "@/lib/paymentLink";
@@ -16,6 +16,7 @@ import { useToast } from "@/providers/ToastContext";
 import { getNotes } from "@/lib/noteStore";
 import { maybeCreateReceipt } from "@/lib/autoReceipt";
 import { StoredNote } from "@/lib/types";
+import { loadMetaAddress, type StoredStealthPayment } from "@/lib/stealth";
 
 export default function ReceivePage() {
   const { activeChain, isConnected } = useChain();
@@ -126,6 +127,8 @@ export default function ReceivePage() {
         <p className="text-zinc-400">Generate a QR code or payment link to receive funds privately.</p>
       </div>
 
+      <StealthAddressCard />
+
       <Card className="glass-card border-white/10">
         <CardHeader>
           <CardTitle className="text-lg">Payment Request</CardTitle>
@@ -218,5 +221,91 @@ export default function ReceivePage() {
         </CardContent>
       </Card>
     </motion.div>
+  );
+}
+
+function StealthAddressCard() {
+  const [metaAddress, setMetaAddress] = useState<string | null>(null);
+  const [payments, setPayments] = useState<StoredStealthPayment[]>([]);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const saved = loadMetaAddress();
+    if (saved) {
+      import("@thewhiteprotocol/core").then(({ serializeMetaAddress }) => {
+        setMetaAddress(serializeMetaAddress(saved));
+      }).catch(() => {
+        // ignore
+      });
+    }
+
+    // Load stored payments
+    try {
+      const raw = localStorage.getItem("white_protocol_stealth_payments_v1");
+      if (raw) {
+        const parsed = JSON.parse(raw, (key, value) => {
+          if (key === "amount" || key === "blockHeight") {
+            return typeof value === "string" ? BigInt(value) : value;
+          }
+          return value;
+        });
+        setPayments(parsed || []);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  function copyMetaAddress() {
+    if (metaAddress) {
+      navigator.clipboard.writeText(metaAddress);
+      showToast("Meta-address copied", "success");
+    }
+  }
+
+  if (!metaAddress) return null;
+
+  return (
+    <Card className="glass-card border-white/10">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Eye className="h-5 w-5 text-emerald-400" />
+          Stealth Address
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
+          <p className="text-xs text-zinc-500">Your Meta-Address (share this to receive stealth payments)</p>
+          <p className="break-all font-mono text-xs text-zinc-300">{metaAddress}</p>
+        </div>
+        <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={copyMetaAddress}>
+          <Copy className="mr-2 h-4 w-4" />
+          Copy Meta-Address
+        </Button>
+
+        {payments.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Detected Stealth Payments</p>
+            {payments.filter((p: StoredStealthPayment) => !p.withdrawn).map((payment: StoredStealthPayment) => (
+              <div key={payment.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                <div>
+                  <p className="text-xs text-zinc-500">Amount</p>
+                  <p className="text-sm font-medium">{payment.amount.toString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Chain</p>
+                  <p className="text-sm font-medium capitalize">{payment.chain}</p>
+                </div>
+                <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={() => {
+                  showToast(`Withdrawal for ${payment.amount.toString()} ${payment.chain} — derive stealth key in Settings`, "info");
+                }}>
+                  Withdraw
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

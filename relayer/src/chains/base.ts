@@ -8,6 +8,7 @@ import { baseSepolia } from 'viem/chains';
 
 const abi = parseAbi([
   'function withdraw(bytes memory proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer) external',
+  'function withdrawStealth(bytes memory proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer, bytes32 ephemeralPubkey) external',
   'function getLastRoot() external view returns (uint256)',
   'function roots(uint256 index) external view returns (uint256)',
   'function currentRootIndex() external view returns (uint256)',
@@ -16,6 +17,7 @@ const abi = parseAbi([
   'function LEVELS() external view returns (uint256)',
   'event Deposit(uint256 indexed commitment, uint256 amount, address indexed asset, uint256 leafIndex)',
   'event BatchSettlement(uint256 indexed startIndex, uint256 batchSize, uint256 newRoot)',
+  'event StealthWithdrawal(bytes32 indexed ephemeralPubkey, address indexed destination, uint256 blockNumber)',
 ]);
 
 export interface BaseConfig {
@@ -56,25 +58,41 @@ export class BaseAdapter {
     recipient: `0x${string}`,
     tokenAddr: `0x${string}`,
     amount: bigint,
-    fee: bigint
+    fee: bigint,
+    ephemeralPubkey?: `0x${string}`
   ): Promise<`0x${string}`> {
     const nullifierHash = BigInt(nullifierHashHex);
     const root = BigInt(merkleRootHex);
 
+    const functionName = ephemeralPubkey && ephemeralPubkey !== '0x' ? 'withdrawStealth' : 'withdraw';
+    const args = ephemeralPubkey && ephemeralPubkey !== '0x'
+      ? [
+          proofDataHex,
+          nullifierHash,
+          root,
+          recipient,
+          tokenAddr,
+          amount,
+          fee,
+          this.account.address,
+          ephemeralPubkey,
+        ]
+      : [
+          proofDataHex,
+          nullifierHash,
+          root,
+          recipient,
+          tokenAddr,
+          amount,
+          fee,
+          this.account.address,
+        ];
+
     const hash = await this.walletClient.writeContract({
       address: this.contractAddress,
       abi,
-      functionName: 'withdraw',
-      args: [
-        proofDataHex,
-        nullifierHash,
-        root,
-        recipient,
-        tokenAddr,
-        amount,
-        fee,
-        this.account.address,
-      ],
+      functionName,
+      args,
     });
 
     return hash;
