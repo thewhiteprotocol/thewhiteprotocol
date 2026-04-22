@@ -108,16 +108,36 @@ async function main() {
     return BigInt(poseidon.F.toString(result));
   };
   
-  // Compute new root
+  // Compute zero values
   const zeros: bigint[] = [BigInt(0)];
   for (let i = 1; i <= 20; i++) {
     zeros.push(hash2(zeros[i-1], zeros[i-1]));
   }
   
-  let newRoot = firstCommitment;
-  for (let i = 0; i < 20; i++) {
-    newRoot = hash2(newRoot, zeros[i]);
+  // Fetch on-chain tree state for correct path element computation
+  const onChainFilledSubtrees: bigint[] = merkleTree.filledSubtrees.map(
+    (b: number[]) => BigInt('0x' + Buffer.from(b).toString('hex'))
+  );
+  const onChainZeros: bigint[] = merkleTree.zeros.map(
+    (b: number[]) => BigInt('0x' + Buffer.from(b).toString('hex'))
+  );
+  
+  // Compute correct new root using actual tree state
+  function computeNewRoot(commitment: bigint, startIdx: number): bigint {
+    let current = commitment;
+    for (let level = 0; level < 20; level++) {
+      const isRightChild = ((startIdx >> level) & 1) === 1;
+      const sibling = isRightChild ? onChainFilledSubtrees[level] : onChainZeros[level];
+      if (isRightChild) {
+        current = hash2(sibling, current);
+      } else {
+        current = hash2(current, sibling);
+      }
+    }
+    return current;
   }
+  
+  const newRoot = computeNewRoot(firstCommitment, onChainStartIndex);
   
   console.log("\nComputed new root:", newRoot.toString());
   
@@ -146,11 +166,18 @@ async function main() {
   // Check match
   console.log("\nPublic inputs match:");
   const expectedInputs = [onChainOldRoot, newRoot, startIndexScalar, batchSizeScalar, commitmentsHash];
+  let allMatch = true;
   for (let i = 0; i < 5; i++) {
     const proofValue = BigInt(proofJson.publicSignals[i]);
     const expected = expectedInputs[i];
     const match = proofValue === expected ? "✓" : "✗";
+    if (proofValue !== expected) allMatch = false;
     console.log(`  [${i}] ${match} Proof: ${proofValue.toString().substring(0, 30)}... Expected: ${expected.toString().substring(0, 30)}...`);
+  }
+  
+  if (!allMatch) {
+    console.log("\n⚠️  WARNING: Proof public signals DO NOT match current on-chain state!");
+    console.log("   The proof may be stale. Regenerate with: npx tsx scripts/test-batch-proof.ts");
   }
   
   // Verify proof locally with snarkjs

@@ -328,6 +328,10 @@ async function main() {
     [Buffer.from("vk_deposit"), CONFIG.POOL_CONFIG.toBuffer()],
     CONFIG.PROGRAM_ID
   );
+  const [commitmentIndex] = PublicKey.findProgramAddressSync(
+    [Buffer.from("commitment"), CONFIG.POOL_CONFIG.toBuffer(), Buffer.from(note.commitment.toString(16).padStart(64, '0'), 'hex')],
+    CONFIG.PROGRAM_ID
+  );
 
   // Create depositor's wrapped SOL account
   const depositorAta = getAssociatedTokenAddressSync(NATIVE_MINT, authority.publicKey);
@@ -380,6 +384,7 @@ async function main() {
         userTokenAccount: depositorAta,
         mint: NATIVE_MINT,
         depositVk: depositVk,
+        commitmentIndex: commitmentIndex,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })

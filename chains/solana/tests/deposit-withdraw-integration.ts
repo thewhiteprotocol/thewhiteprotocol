@@ -113,6 +113,10 @@ describe("Deposit & Withdraw Integration", () => {
     );
     
     [depositVk] = findVerificationKeyPda(program.programId, poolConfig, ProofType.Deposit);
+    const [commitmentIndex] = PublicKey.findProgramAddressSync(
+      [Buffer.from('commitment'), poolConfig.toBuffer(), Buffer.from(commitmentBytes)],
+      program.programId
+    );
 
     console.log("Pool Config:", poolConfig.toString());
     console.log("Merkle Tree:", merkleTree.toString());
@@ -340,6 +344,7 @@ describe("Deposit & Withdraw Integration", () => {
         userTokenAccount,
         mint: WRAPPED_SOL,
         depositVk,
+        commitmentIndex,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })

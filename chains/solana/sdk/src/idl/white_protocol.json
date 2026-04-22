@@ -667,6 +667,40 @@
           }
         },
         {
+          "name": "commitment_index",
+          "docs": [
+            "Commitment index (prevents duplicate deposits)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  109,
+                  105,
+                  116,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "commitment"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "docs": [
             "SPL token program"
@@ -3327,6 +3361,27 @@
         102,
         242
       ]
+    },
+    {
+      "name": "CommitmentIndex",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
     }
   ],
   "events": [

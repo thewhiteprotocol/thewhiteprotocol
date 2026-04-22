@@ -158,25 +158,39 @@ async function main() {
     console.log("✓ Proof generated successfully!");
     console.log("\nPublic Signals:", publicSignals);
     
-    // Format proof for Anchor
+    // Format proof for Solana on-chain verifier
+    // Layout (256 bytes, all big-endian):
+    //   pi_a (G1):   x (32), y (32)               offset 0
+    //   pi_b (G2):   x_imag (32), x_real (32),     offset 64
+    //                y_imag (32), y_real (32)      offset 128
+    //   pi_c (G1):   x (32), y (32)               offset 192
+    // snarkjs format: pi_b[0][0]=x_real, pi_b[0][1]=x_imag,
+    //                 pi_b[1][0]=y_real, pi_b[1][1]=y_imag
     const proofBytes = Buffer.alloc(256);
     let offset = 0;
-    
-    proofBytes.write(BigInt(proof.pi_a[0]).toString(16).padStart(64, '0'), offset, 32, 'hex');
+
+    const toHex32 = (v: string) => BigInt(v).toString(16).padStart(64, '0');
+
+    // pi_a (G1)
+    proofBytes.write(toHex32(proof.pi_a[0]), offset, 32, 'hex');
     offset += 32;
-    proofBytes.write(BigInt(proof.pi_a[1]).toString(16).padStart(64, '0'), offset, 32, 'hex');
+    proofBytes.write(toHex32(proof.pi_a[1]), offset, 32, 'hex');
     offset += 32;
-    proofBytes.write(BigInt(proof.pi_b[0][0]).toString(16).padStart(64, '0'), offset, 32, 'hex');
+
+    // pi_b (G2) — Solana expects imaginary FIRST
+    proofBytes.write(toHex32(proof.pi_b[0][1]), offset, 32, 'hex'); // x_imag
     offset += 32;
-    proofBytes.write(BigInt(proof.pi_b[0][1]).toString(16).padStart(64, '0'), offset, 32, 'hex');
+    proofBytes.write(toHex32(proof.pi_b[0][0]), offset, 32, 'hex'); // x_real
     offset += 32;
-    proofBytes.write(BigInt(proof.pi_b[1][0]).toString(16).padStart(64, '0'), offset, 32, 'hex');
+    proofBytes.write(toHex32(proof.pi_b[1][1]), offset, 32, 'hex'); // y_imag
     offset += 32;
-    proofBytes.write(BigInt(proof.pi_b[1][1]).toString(16).padStart(64, '0'), offset, 32, 'hex');
+    proofBytes.write(toHex32(proof.pi_b[1][0]), offset, 32, 'hex'); // y_real
     offset += 32;
-    proofBytes.write(BigInt(proof.pi_c[0]).toString(16).padStart(64, '0'), offset, 32, 'hex');
+
+    // pi_c (G1)
+    proofBytes.write(toHex32(proof.pi_c[0]), offset, 32, 'hex');
     offset += 32;
-    proofBytes.write(BigInt(proof.pi_c[1]).toString(16).padStart(64, '0'), offset, 32, 'hex');
+    proofBytes.write(toHex32(proof.pi_c[1]), offset, 32, 'hex');
     
     // Save proof
     const outputDir = path.join(__dirname, '../test-proofs');

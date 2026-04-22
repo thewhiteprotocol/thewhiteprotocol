@@ -123,27 +123,60 @@ async function generateBatchProof() {
         zeros.push(hash2(zeros[i-1], zeros[i-1]));
     }
     
-    // Compute new root after inserting commitment at startIndex
-    let newRoot = commitment;
-    for (let i = 0; i < 20; i++) {
-        newRoot = hash2(newRoot, zeros[i]);
-    }
-    
-    console.log("Computed new root:", newRoot.toString());
+    console.log("Computing path elements and new root from on-chain tree state...");
     
     // Compute commitments hash
     const commitmentsHash = computeCommitmentsHash([commitment], batchSize, maxBatch);
     console.log("Commitments hash:", commitmentsHash.toString());
     
-    // Path elements for an empty tree slot
-    // For index 0: pathElements[i] = zeros[i] (the zero value at that level)
+    // Compute correct path elements from on-chain tree state
+    // For insertion at startIndex, path element at level i is:
+    //   filled_subtrees[i] if bit i of startIndex is 1 (right child)
+    //   zeros[i]           if bit i of startIndex is 0 (left child)
+    const onChainFilledSubtrees: bigint[] = merkleTree.filledSubtrees.map(
+        (b: number[]) => BigInt('0x' + Buffer.from(b).toString('hex'))
+    );
+    const onChainZeros: bigint[] = merkleTree.zeros.map(
+        (b: number[]) => BigInt('0x' + Buffer.from(b).toString('hex'))
+    );
+    
+    function computePathElements(startIdx: number): string[] {
+        const path: string[] = [];
+        for (let level = 0; level < 20; level++) {
+            const isRightChild = ((startIdx >> level) & 1) === 1;
+            if (isRightChild) {
+                path.push(onChainFilledSubtrees[level].toString());
+            } else {
+                path.push(onChainZeros[level].toString());
+            }
+        }
+        return path;
+    }
+    
+    // Compute new root by simulating the insertion
+    function computeNewRoot(commitment: bigint, startIdx: number): bigint {
+        let current = commitment;
+        for (let level = 0; level < 20; level++) {
+            const isRightChild = ((startIdx >> level) & 1) === 1;
+            const sibling = isRightChild ? onChainFilledSubtrees[level] : onChainZeros[level];
+            if (isRightChild) {
+                current = hash2(sibling, current);
+            } else {
+                current = hash2(current, sibling);
+            }
+        }
+        return current;
+    }
+    
     const pathElements: string[][] = [];
     for (let i = 0; i < maxBatch; i++) {
-        const slotPath: string[] = [];
-        for (let j = 0; j < 20; j++) {
-            slotPath.push(zeros[j].toString());
-        }
-        pathElements.push(slotPath);
+        pathElements.push(computePathElements(startIndex + i));
+    }
+    
+    // Compute new root using actual tree state
+    let newRoot = commitment;
+    for (let i = 0; i < batchSize; i++) {
+        newRoot = computeNewRoot(commitment, startIndex + i);
     }
     
     // Build input for snarkjs - MUST match circuit public inputs

@@ -50,7 +50,9 @@ export function loadRelayerState(): RelayerState | null {
 
 export function saveRelayerState(state: RelayerState): void {
   ensureDir();
-  fs.writeFileSync(RELAYER_STATE_PATH, JSON.stringify(state, null, 2));
+  const tmp = RELAYER_STATE_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, RELAYER_STATE_PATH);
 }
 
 export function loadMerkleTreeState(): MerkleTreeState | null {
@@ -67,7 +69,9 @@ export function loadMerkleTreeState(): MerkleTreeState | null {
 
 export function saveMerkleTreeState(state: MerkleTreeState): void {
   ensureDir();
-  fs.writeFileSync(MERKLE_STATE_PATH, JSON.stringify(state, null, 2));
+  const tmp = MERKLE_STATE_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, MERKLE_STATE_PATH);
 }
 
 export function loadPendingState(): PendingState | null {
@@ -84,5 +88,7 @@ export function loadPendingState(): PendingState | null {
 
 export function savePendingState(state: PendingState): void {
   ensureDir();
-  fs.writeFileSync(PENDING_STATE_PATH, JSON.stringify(state, null, 2));
+  const tmp = PENDING_STATE_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, PENDING_STATE_PATH);
 }

@@ -285,6 +285,10 @@ async function main(): Promise<TestResult[]> {
       [Buffer.from('vk_deposit'), POOL_CONFIG.toBuffer()],
       PROGRAM_ID
     );
+    const [commitmentIndex] = PublicKey.findProgramAddressSync(
+      [Buffer.from('commitment'), POOL_CONFIG.toBuffer(), Buffer.from(commitment.toString(16).padStart(64, '0'), 'hex')],
+      PROGRAM_ID
+    );
     
     // This should fail because the asset vault doesn't exist
     await (program.methods as any)
@@ -305,6 +309,7 @@ async function main(): Promise<TestResult[]> {
         userTokenAccount: authority.publicKey, // Fake
         vaultTokenAccount: authority.publicKey, // Fake
         depositVk: depositVk,
+        commitmentIndex: commitmentIndex,
         mint: randomMint,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,

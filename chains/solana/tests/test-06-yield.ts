@@ -195,13 +195,15 @@ async function main(): Promise<TestResult> {
     );
     
     const [depositVk] = PublicKey.findProgramAddressSync([Buffer.from('vk_deposit'), POOL_CONFIG.toBuffer()], PROGRAM_ID);
+    const [commitmentIndex] = PublicKey.findProgramAddressSync([Buffer.from('commitment'), POOL_CONFIG.toBuffer(), Buffer.from(commitment.toString(16).padStart(64, '0'), 'hex')], PROGRAM_ID);
     const { Prover } = await import('../sdk/src/proof/prover');
     const prover = new Prover();
     const depositProof = await prover.generateDepositProof({ secret, nullifier, amount: depositAmount, assetId: assetIdBigInt, commitment });
     
     const depositTx = await (program.methods as any)
       .depositMasp(new anchor.BN(depositAmount.toString()), Array.from(Buffer.from(commitment.toString(16).padStart(64, '0'), 'hex')), Array.from(assetIdBytes), Buffer.from(depositProof.proofData), null)
-      .accountsStrict({ depositor: authority.publicKey, poolConfig: POOL_CONFIG, authority: authority.publicKey, merkleTree: MERKLE_TREE, pendingBuffer: PENDING_DEPOSITS, assetVault: assetVault, userTokenAccount: userWSOL, vaultTokenAccount: vaultTokenAccount, depositVk: depositVk, mint: NATIVE_MINT, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId })
+      .accountsStrict({ depositor: authority.publicKey, poolConfig: POOL_CONFIG, authority: authority.publicKey, merkleTree: MERKLE_TREE, pendingBuffer: PENDING_DEPOSITS, assetVault: assetVault, userTokenAccount: userWSOL, vaultTokenAccount: vaultTokenAccount, depositVk: depositVk,
+        commitmentIndex: commitmentIndex, mint: NATIVE_MINT, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId })
       .preInstructions(preInstructions)
       .rpc();
     

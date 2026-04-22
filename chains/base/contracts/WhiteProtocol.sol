@@ -106,8 +106,9 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         
         // Verify deposit proof
         uint256[8] memory p = _parseProof(proof);
-        uint256[1] memory pubSignals = [commitment];
-        
+        uint256 assetId = uint256(assetRegistry.assetIds(token));
+        uint256[3] memory pubSignals = [commitment, amount, assetId];
+
         require(
             depositVerifier.verifyProof(
                 [p[0], p[1]],
@@ -126,9 +127,14 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
             IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         }
 
+        // Enforce per-asset deposit limits
+        (, , , uint256 minDeposit, uint256 maxDeposit) = assetRegistry.assets(token);
+        require(amount >= minDeposit, "Below minimum deposit");
+        require(amount <= maxDeposit, "Above maximum deposit");
+
         // Add commitment to pending buffer
         pendingDeposits.push(commitment);
-        commitmentToPendingIndex[commitment] = pendingDeposits.length - 1;
+        commitmentToPendingIndex[commitment] = pendingDeposits.length;
 
         emit Deposit(commitment, amount, token, pendingDeposits.length - 1);
     }
@@ -189,6 +195,7 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         require(recipient != address(0), "Invalid recipient");
         require(fee <= amount * MAX_FEE_BPS / 10000, "Fee too high");
         require(assetRegistry.isSupported(token), "Asset not supported");
+        require(relayer == address(0) || isRelayer[relayer], "Invalid relayer");
 
         // Mark nullifier as spent
         spentNullifiers[nullifierHash] = true;

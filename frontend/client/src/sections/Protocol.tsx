@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useConnection, useWallet, useAnchorWallet } from "@solana/wallet-adapter-react";
 import { CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,7 @@ const WRAPPED_SOL_MINT = new PublicKey('So11111111111111111111111111111111111111
 
 // Dev-only logger - never logs in production
 const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
-const devLog = (...args: any[]) => { if (isDev) devLog(...args); };
+const devLog = (...args: any[]) => { if (isDev) console.log(...args); };
 
 // =============================================================================
 // TYPES
@@ -163,6 +163,9 @@ export function Protocol() {
   const [relayerError, setRelayerError] = useState<string | null>(
     !RELAYER_API_URL ? 'Relayer API URL not configured' : null
   );
+
+  // Synchronous guard to prevent double-click / overlapping submissions
+  const isSubmittingRef = useRef(false);
 
   // ==========================================================================
   // WALLET-SPECIFIC NOTE STORAGE
@@ -293,6 +296,9 @@ export function Protocol() {
   // ==========================================================================
 
   const handleDeposit = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     // Pre-flight checks
     if (!RELAYER_API_URL) {
       toast({
@@ -309,6 +315,7 @@ export function Protocol() {
         description: "Please connect your wallet",
         variant: "destructive",
       });
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -318,6 +325,7 @@ export function Protocol() {
         description: "Wallet not properly initialized",
         variant: "destructive",
       });
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -401,7 +409,7 @@ export function Protocol() {
       const txData = await buildDepositTx({
         amount: amountLamports,
         commitment: note.commitment,
-        assetIdHex: note.assetIdHex,
+        assetId: note.assetIdHex,
         proofData: proofHex,
         depositorPubkey: publicKey.toBase58(),
         mint: WRAPPED_SOL_MINT.toBase58(),
@@ -438,7 +446,28 @@ export function Protocol() {
 
       // Sign and send
       const signedTx = await anchorWallet.signTransaction(tx);
-      const signature = await connection.sendRawTransaction(signedTx.serialize());
+      let signature: string;
+      try {
+        signature = await connection.sendRawTransaction(signedTx.serialize(), { skipPreflight: false, maxRetries: 3 });
+      } catch (sendErr: any) {
+        const msg = sendErr?.message || '';
+        if (msg.toLowerCase().includes('already been processed') || msg.toLowerCase().includes('already processed')) {
+          // Transaction likely landed; treat as success
+          signature = await connection.getSignatureStatuses([Buffer.from(signedTx.signature!).toString('base64')], { searchTransactionHistory: true })
+            .then(r => r.value[0]?.signature || '');
+          if (!signature) {
+            toast({
+              title: "Deposit may have succeeded",
+              description: "Please check your recent transactions in the explorer.",
+            });
+            setDepositLoading(false);
+            isSubmittingRef.current = false;
+            return;
+          }
+        } else {
+          throw sendErr;
+        }
+      }
       devLog("[Deposit] TX signature:", signature);
 
       // Wait for confirmation

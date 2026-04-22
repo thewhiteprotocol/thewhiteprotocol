@@ -130,21 +130,52 @@ async function main() {
   
   // Extract values from public signals
   // Circuit public signals order: [oldRoot, newRoot, startIndex, batchSize, commitmentsHash]
-  const oldRoot = BigInt(proofJson.publicSignals[0]);
-  const newRoot = BigInt(proofJson.publicSignals[1]);
-  const startIndex = BigInt(proofJson.publicSignals[2]);
-  const batchSize = BigInt(proofJson.publicSignals[3]);
-  const commitmentsHash = BigInt(proofJson.publicSignals[4]);
+  const proofOldRoot = BigInt(proofJson.publicSignals[0]);
+  const proofNewRoot = BigInt(proofJson.publicSignals[1]);
+  const proofStartIndex = BigInt(proofJson.publicSignals[2]);
+  const proofBatchSize = BigInt(proofJson.publicSignals[3]);
+  const proofCommitmentsHash = BigInt(proofJson.publicSignals[4]);
   
-  console.log("\nPublic Inputs:");
-  console.log("  Old Root:", oldRoot.toString().substring(0, 30) + "...");
-  console.log("  New Root:", newRoot.toString().substring(0, 30) + "...");
-  console.log("  Start Index:", startIndex.toString());
-  console.log("  Batch Size:", batchSize.toString());
-  console.log("  Commitments Hash:", commitmentsHash.toString().substring(0, 30) + "...");
+  console.log("\nProof Public Inputs:");
+  console.log("  Old Root:", proofOldRoot.toString().substring(0, 30) + "...");
+  console.log("  New Root:", proofNewRoot.toString().substring(0, 30) + "...");
+  console.log("  Start Index:", proofStartIndex.toString());
+  console.log("  Batch Size:", proofBatchSize.toString());
+  console.log("  Commitments Hash:", proofCommitmentsHash.toString().substring(0, 30) + "...");
+  
+  // Validate against current on-chain state
+  const merkleTree = await program.account.merkleTree.fetch(merkleTreePda);
+  const pendingBuffer = await program.account.pendingDepositsBuffer.fetch(pendingBufferPda);
+  
+  const onChainOldRoot = BigInt('0x' + Buffer.from(merkleTree.currentRoot).toString('hex'));
+  const onChainStartIndex = BigInt(merkleTree.nextLeafIndex);
+  const pendingCount = pendingBuffer.deposits?.length || 0;
+  
+  console.log("\nOn-chain State:");
+  console.log("  Current Root:", onChainOldRoot.toString().substring(0, 30) + "...");
+  console.log("  Next Leaf Index:", onChainStartIndex.toString());
+  console.log("  Pending Deposits:", pendingCount);
+  
+  // Check if proof is stale
+  if (proofOldRoot !== onChainOldRoot) {
+    console.error("\n❌ STALE PROOF: proof oldRoot != on-chain currentRoot");
+    console.log("   Regenerate proof with: npx tsx scripts/test-batch-proof.ts");
+    process.exit(1);
+  }
+  if (proofStartIndex !== onChainStartIndex) {
+    console.error("\n❌ STALE PROOF: proof startIndex != on-chain nextLeafIndex");
+    console.log("   Regenerate proof with: npx tsx scripts/test-batch-proof.ts");
+    process.exit(1);
+  }
+  if (pendingCount < Number(proofBatchSize)) {
+    console.error("\n❌ Not enough pending deposits for batch size:", proofBatchSize.toString());
+    process.exit(1);
+  }
+  
+  console.log("\n✓ Proof matches current on-chain state");
   
   // Convert newRoot to bytes for the instruction
-  const newRootBytes = bigintToBytes32(newRoot);
+  const newRootBytes = bigintToBytes32(proofNewRoot);
   
   console.log("\nCalling settleDepositsBatch...");
   
@@ -153,7 +184,7 @@ async function main() {
       .settleDepositsBatch({
         proof: Array.from(proofBytes),
         newRoot: newRootBytes,
-        batchSize: Number(batchSize),
+        batchSize: Number(proofBatchSize),
       })
       .accounts({
         authority: provider.wallet.publicKey,

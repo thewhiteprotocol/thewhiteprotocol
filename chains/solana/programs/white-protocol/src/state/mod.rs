@@ -1,5 +1,6 @@
 pub mod asset_vault;
 pub mod batcher_role;
+pub mod commitment_index;
 pub mod compliance;
 pub mod merkle_tree;
 pub mod pending_deposits;
@@ -10,6 +11,7 @@ pub mod verification_key;
 
 pub use asset_vault::AssetVault;
 pub use batcher_role::BatcherRole;
+pub use commitment_index::CommitmentIndex;
 pub use compliance::ComplianceConfig;
 pub use merkle_tree::MerkleTree;
 pub use pending_deposits::{PendingDeposit, PendingDepositsBuffer};

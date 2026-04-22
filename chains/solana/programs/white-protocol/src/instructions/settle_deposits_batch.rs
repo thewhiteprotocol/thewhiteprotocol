@@ -227,9 +227,19 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     // =========================================================================
     // 6. UPDATE MERKLE TREE STATE
     // =========================================================================
-    // Update root
-    merkle_tree.current_root = args.new_root;
-    // Update next leaf index
+    // Perform actual on-chain insertion to keep filled_subtrees consistent.
+    // With MAX_BATCH_SIZE=1 this is cheap (~20 Poseidon hashes = ~40k CUs).
+    for deposit in pending_deposits.iter().take(batch_size) {
+        merkle_tree.insert_leaf(deposit.commitment, deposit.timestamp)?;
+    }
+
+    // Sanity check: computed root must match proof's newRoot
+    require!(
+        merkle_tree.get_current_root() == args.new_root,
+        WhiteProtocolError::InvalidProof
+    );
+
+    // Update next leaf index (should already match after insert_leaf)
     merkle_tree.next_leaf_index = start_index + batch_size as u32;
 
     // Add to root history

@@ -8,7 +8,7 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   NATIVE_MINT,
-  createAssociatedTokenAccountInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
   createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
@@ -41,18 +41,17 @@ export async function ensureAtaAndWrapIfNeeded(params: {
   const ataInfo = await connection.getAccountInfo(ata);
   const ixs: any[] = [];
 
-  if (!ataInfo) {
-    ixs.push(
-      createAssociatedTokenAccountInstruction(
-        payer,
-        ata,
-        owner,
-        mint,
-        TOKEN_PROGRAM_ID,
-        ASSOCIATED_TOKEN_PROGRAM_ID
-      )
-    );
-  }
+  // Use idempotent instruction so the tx succeeds even if ATA was created between our check and execution
+  ixs.push(
+    createAssociatedTokenAccountIdempotentInstruction(
+      payer,
+      ata,
+      owner,
+      mint,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    )
+  );
 
   const isWsol = mint.equals(NATIVE_MINT);
 
@@ -99,8 +98,21 @@ export async function ensureAtaAndWrapIfNeeded(params: {
   (tx as any).lastValidBlockHeight = lastValidBlockHeight;
   tx.add(...ixs);
 
-  const sig = await sendTransaction(tx, connection, { preflightCommitment: "confirmed" });
-  await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+  let sig: string;
+  try {
+    sig = await sendTransaction(tx, connection, { preflightCommitment: "confirmed" });
+  } catch (sendErr: any) {
+    const msg = sendErr?.message || '';
+    if (msg.toLowerCase().includes('already been processed') || msg.toLowerCase().includes('already processed')) {
+      // ATA creation/wrap tx likely landed; continue
+      sig = '';
+    } else {
+      throw sendErr;
+    }
+  }
+  if (sig) {
+    await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+  }
 
   return { ata, didSendTx: true, signature: sig };
 }

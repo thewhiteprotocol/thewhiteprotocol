@@ -12,7 +12,7 @@ contract MockVerifier {
         uint256[2] calldata a,
         uint256[2][2] calldata b,
         uint256[2] calldata c,
-        uint256[1] calldata publicSignals
+        uint256[3] calldata publicSignals
     ) external pure returns (bool) {
         return true;
     }

@@ -81,7 +81,7 @@ contract MockDepositVerifier is IDepositVerifier {
         uint256[2] calldata,
         uint256[2][2] calldata,
         uint256[2] calldata,
-        uint256[1] calldata
+        uint256[3] calldata
     ) external pure returns (bool) {
         return true;
     }

@@ -35,7 +35,7 @@ const WRAPPED_SOL_MINT = new PublicKey('So11111111111111111111111111111111111111
 
 // Dev-only logger - never logs in production
 const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
-const devLog = (...args: any[]) => { if (isDev) devLog(...args); };
+const devLog = (...args: any[]) => { if (isDev) console.log(...args); };
 
 interface SerializedNote {
   secret: string;
@@ -107,6 +107,9 @@ export default function DepositWithdrawUI() {
   
   // Track which notes have already triggered settlement toast (prevents duplicates)
   const notifiedSettlements = useRef<Set<string>>(new Set());
+
+  // Synchronous guard to prevent double-click / overlapping submissions
+  const isSubmittingRef = useRef(false);
 
   // Load notes from localStorage
   useEffect(() => {
@@ -209,8 +212,12 @@ export default function DepositWithdrawUI() {
 
   // DEPOSIT HANDLER
   const handleDeposit = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     if (!RELAYER_API_URL || !publicKey || !connected || !anchorWallet) {
       toast({ title: "Not ready", description: "Please connect your wallet", variant: "destructive" });
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -241,7 +248,7 @@ export default function DepositWithdrawUI() {
       proofHex = bytesToHex(proofBytes);
 
       const txData = await buildDepositTx({
-        amount: amountBaseUnits, commitment: note.commitment, assetIdHex: note.assetIdHex,
+        amount: amountBaseUnits, commitment: note.commitment, assetId: note.assetIdHex,
         proofData: proofHex, depositorPubkey: publicKey.toBase58(), mint: asset.mint,
       });
 
@@ -254,7 +261,27 @@ export default function DepositWithdrawUI() {
       tx.feePayer = publicKey;
 
       const signedTx = await anchorWallet.signTransaction(tx);
-      const signature = await connection.sendRawTransaction(signedTx.serialize());
+      let signature: string;
+      try {
+        signature = await connection.sendRawTransaction(signedTx.serialize(), { skipPreflight: false, maxRetries: 3 });
+      } catch (sendErr: any) {
+        const msg = sendErr?.message || '';
+        if (msg.toLowerCase().includes('already been processed') || msg.toLowerCase().includes('already processed')) {
+          // Transaction likely landed; treat as success and fetch signature from recent blockhash lookup
+          signature = signedTx.signature ? Buffer.from(signedTx.signature).toString('base64') : '';
+          if (!signature) {
+            signature = await connection.getSignatureStatuses([signedTx.signature ? Buffer.from(signedTx.signature).toString('base64') : ''], { searchTransactionHistory: true }).then(r => r.value[0]?.signature || '');
+          }
+          if (!signature) {
+            toast({ title: "Deposit may have succeeded", description: "Please check your recent transactions in the explorer.", variant: "default" });
+            isSubmittingRef.current = false;
+            setDepositLoading(false);
+            return;
+          }
+        } else {
+          throw sendErr;
+        }
+      }
       await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight });
 
       const serializedNote: SerializedNote = {
@@ -288,6 +315,7 @@ export default function DepositWithdrawUI() {
       toast({ title: "Deposit failed", description: msg, variant: "destructive" });
     } finally {
       setDepositLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

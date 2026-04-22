@@ -93,7 +93,7 @@ function PaymentCard({ parsed }: { parsed: PaymentRequest }) {
         amount: rawAmount,
         assetId,
       });
-      const proofBytes = formatProofForOnChain(proof);
+      const proofBytes = formatProofForOnChain(proof, parsed.chain === "solana" ? "solana" : "base");
 
       setStep("Sending transaction...");
       let hash: string | undefined;

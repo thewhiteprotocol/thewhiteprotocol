@@ -4,7 +4,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 use crate::crypto::DepositPublicInputs;
 use crate::error::WhiteProtocolError;
 use crate::state::{
-    AssetVault, MerkleTree, PendingDepositsBuffer, PoolConfig, VerificationKeyAccount,
+    AssetVault, CommitmentIndex, MerkleTree, PendingDepositsBuffer, PoolConfig, VerificationKeyAccount,
 };
 use crate::utils::cu;
 use crate::ProofType;
@@ -104,6 +104,16 @@ pub struct DepositMasp<'info> {
     /// SPL token program
     pub token_program: Program<'info, Token>,
 
+    /// Commitment index (prevents duplicate deposits)
+    #[account(
+        init,
+        payer = depositor,
+        space = CommitmentIndex::LEN,
+        seeds = [b"commitment", pool_config.key().as_ref(), commitment.as_ref()],
+        bump,
+    )]
+    pub commitment_index: Account<'info, CommitmentIndex>,
+
     /// System program
     pub system_program: Program<'info, System>,
 }
@@ -135,6 +145,9 @@ pub fn handler(
     // 1. INPUT VALIDATION
     // =========================================================================
 
+    // Enforce MASP feature flag
+    pool_config.require_feature_enabled(PoolConfig::FEATURE_MASP)?;
+
     require!(amount > 0, WhiteProtocolError::InvalidAmount);
     cu("deposit: after amount>0");
     log_cu();
@@ -151,6 +164,9 @@ pub fn handler(
         asset_vault.asset_id == asset_id,
         WhiteProtocolError::AssetIdMismatch
     );
+
+    // Enforce per-asset deposit limits
+    asset_vault.validate_deposit_amount(amount)?;
 
     require!(!merkle_tree.is_full(), WhiteProtocolError::MerkleTreeFull);
 
@@ -210,6 +226,10 @@ pub fn handler(
     // =========================================================================
     // 5. UPDATE STATISTICS
     // =========================================================================
+
+    // Initialize commitment index marker
+    ctx.accounts.commitment_index.commitment = commitment;
+    ctx.accounts.commitment_index.bump = ctx.bumps.commitment_index;
 
     asset_vault.record_deposit(amount, timestamp)?;
     pool_config.record_deposit(timestamp)?;

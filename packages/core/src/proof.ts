@@ -76,11 +76,12 @@ export async function verifyProof(
  */
 export async function generateSerializedProof(
   proofType: ProofType,
-  inputs: Record<string, string | number | bigint | (string | bigint)[] | (string | bigint)[][]>
+  inputs: Record<string, string | number | bigint | (string | bigint)[] | (string | bigint)[][]>,
+  chain: 'solana' | 'base' | 'evm' = 'solana'
 ): Promise<ProofData> {
   const { proof, publicSignals } = await generateProof(proofType, inputs);
   
-  const proofData = formatProofForOnChain(proof);
+  const proofData = formatProofForOnChain(proof, chain);
   const publicInputs = publicSignals.map(s => BigInt(s));
   
   return { proofData, publicInputs };

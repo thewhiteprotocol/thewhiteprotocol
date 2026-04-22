@@ -139,21 +139,43 @@ export function computeMerkleRoot(
   return current;
 }
 
-export function formatProofForOnChain(proof: any): Uint8Array {
+/**
+ * Format proof for on-chain submission (256 bytes for Groth16)
+ * @param chain 'solana' or 'base'/'evm' — G2 point ordering differs between chains
+ */
+export function formatProofForOnChain(proof: any, chain: "solana" | "base" | "evm" = "solana"): Uint8Array {
   const proofData = new Uint8Array(256);
+  const isEvm = chain === "base" || chain === "evm";
   const toHex32 = (val: string | bigint) => BigInt(val).toString(16).padStart(64, "0");
+
+  // pi_a (G1 point): x, y (64 bytes) — same on both chains
   const ax = Uint8Array.from(Buffer.from(toHex32(proof.pi_a[0]), "hex"));
   const ay = Uint8Array.from(Buffer.from(toHex32(proof.pi_a[1]), "hex"));
   proofData.set(ax, 0);
   proofData.set(ay, 32);
-  const bx01 = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[0][1]), "hex"));
-  const bx00 = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[0][0]), "hex"));
-  const bx11 = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[1][1]), "hex"));
-  const bx10 = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[1][0]), "hex"));
-  proofData.set(bx01, 64);
-  proofData.set(bx00, 96);
-  proofData.set(bx11, 128);
-  proofData.set(bx10, 160);
+
+  // pi_b (G2 point): ordering differs between Solana and EVM
+  // snarkjs: pi_b[0][0]=x_real, pi_b[0][1]=x_imag, pi_b[1][0]=y_real, pi_b[1][1]=y_imag
+  // Solana alt_bn128: x_imag | x_real | y_imag | y_real
+  // EVM EIP-197:       x_real | x_imag | y_real | y_imag
+  const xReal = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[0][0]), "hex"));
+  const xImag = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[0][1]), "hex"));
+  const yReal = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[1][0]), "hex"));
+  const yImag = Uint8Array.from(Buffer.from(toHex32(proof.pi_b[1][1]), "hex"));
+
+  if (isEvm) {
+    proofData.set(xReal, 64);
+    proofData.set(xImag, 96);
+    proofData.set(yReal, 128);
+    proofData.set(yImag, 160);
+  } else {
+    proofData.set(xImag, 64);
+    proofData.set(xReal, 96);
+    proofData.set(yImag, 128);
+    proofData.set(yReal, 160);
+  }
+
+  // pi_c (G1 point): x, y (64 bytes) — same on both chains
   const cx = Uint8Array.from(Buffer.from(toHex32(proof.pi_c[0]), "hex"));
   const cy = Uint8Array.from(Buffer.from(toHex32(proof.pi_c[1]), "hex"));
   proofData.set(cx, 192);

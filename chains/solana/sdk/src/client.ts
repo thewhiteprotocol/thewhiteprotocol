@@ -33,6 +33,13 @@ import {
   PROGRAM_ID,
 } from './pda';
 
+function findCommitmentIndexPda(programId: PublicKey, poolConfig: PublicKey, commitment: Uint8Array): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('commitment'), poolConfig.toBuffer(), Buffer.from(commitment)],
+    programId
+  );
+}
+
 import { jupiterQuoteExactIn, jupiterSwapExactIn } from "./yield/jupiter";
 import { NATIVE_MINT } from "@solana/spl-token";
 /** Default program ID */
@@ -240,12 +247,14 @@ export class WhiteProtocolClient {
     const depositor = this.authority;
     const assetId = computeAssetId(mint);
     const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
+    const [pendingBuffer] = findPendingBufferPda(this.programId, poolConfig);
     const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
     const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
       [Buffer.from('vault_token'), assetVault.toBuffer()],
       this.programId
     );
     const [depositVk] = findVerificationKeyPda(this.programId, poolConfig, ProofType.Deposit);
+    const [commitmentIndex] = findCommitmentIndexPda(this.programId, poolConfig, commitment);
     const userTokenAccount = getAssociatedTokenAddressSync(mint, depositor);
     
     // Fetch pool config to get authority
@@ -296,11 +305,13 @@ export class WhiteProtocolClient {
         poolConfig,
         authority: poolAuthority,
         merkleTree,
+        pendingBuffer,
         assetVault,
         vaultTokenAccount,
         userTokenAccount,
         mint,
         depositVk,
+        commitmentIndex,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -131,10 +131,28 @@ function DepositTab({
   const [result, setResult] = useState<{ txHash?: string; commitment: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Synchronous guard to prevent double-click / overlapping submissions
+  const isSubmittingRef = useRef(false);
+  // Track polling intervals for cleanup
+  const pollRefs = useRef<{ interval?: ReturnType<typeof setInterval>; timeout?: ReturnType<typeof setTimeout> }>({});
+
+  useEffect(() => {
+    return () => {
+      if (pollRefs.current.interval) clearInterval(pollRefs.current.interval);
+      if (pollRefs.current.timeout) clearTimeout(pollRefs.current.timeout);
+    };
+  }, []);
+
   const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedAsset);
 
   async function handleDeposit() {
-    if (!asset || !amount) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
+    if (!asset || !amount) {
+      isSubmittingRef.current = false;
+      return;
+    }
     setBusy(true);
     setError(null);
     setStep("Initializing...");
@@ -156,7 +174,7 @@ function DepositTab({
         amount: rawAmount,
         assetId,
       });
-      const proofBytes = formatProofForOnChain(proof);
+      const proofBytes = formatProofForOnChain(proof, activeChain === "solana" ? "solana" : "base");
 
       setStep("Sending transaction...");
       let txHash: string | undefined;
@@ -202,7 +220,11 @@ function DepositTab({
       trackDeposit(note.commitment, txHash).catch((err: any) => {
         console.warn("Failed to track deposit with relayer:", err?.message);
       });
-      
+
+      // Clear any previous polling
+      if (pollRefs.current.interval) clearInterval(pollRefs.current.interval);
+      if (pollRefs.current.timeout) clearTimeout(pollRefs.current.timeout);
+
       // Poll relayer for note status until settled
       const pollInterval = setInterval(async () => {
         try {
@@ -210,6 +232,7 @@ function DepositTab({
           if (status.status === "settled" && status.leafIndex !== undefined) {
             await updateNote(note.commitment, { status: "settled", leafIndex: status.leafIndex });
             clearInterval(pollInterval);
+            pollRefs.current.interval = undefined;
             // Refresh notes list
             onNoteUpdated?.();
           }
@@ -217,9 +240,14 @@ function DepositTab({
           // Silently ignore polling errors
         }
       }, 10000);
-      
+      pollRefs.current.interval = pollInterval;
+
       // Stop polling after 10 minutes
-      setTimeout(() => clearInterval(pollInterval), 600000);
+      const pollTimeout = setTimeout(() => {
+        clearInterval(pollInterval);
+        pollRefs.current.interval = undefined;
+      }, 600000);
+      pollRefs.current.timeout = pollTimeout;
       
       onDeposit(note);
       setResult({ txHash, commitment: commitment.toString() });
@@ -240,6 +268,7 @@ function DepositTab({
     } finally {
       setBusy(false);
       setStep("");
+      isSubmittingRef.current = false;
     }
   }
 
@@ -477,7 +506,7 @@ function WithdrawTab({
       relayer: relayerScalar,
       relayerFee,
     });
-    const proofBytes = formatProofForOnChain(proof);
+    const proofBytes = formatProofForOnChain(proof, activeChain === "solana" ? "solana" : "base");
 
     return { secret, nullifier, amount, assetId, nullifierHash, merkleRoot, proofBytes };
   }

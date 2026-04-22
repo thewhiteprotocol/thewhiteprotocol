@@ -141,6 +141,10 @@ async function main() {
       [Buffer.from('vk_deposit'), POOL_CONFIG.toBuffer()],
       PROGRAM_ID
     );
+    const [commitmentIndex] = PublicKey.findProgramAddressSync(
+      [Buffer.from('commitment'), POOL_CONFIG.toBuffer(), commitmentBytes],
+      PROGRAM_ID
+    );
     // Get the vault token account from the asset vault account data
     const assetVaultData = await program.account.assetVault.fetch(assetVault);
     const vaultTokenAccount = assetVaultData.tokenAccount;
@@ -194,6 +198,7 @@ async function main() {
         userTokenAccount: depositorWSOL,
         vaultTokenAccount: vaultTokenAccount,
         depositVk: depositVk,
+        commitmentIndex: commitmentIndex,
         mint: NATIVE_MINT,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,

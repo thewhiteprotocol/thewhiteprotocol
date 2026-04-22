@@ -3,7 +3,7 @@
 import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
 import {
   getAssociatedTokenAddressSync,
-  createAssociatedTokenAccountInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
   createSyncNativeInstruction,
   createCloseAccountInstruction,
   NATIVE_MINT,
@@ -462,6 +462,10 @@ export class SolanaChainService {
       [Buffer.from("vk_deposit"), SOLANA_POOL_CONFIG.toBuffer()],
       SOLANA_PROGRAM_ID
     );
+    const [commitmentIndex] = PublicKey.findProgramAddressSync(
+      [Buffer.from("commitment"), SOLANA_POOL_CONFIG.toBuffer(), Buffer.from(bigintToBytes32(commitment))],
+      SOLANA_PROGRAM_ID
+    );
 
     // Verify asset vault is initialized
     const vaultInfo = await this.connection.getAccountInfo(assetVault);
@@ -480,21 +484,24 @@ export class SolanaChainService {
     const preInstructions: any[] = [];
     const postInstructions: any[] = [];
 
-    const userTokenAccountInfo = await this.connection.getAccountInfo(userTokenAccount);
-    const ataMissing = !userTokenAccountInfo || !userTokenAccountInfo.owner.equals(TOKEN_PROGRAM_ID);
-    if (ataMissing) {
-      preInstructions.push(
-        createAssociatedTokenAccountInstruction(
-          depositor,
-          userTokenAccount,
-          depositor,
-          mint
-        )
-      );
-    }
+    // Use idempotent instruction so the tx succeeds even if ATA was created between check and execution
+    preInstructions.push(
+      createAssociatedTokenAccountIdempotentInstruction(
+        depositor,
+        userTokenAccount,
+        depositor,
+        mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      )
+    );
 
     // Auto-wrap native SOL into wSOL before deposit
     if (mint.equals(NATIVE_MINT)) {
+      const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
+      if (amount > maxSafe) {
+        throw new Error("Deposit amount exceeds safe integer range for SOL wrapping");
+      }
       preInstructions.push(
         SystemProgram.transfer({
           fromPubkey: depositor,
@@ -524,6 +531,7 @@ export class SolanaChainService {
         userTokenAccount,
         mint,
         depositVk,
+        commitmentIndex,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
@@ -589,18 +597,17 @@ export class SolanaChainService {
     const preInstructions: any[] = [];
     const postInstructions: any[] = [];
 
-    // Create recipient ATA if missing
-    const recipientTokenAccountInfo = await this.connection.getAccountInfo(recipientTokenAccount);
-    if (!recipientTokenAccountInfo) {
-      preInstructions.push(
-        createAssociatedTokenAccountInstruction(
-          signer,
-          recipientTokenAccount,
-          recipient,
-          mint
-        )
-      );
-    }
+    // Create recipient ATA if missing (idempotent so it succeeds even if created concurrently)
+    preInstructions.push(
+      createAssociatedTokenAccountIdempotentInstruction(
+        signer,
+        recipientTokenAccount,
+        recipient,
+        mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      )
+    );
 
     // Auto-unwrap wSOL to native SOL after withdrawal by closing the recipient ATA
     if (mint.equals(NATIVE_MINT)) {

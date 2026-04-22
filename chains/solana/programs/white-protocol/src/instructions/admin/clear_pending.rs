@@ -19,7 +19,12 @@ pub struct ClearPendingBuffer<'info> {
     /// Pending deposits buffer
     #[account(
         mut,
-        constraint = pending_buffer.pool == pool_config.key() @ WhiteProtocolError::InvalidVerificationKeyPool,
+        seeds = [
+            PendingDepositsBuffer::SEED_PREFIX,
+            pool_config.key().as_ref(),
+        ],
+        bump = pending_buffer.bump,
+        constraint = pending_buffer.pool == pool_config.key() @ WhiteProtocolError::InvalidPoolReference,
     )]
     pub pending_buffer: Account<'info, PendingDepositsBuffer>,
 }

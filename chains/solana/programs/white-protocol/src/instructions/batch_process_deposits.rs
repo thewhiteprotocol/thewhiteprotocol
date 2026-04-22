@@ -71,13 +71,11 @@ pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Resul
         WhiteProtocolError::InvalidBatchSize
     );
 
-    // Check timing constraints
-    if pending_buffer.is_full() {
-        require!(
-            pending_buffer.should_batch(timestamp),
-            WhiteProtocolError::BatchNotReady
-        );
-    }
+    // Check timing constraints (always enforce MIN_BATCH_INTERVAL_SECONDS)
+    require!(
+        pending_buffer.should_batch(timestamp),
+        WhiteProtocolError::BatchNotReady
+    );
 
     // =========================================================================
     // 3. VALIDATE MERKLE TREE CAPACITY

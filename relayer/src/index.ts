@@ -1145,6 +1145,8 @@ export class RelayerService {
             'invalid signature',
             'simulation failed',
             'instruction error',
+            'already been processed',
+            'already processed',
           ],
         }
       )
@@ -1697,10 +1699,11 @@ function sleep(ms: number): Promise<void> {
  * Race a promise against a timeout
  */
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
-  ]);
+  let timer: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise.finally(() => clearTimeout(timer)), timeoutPromise]);
 }
 
 // =============================================================================
