@@ -10,6 +10,13 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    turbo: {
+      resolveAlias: {
+        fs: './lib/node-stub.js',
+      },
+    },
+  },
 };
 
 export default nextConfig;
