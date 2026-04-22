@@ -68,7 +68,7 @@ export function Navbar() {
       <div className="flex h-16 items-center justify-between px-4 lg:px-8">
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="White Protocol" className="h-8 w-8 object-contain rounded-md" />
+          <img src="/logo.webp" alt="White Protocol" className="h-8 w-8 object-contain rounded-md" />
           <span className="hidden text-lg font-semibold tracking-tight text-white sm:inline">
             White Protocol
           </span>

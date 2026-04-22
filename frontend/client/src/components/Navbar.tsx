@@ -47,7 +47,7 @@ export function Navbar() {
       <div className="max-w-6xl mx-auto px-6">
         <div className="flex items-center justify-between h-16">
           <button onClick={() => scrollToSection("#overview")} className="flex items-center gap-3 group">
-            <img src="/logo.png" alt="White" className="w-9 h-9 object-contain rounded-lg" />
+            <img src="/logo-shield.webp" alt="White" className="w-9 h-9 object-contain rounded-lg" />
             <span className="font-bold text-lg text-white tracking-tight">The White Protocol</span>
           </button>
 

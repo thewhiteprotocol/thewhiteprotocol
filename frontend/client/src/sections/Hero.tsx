@@ -10,7 +10,7 @@ export function Hero() {
     <section id="overview" className="min-h-screen flex items-center justify-center pt-16 px-4">
       <div className="max-w-4xl mx-auto text-center">
         <div className="flex justify-center mb-8">
-          <img src="/logo.png" alt="The White Protocol" className="w-20 h-20 md:w-24 md:h-24 object-contain" />
+          <img src="/logo.webp" alt="The White Protocol" className="w-20 h-20 md:w-24 md:h-24 object-contain" />
         </div>
 
         <div className="flex justify-center mb-6">
