@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "prebuild": "node -e \"const fs=require('fs'),p=require('path');const s='../packages/core',d='node_modules/@thewhiteprotocol/core';try{fs.rmSync(d,{recursive:true,force:true})}catch{};fs.mkdirSync(p.dirname(d),{recursive:true});fs.cpSync(s,d,{recursive:true,dereference:true});console.log('copied @thewhiteprotocol/core')\""
+    "prebuild": "echo 'prebuild hook'"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
@@ -21,7 +21,7 @@
     "@solana/wallet-adapter-wallets": "^0.19.38",
     "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.99.0",
-    "@noble/curves": "^1.3.0",
+    "@thewhiteprotocol/core": "file:vendor/thewhiteprotocol-core-1.0.0.tgz",
     "@zxing/browser": "^0.1.5",
     "bs58": "^6.0.0",
     "circomlibjs": "^0.1.7",
