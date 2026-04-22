@@ -63,6 +63,7 @@ const logger_1 = require("./logger");
 const state_store_1 = require("./state-store");
 const retry_1 = require("./retry");
 const ttl_cache_1 = require("./cache/ttl-cache");
+const crypto = __importStar(require("crypto"));
 // BN254 scalar field order
 const BN254_FIELD_ORDER = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 // Poseidon constants for 2-input hash (precomputed for BN254)
@@ -328,8 +329,14 @@ class RelayerApiExtensions {
     withdrawWasm = null;
     withdrawZkey = null;
     withdrawVk = null;
+    withdrawV2Wasm = null;
+    withdrawV2Zkey = null;
+    withdrawV2Vk = null;
     // RPC response cache (5s TTL default)
     rpcCache = new ttl_cache_1.TtlCache(5000);
+    // Pending state tracking for sync
+    pendingState = { pendingCommitments: [], nextLeafIndex: 0 };
+    syncIntervalId = null;
     constructor(config) {
         this.config = config;
         this.connection = new web3_js_1.Connection(config.rpcEndpoint, 'confirmed');
@@ -386,7 +393,40 @@ class RelayerApiExtensions {
         await this.loadCircuitArtifacts();
         // Sync merkle tree from chain
         await this.syncMerkleTree();
+        // Restore pending state
+        const persistedPending = (0, state_store_1.loadPendingState)();
+        if (persistedPending) {
+            this.pendingState.pendingCommitments = persistedPending.pendingCommitments.map(c => BigInt(c));
+            this.pendingState.nextLeafIndex = persistedPending.nextLeafIndex;
+            logger_1.logger.info('Restored pending state', {
+                pendingCount: this.pendingState.pendingCommitments.length,
+                nextLeafIndex: this.pendingState.nextLeafIndex,
+            });
+        }
         logger_1.logger.info('API Extensions initialization complete');
+    }
+    /**
+     * Start background sync loop (call from main relayer start())
+     */
+    startSyncLoop(intervalMs = 30000) {
+        if (this.syncIntervalId) {
+            clearInterval(this.syncIntervalId);
+        }
+        this.syncIntervalId = setInterval(() => {
+            this.syncMerkleTree().catch(err => {
+                logger_1.logger.error('Background sync failed', { error: String(err) });
+            });
+        }, intervalMs);
+        logger_1.logger.info('Started merkle tree sync loop', { intervalMs });
+    }
+    /**
+     * Stop background sync loop
+     */
+    stopSyncLoop() {
+        if (this.syncIntervalId) {
+            clearInterval(this.syncIntervalId);
+            this.syncIntervalId = null;
+        }
     }
     async loadCircuitArtifacts() {
         const circuitsPath = this.config.circuitsPath;
@@ -422,6 +462,22 @@ class RelayerApiExtensions {
             this.withdrawVk = JSON.parse(fs.readFileSync(withdrawVkPath, 'utf8'));
             logger_1.logger.info('Loaded withdraw_vk.json');
         }
+        // Load withdraw_v2 circuit
+        const withdrawV2WasmPath = path.join(circuitsPath, 'withdraw_v2_js', 'withdraw_v2.wasm');
+        const withdrawV2ZkeyPath = path.join(circuitsPath, 'withdraw_v2.zkey');
+        const withdrawV2VkPath = path.join(circuitsPath, 'withdraw_v2_vk.json');
+        if (fs.existsSync(withdrawV2WasmPath)) {
+            this.withdrawV2Wasm = new Uint8Array(fs.readFileSync(withdrawV2WasmPath));
+            logger_1.logger.info('Loaded withdraw_v2.wasm');
+        }
+        if (fs.existsSync(withdrawV2ZkeyPath)) {
+            this.withdrawV2Zkey = new Uint8Array(fs.readFileSync(withdrawV2ZkeyPath));
+            logger_1.logger.info('Loaded withdraw_v2.zkey');
+        }
+        if (fs.existsSync(withdrawV2VkPath)) {
+            this.withdrawV2Vk = JSON.parse(fs.readFileSync(withdrawV2VkPath, 'utf8'));
+            logger_1.logger.info('Loaded withdraw_v2_vk.json');
+        }
     }
     /**
      * Persist current merkle tree leaves to disk
@@ -446,17 +502,67 @@ class RelayerApiExtensions {
     async syncMerkleTree() {
         try {
             const [merkleTreePda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()], this.config.programId);
-            const accountInfo = await this.getAccountInfoCached(merkleTreePda);
-            if (!accountInfo) {
+            const [pendingBufferPda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending'), this.config.poolConfig.toBuffer()], this.config.programId);
+            const [merkleInfo, pendingInfo] = await Promise.all([
+                this.getAccountInfoCached(merkleTreePda),
+                this.getAccountInfoCached(pendingBufferPda),
+            ]);
+            if (!merkleInfo) {
                 logger_1.logger.info('Merkle tree not found on chain, starting fresh');
                 return;
             }
             // Parse next_leaf_index from account data
-            const data = accountInfo.data;
-            const nextLeafIndex = data.readUInt32LE(40);
-            logger_1.logger.info('Merkle tree synced from chain', { nextLeafIndex });
-            // TODO: Fetch actual commitments from events or database
-            // For now, tree starts empty and gets populated via API calls
+            const merkleData = merkleInfo.data;
+            const currentNextLeafIndex = merkleData.readUInt32LE(40);
+            // Read current pending buffer
+            const currentPending = [];
+            if (pendingInfo) {
+                const pendingData = pendingInfo.data;
+                const pendingCount = pendingData.readUInt32LE(40);
+                for (let i = 0; i < pendingCount; i++) {
+                    const start = 44 + i * 32;
+                    let c = 0n;
+                    for (let j = 0; j < 32; j++) {
+                        c = (c << 8n) | BigInt(pendingData[start + j]);
+                    }
+                    currentPending.push(c);
+                }
+            }
+            // Detect settled commitments by comparing with previous state
+            const prevPending = this.pendingState.pendingCommitments;
+            const prevNextLeafIndex = this.pendingState.nextLeafIndex;
+            if (prevPending.length > 0 && currentNextLeafIndex > prevNextLeafIndex) {
+                const numSettled = currentNextLeafIndex - prevNextLeafIndex;
+                // Settled commitments are the first N from the previous pending buffer (FIFO)
+                const settledCommitments = prevPending.slice(0, numSettled);
+                for (let i = 0; i < settledCommitments.length; i++) {
+                    const leafIndex = prevNextLeafIndex + i;
+                    this.merkleTree.insertAt(leafIndex, settledCommitments[i]);
+                    logger_1.logger.info('Settled commitment inserted into local tree', {
+                        leafIndex,
+                        commitment: settledCommitments[i].toString(),
+                    });
+                }
+                this.persistMerkleTree();
+                logger_1.logger.info('Batch settlement detected', {
+                    numSettled,
+                    oldNextLeafIndex: prevNextLeafIndex,
+                    newNextLeafIndex: currentNextLeafIndex,
+                });
+            }
+            // Update pending state
+            this.pendingState.pendingCommitments = currentPending;
+            this.pendingState.nextLeafIndex = currentNextLeafIndex;
+            (0, state_store_1.savePendingState)({
+                pendingCommitments: currentPending.map(c => c.toString()),
+                nextLeafIndex: currentNextLeafIndex,
+                lastSyncedAt: Date.now(),
+            });
+            logger_1.logger.info('Merkle tree synced from chain', {
+                nextLeafIndex: currentNextLeafIndex,
+                pendingCount: currentPending.length,
+                treeLeafCount: this.merkleTree.getLeafCount(),
+            });
         }
         catch (err) {
             logger_1.logger.error('Failed to sync merkle tree', { error: String(err) });
@@ -495,18 +601,52 @@ class RelayerApiExtensions {
                     amountBigInt,
                     assetIdBigInt,
                 ]);
-                // Compute nullifier hash: Poseidon(nullifier, secret)
-                const nullifierHash = poseidonHash([nullifierBigInt, secretBigInt]);
                 res.json({
                     success: true,
                     commitment: commitment.toString(),
                     commitmentHex: bytesToHex(feToBytes32BE(commitment)),
+                    note: 'nullifierHash will be computed at withdrawal time using leafIndex',
+                });
+            }
+            catch (error) {
+                logger_1.logger.error('generate-commitment failed', { error: error.message });
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+        // =========================================================================
+        // POST /api/compute-nullifier-hash
+        // Compute nullifier hash: Poseidon(Poseidon(nullifier, secret), leafIndex)
+        // Matches circuit constraint in withdraw.circom
+        // =========================================================================
+        this.router.post('/compute-nullifier-hash', async (req, res) => {
+            try {
+                const { secret, nullifier, leafIndex } = req.body;
+                if (!secret || !nullifier || leafIndex === undefined) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Missing required fields: secret, nullifier, leafIndex',
+                    });
+                }
+                if (![secret, nullifier, leafIndex].every(isValidBigIntString)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Invalid numeric field format',
+                    });
+                }
+                const secretBigInt = BigInt(secret);
+                const nullifierBigInt = BigInt(nullifier);
+                const leafIndexBigInt = BigInt(leafIndex);
+                // Circuit: nullifier_hash = Poseidon(Poseidon(nullifier, secret), leaf_index)
+                const inner = poseidonHash([nullifierBigInt, secretBigInt]);
+                const nullifierHash = poseidonHash([inner, leafIndexBigInt]);
+                res.json({
+                    success: true,
                     nullifierHash: nullifierHash.toString(),
                     nullifierHashHex: bytesToHex(feToBytes32BE(nullifierHash)),
                 });
             }
             catch (error) {
-                logger_1.logger.error('generate-commitment failed', { error: error.message });
+                logger_1.logger.error('compute-nullifier-hash failed', { error: error.message });
                 res.status(500).json({ success: false, error: error.message });
             }
         });
@@ -660,9 +800,24 @@ class RelayerApiExtensions {
                 const relayerPubkey = new web3_js_1.PublicKey(relayer);
                 const recipientScalar = pubkeyToScalar(recipientPubkey);
                 const relayerScalar = pubkeyToScalar(relayerPubkey);
+                // Compute nullifier hash internally to ensure circuit consistency
+                // Circuit: nullifier_hash = Poseidon(Poseidon(nullifier, secret), leaf_index)
+                const secretBigInt = BigInt(secret);
+                const nullifierBigInt = BigInt(nullifier);
+                const leafIndexBigInt = BigInt(leafIndex);
+                const inner = poseidonHash([nullifierBigInt, secretBigInt]);
+                const computedNullifierHash = poseidonHash([inner, leafIndexBigInt]);
+                // Validate client's nullifierHash matches our computation (if they provided one)
+                const clientNullifierHash = BigInt(nullifierHash);
+                if (clientNullifierHash !== computedNullifierHash) {
+                    logger_1.logger.warn('Client nullifierHash mismatch, using computed value', {
+                        client: clientNullifierHash.toString(),
+                        computed: computedNullifierHash.toString(),
+                    });
+                }
                 const circuitInput = {
                     merkle_root: merkleRoot.toString(),
-                    nullifier_hash: nullifierHash.toString(),
+                    nullifier_hash: computedNullifierHash.toString(),
                     asset_id: assetId.toString(),
                     recipient: recipientScalar.toString(),
                     amount: amount.toString(),
@@ -700,6 +855,160 @@ class RelayerApiExtensions {
             }
             catch (error) {
                 logger_1.logger.error('withdraw-proof failed', { error: error.message });
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+        // =========================================================================
+        // POST /api/withdraw-v2-proof
+        // Generate withdraw v2 proof with change output support (partial withdrawals)
+        // =========================================================================
+        this.router.post('/withdraw-v2-proof', this.requireAuth.bind(this), async (req, res) => {
+            try {
+                const { merkleRoot, assetId, recipient, amount, noteAmount, relayer, relayerFee, publicDataHash, secret, nullifier, leafIndex, merklePath, merklePathIndices, } = req.body;
+                if (!this.withdrawV2Wasm || !this.withdrawV2Zkey) {
+                    return res.status(503).json({
+                        success: false,
+                        error: 'Withdraw V2 circuit not loaded. Check circuitsPath configuration.',
+                    });
+                }
+                // Validate required fields
+                const requiredFields = [
+                    'merkleRoot', 'assetId', 'recipient', 'amount', 'noteAmount',
+                    'relayer', 'relayerFee', 'secret', 'nullifier', 'leafIndex',
+                    'merklePath', 'merklePathIndices'
+                ];
+                const missing = requiredFields.filter(f => req.body[f] === undefined);
+                if (missing.length > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Missing required fields: ${missing.join(', ')}`,
+                    });
+                }
+                // Validate pubkey fields
+                if (!isValidSolanaPubkey(recipient) || !isValidSolanaPubkey(relayer)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Invalid recipient or relayer public key',
+                    });
+                }
+                // Validate numeric fields
+                if (![merkleRoot, assetId, amount, noteAmount, relayerFee, secret, nullifier, leafIndex].every(isValidBigIntString)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Invalid numeric field format',
+                    });
+                }
+                // Validate merkle path length and contents
+                if (!Array.isArray(merklePath) || merklePath.length !== this.config.treeDepth || !merklePath.every(p => isValidBigIntString(p))) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Invalid merkle path: expected ${this.config.treeDepth} numeric elements`,
+                    });
+                }
+                if (!Array.isArray(merklePathIndices) || merklePathIndices.length !== this.config.treeDepth || !merklePathIndices.every((i) => i === 0 || i === 1)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Invalid merkle path indices: expected ${this.config.treeDepth} binary elements (0 or 1)`,
+                    });
+                }
+                logger_1.logger.info('withdraw-v2-proof generating proof');
+                const startTime = Date.now();
+                // Convert recipient and relayer to scalars
+                const recipientPubkey = new web3_js_1.PublicKey(recipient);
+                const relayerPubkey = new web3_js_1.PublicKey(relayer);
+                const recipientScalar = pubkeyToScalar(recipientPubkey);
+                const relayerScalar = pubkeyToScalar(relayerPubkey);
+                // Compute nullifier hash internally to ensure circuit consistency
+                const secretBigInt = BigInt(secret);
+                const nullifierBigInt = BigInt(nullifier);
+                const leafIndexBigInt = BigInt(leafIndex);
+                const inner = poseidonHash([nullifierBigInt, secretBigInt]);
+                const computedNullifierHash = poseidonHash([inner, leafIndexBigInt]);
+                // Detect partial withdrawal
+                const amountBigInt = BigInt(amount);
+                const noteAmountBigInt = BigInt(noteAmount);
+                const isPartial = noteAmountBigInt > amountBigInt;
+                let changeSecret = '0';
+                let changeNullifier = '0';
+                let changeAmount = '0';
+                let changeCommitment;
+                if (isPartial) {
+                    const randScalar = () => {
+                        const buf = crypto.randomBytes(32);
+                        buf[0] &= 0x1F; // keep under BN254 field order (~253 bits)
+                        return BigInt('0x' + buf.toString('hex')).toString();
+                    };
+                    changeSecret = randScalar();
+                    changeNullifier = randScalar();
+                    changeAmount = (noteAmountBigInt - amountBigInt).toString();
+                    changeCommitment = poseidonHash([
+                        BigInt(changeSecret),
+                        BigInt(changeNullifier),
+                        BigInt(changeAmount),
+                        BigInt(assetId),
+                    ]).toString();
+                }
+                else {
+                    // Full withdrawal: dummy change commitment = Poseidon(0,0,0,assetId)
+                    changeCommitment = poseidonHash([
+                        BigInt(0), BigInt(0), BigInt(0), BigInt(assetId),
+                    ]).toString();
+                }
+                const circuitInput = {
+                    schema_version: '2',
+                    merkle_root: merkleRoot.toString(),
+                    asset_id: assetId.toString(),
+                    nullifier_hash_0: computedNullifierHash.toString(),
+                    nullifier_hash_1: '0',
+                    change_commitment: changeCommitment,
+                    recipient: recipientScalar.toString(),
+                    amount: amount.toString(),
+                    relayer: relayerScalar.toString(),
+                    relayer_fee: relayerFee.toString(),
+                    public_data_hash: (publicDataHash || '0').toString(),
+                    reserved_0: '0',
+                    input_secret: secret.toString(),
+                    input_nullifier: nullifier.toString(),
+                    input_amount: noteAmount.toString(),
+                    leaf_index: leafIndex.toString(),
+                    merkle_path: merklePath.map((p) => p.toString()),
+                    merkle_path_indices: merklePathIndices.map((i) => i.toString()),
+                    change_secret: changeSecret,
+                    change_nullifier: changeNullifier,
+                    change_amount: changeAmount,
+                };
+                const { proof, publicSignals } = await withTimeout(snarkjs.groth16.fullProve(circuitInput, this.withdrawV2Wasm, this.withdrawV2Zkey), 60000, 'Proof generation timed out');
+                const proofTime = Date.now() - startTime;
+                logger_1.logger.info('withdraw-v2-proof generated', { proofTimeMs: proofTime, isPartial });
+                // Verify locally
+                if (this.withdrawV2Vk) {
+                    const isValid = await snarkjs.groth16.verify(this.withdrawV2Vk, publicSignals, proof);
+                    if (!isValid) {
+                        return res.status(400).json({
+                            success: false,
+                            error: 'Generated proof failed local verification',
+                        });
+                    }
+                    logger_1.logger.info('withdraw-v2-proof local verification passed');
+                }
+                // Serialize for chain
+                const proofBytes = serializeGroth16Proof(proof);
+                res.json({
+                    success: true,
+                    proofData: bytesToHex(proofBytes),
+                    publicSignals: publicSignals,
+                    proofTimeMs: proofTime,
+                    changeNote: isPartial ? {
+                        secret: changeSecret,
+                        nullifier: changeNullifier,
+                        amount: changeAmount,
+                        assetId: assetId.toString(),
+                        commitment: publicSignals[5], // index 5 is change_commitment
+                    } : null,
+                });
+            }
+            catch (error) {
+                logger_1.logger.error('withdraw-v2-proof failed', { error: error.message });
                 res.status(500).json({ success: false, error: error.message });
             }
         });
@@ -916,6 +1225,42 @@ class RelayerApiExtensions {
             }
             catch (error) {
                 logger_1.logger.error('note/:commitment failed', { error: error.message });
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+        // =========================================================================
+        // POST /api/track-deposit
+        // Track a deposit made outside of /build-deposit-tx (e.g. from app/)
+        // No auth required — this just adds the commitment to our pending tracking
+        // =========================================================================
+        this.router.post('/track-deposit', async (req, res) => {
+            try {
+                const { commitment, txHash } = req.body;
+                if (!commitment || !isValidBigIntString(commitment)) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Invalid commitment: must be a valid integer string',
+                    });
+                }
+                const commitmentBigInt = BigInt(commitment);
+                // Add to pending tracking if not already present
+                if (!this.pendingState.pendingCommitments.find(c => c === commitmentBigInt)) {
+                    this.pendingState.pendingCommitments.push(commitmentBigInt);
+                    (0, state_store_1.savePendingState)({
+                        pendingCommitments: this.pendingState.pendingCommitments.map(c => c.toString()),
+                        nextLeafIndex: this.pendingState.nextLeafIndex,
+                        lastSyncedAt: Date.now(),
+                    });
+                }
+                res.json({
+                    success: true,
+                    commitment: commitmentBigInt.toString(),
+                    txHash: txHash || null,
+                    pendingCount: this.pendingState.pendingCommitments.length,
+                });
+            }
+            catch (error) {
+                logger_1.logger.error('track-deposit failed', { error: error.message });
                 res.status(500).json({ success: false, error: error.message });
             }
         });

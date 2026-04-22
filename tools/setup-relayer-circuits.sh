@@ -19,6 +19,7 @@ echo "Target: $TARGET_DIR"
 
 mkdir -p "$TARGET_DIR/deposit_js"
 mkdir -p "$TARGET_DIR/withdraw_js"
+mkdir -p "$TARGET_DIR/withdraw_v2_js"
 
 # Deposit circuit
 cp "$SOURCE_DIR/deposit/build/deposit_js/deposit.wasm" "$TARGET_DIR/deposit_js/"
@@ -29,6 +30,11 @@ cp "$SOURCE_DIR/deposit/build/deposit_vk.json" "$TARGET_DIR/"
 cp "$SOURCE_DIR/withdraw/build/withdraw_js/withdraw.wasm" "$TARGET_DIR/withdraw_js/"
 cp "$SOURCE_DIR/withdraw/build/withdraw.zkey" "$TARGET_DIR/"
 cp "$SOURCE_DIR/withdraw/build/withdraw_vk.json" "$TARGET_DIR/"
+
+# Withdraw V2 circuit
+cp "$SOURCE_DIR/withdraw_v2/build/withdraw_v2_js/withdraw_v2.wasm" "$TARGET_DIR/withdraw_v2_js/"
+cp "$SOURCE_DIR/withdraw_v2/build/withdraw_v2.zkey" "$TARGET_DIR/"
+cp "$SOURCE_DIR/withdraw_v2/build/withdraw_v2_vk.json" "$TARGET_DIR/"
 
 echo "✅ Circuits copied to $TARGET_DIR"
 ls -la "$TARGET_DIR"

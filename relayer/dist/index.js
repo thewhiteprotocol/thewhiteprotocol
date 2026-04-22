@@ -59,6 +59,7 @@ const snarkjs = __importStar(require("snarkjs"));
 const logger_1 = require("./logger");
 const base_1 = require("./chains/base");
 const state_store_1 = require("./state-store");
+const path = __importStar(require("path"));
 const circuit_breaker_1 = require("./circuit-breaker");
 const retry_1 = require("./retry");
 const nullifier_cache_1 = require("./cache/nullifier-cache");
@@ -92,6 +93,7 @@ class RelayerService {
     supportedAssets = new Set();
     /** Verification key for withdraw circuit (snarkjs format) */
     withdrawVk;
+    withdrawV2Vk = null;
     /** In-flight nullifier hashes to prevent race-condition double spends */
     pendingNullifiers = new Set();
     /** Circuit breaker for on-chain withdrawal submissions */
@@ -107,6 +109,7 @@ class RelayerService {
         this.connection = new web3_js_1.Connection(config.rpcEndpoint, 'confirmed');
         // Load withdraw verification key at startup (fail fast if missing)
         this.loadWithdrawVerificationKey();
+        this.loadWithdrawV2VerificationKey();
         // Restore persisted state
         this.loadState();
         // Setup Anchor provider
@@ -125,7 +128,7 @@ class RelayerService {
             commitment: 'confirmed',
         });
         // Initialize Anchor program
-        // Note: IDL is loaded dynamically - in production, embed the IDL
+        // Note: IDL is loaded in start() after all dependencies are ready
         this.program = null; // Will be initialized in start()
         // Setup Base adapter if configured
         if (config.baseDeployerPrivateKey) {
@@ -190,6 +193,28 @@ class RelayerService {
         catch (err) {
             logger_1.logger.error('Failed to load withdraw verification key', { path: this.config.withdrawVkPath, error: String(err) });
             throw new Error('Withdraw verification key not available for relayer');
+        }
+    }
+    /**
+     * Load withdraw_v2 verification key (optional — logs warning if missing)
+     */
+    loadWithdrawV2VerificationKey() {
+        const path = this.config.withdrawV2VkPath;
+        if (!path || !fs.existsSync(path)) {
+            logger_1.logger.warn('Withdraw V2 verification key not found', { path });
+            return;
+        }
+        try {
+            const vkeyJson = fs.readFileSync(path, 'utf8');
+            this.withdrawV2Vk = JSON.parse(vkeyJson);
+            logger_1.logger.info('Withdraw V2 verification key loaded', {
+                protocol: this.withdrawV2Vk.protocol,
+                curve: this.withdrawV2Vk.curve,
+                icPoints: this.withdrawV2Vk.IC?.length || 0,
+            });
+        }
+        catch (err) {
+            logger_1.logger.warn('Failed to load withdraw V2 verification key', { path, error: String(err) });
         }
     }
     /**
@@ -286,6 +311,10 @@ class RelayerService {
                 fee: fee.toString(),
                 feeBps: this.config.feeBps,
                 netAmount: (amount - fee).toString(),
+                relayer: {
+                    solana: this.config.walletKeypair.publicKey.toBase58(),
+                    base: this.baseAdapter?.getAddress() || null,
+                },
             });
         });
         // Submit withdrawal
@@ -350,6 +379,9 @@ class RelayerService {
      * Process a Solana withdrawal request
      */
     async processSolanaWithdrawal(request) {
+        if (request.version === 'v2') {
+            return this.processSolanaWithdrawalV2(request);
+        }
         const startTime = Date.now();
         const amount = BigInt(request.amount);
         const fee = this.calculateFee(amount);
@@ -413,6 +445,7 @@ class RelayerService {
                 fee,
                 assetId,
                 mint,
+                ephemeralPubkey: request.ephemeralPubkey ? hexToBytes(request.ephemeralPubkey) : undefined,
             }), 90000, 'Transaction submission timed out');
             // 8. Update statistics and cache
             this.totalTransactions++;
@@ -422,6 +455,113 @@ class RelayerService {
             metrics_1.metrics.recordWithdrawal(true);
             const totalTime = Date.now() - startTime;
             logger_1.logger.info('Withdrawal processed successfully', {
+                durationMs: totalTime,
+                signature,
+                recipient: recipient.toBase58(),
+                amount: amount.toString(),
+                fee: fee.toString(),
+            });
+            return {
+                success: true,
+                signature,
+            };
+        }
+        finally {
+            this.pendingNullifiers.delete(nullifierKey);
+        }
+    }
+    /**
+     * Process a Solana withdraw_v2 request (partial/full withdrawal with change output)
+     */
+    async processSolanaWithdrawalV2(request) {
+        const startTime = Date.now();
+        const amount = BigInt(request.amount);
+        const fee = this.calculateFee(amount);
+        // Verify amount bounds
+        if (amount < this.config.minWithdrawalAmount) {
+            throw new Error(`Amount below minimum: ${this.config.minWithdrawalAmount}`);
+        }
+        if (amount > this.config.maxWithdrawalAmount) {
+            throw new Error(`Amount above maximum: ${this.config.maxWithdrawalAmount}`);
+        }
+        // Check asset is supported
+        if (this.supportedAssets.size > 0 &&
+            !this.supportedAssets.has(request.assetId) &&
+            !this.supportedAssets.has(request.mint)) {
+            throw new Error(`Asset ${request.assetId} not supported by this relayer`);
+        }
+        // Decode inputs
+        const proofData = hexToBytes(request.proofData);
+        const merkleRoot = hexToBytes(request.merkleRoot);
+        const nullifierHash = hexToBytes(request.nullifierHash);
+        const nullifierHash1 = hexToBytes(request.nullifierHash1 || '0'.repeat(64));
+        const assetId = hexToBytes(request.assetId);
+        const changeCommitment = hexToBytes(request.changeCommitment);
+        const recipient = new web3_js_1.PublicKey(request.recipient);
+        const mint = new web3_js_1.PublicKey(request.mint);
+        // Reconstruct public signals for local verification
+        const merkleRootScalar = bytesToBigInt(merkleRoot);
+        const assetIdScalar = bytesToBigInt(assetId);
+        const nullifierHashScalar = bytesToBigInt(nullifierHash);
+        const nullifierHash1Scalar = bytesToBigInt(nullifierHash1);
+        const changeCommitmentScalar = bytesToBigInt(changeCommitment);
+        const recipientScalar = pubkeyToScalar(recipient);
+        const relayerScalar = pubkeyToScalar(this.config.walletKeypair.publicKey);
+        const publicSignals = [
+            '2', // schema_version
+            merkleRootScalar.toString(), // merkle_root
+            assetIdScalar.toString(), // asset_id
+            nullifierHashScalar.toString(), // nullifier_hash_0
+            nullifierHash1Scalar.toString(), // nullifier_hash_1
+            changeCommitmentScalar.toString(), // change_commitment
+            recipientScalar.toString(), // recipient
+            amount.toString(), // amount
+            relayerScalar.toString(), // relayer
+            fee.toString(), // relayer_fee
+            '0', // public_data_hash
+            '0', // reserved_0
+        ];
+        // Local verification
+        const proofVerifyStart = Date.now();
+        const isProofValid = await this.verifyWithdrawV2ProofLocally(proofData, publicSignals);
+        const proofVerifyTime = Date.now() - proofVerifyStart;
+        logger_1.logger.info('Withdraw V2 proof verification completed', { durationMs: proofVerifyTime, valid: isProofValid });
+        if (!isProofValid) {
+            throw new Error('Invalid withdraw v2 proof (local verification failed)');
+        }
+        const nullifierKey = bytesToHex(nullifierHash);
+        // In-flight deduplication
+        if (this.pendingNullifiers.has(nullifierKey)) {
+            throw new Error('Nullifier already being processed');
+        }
+        this.pendingNullifiers.add(nullifierKey);
+        try {
+            // Check nullifier hasn't been spent
+            const isSpent = await withTimeout(this.checkNullifierSpent(nullifierHash), 15000, 'Nullifier check timed out');
+            if (isSpent) {
+                throw new Error('Nullifier already spent');
+            }
+            // Submit transaction
+            const signature = await withTimeout(this.submitWithdrawalV2WithRetry({
+                proofData,
+                merkleRoot,
+                nullifierHash,
+                nullifierHash1,
+                changeCommitment,
+                recipient,
+                amount,
+                fee,
+                assetId,
+                mint,
+            }), 90000, 'Transaction submission timed out');
+            // Update statistics
+            this.totalTransactions++;
+            this.totalFeesEarned += fee;
+            await this.nullifierCache.markNullifierUsed(this.config.poolConfig, nullifierHash);
+            this.persistState();
+            metrics_1.metrics.recordWithdrawal(true);
+            const totalTime = Date.now() - startTime;
+            logger_1.logger.info('Withdraw V2 processed successfully', {
                 durationMs: totalTime,
                 signature,
                 recipient: recipient.toBase58(),
@@ -498,7 +638,7 @@ class RelayerService {
                 throw new Error('Nullifier already spent');
             }
             // Submit transaction (with timeout)
-            const signature = await withTimeout(this.baseAdapter.submitWithdrawal(`0x${request.proofData}`, `0x${request.nullifierHash}`, `0x${request.merkleRoot}`, recipient, tokenAddr, amount, fee), 90000, 'Transaction submission timed out');
+            const signature = await withTimeout(this.baseAdapter.submitWithdrawal(`0x${request.proofData}`, `0x${request.nullifierHash}`, `0x${request.merkleRoot}`, recipient, tokenAddr, amount, fee, request.ephemeralPubkey ? `0x${request.ephemeralPubkey}` : undefined), 90000, 'Transaction submission timed out');
             // Update statistics
             this.totalTransactions++;
             this.totalFeesEarned += fee;
@@ -588,6 +728,29 @@ class RelayerService {
         }
     }
     /**
+     * Verify a withdraw_v2 proof locally before on-chain submission.
+     * Accepts pre-constructed public signals (12 values) since v2 has more inputs.
+     */
+    async verifyWithdrawV2ProofLocally(proofData, publicSignals) {
+        if (!this.withdrawV2Vk) {
+            logger_1.logger.warn('Withdraw V2 verification key not loaded, skipping local verification');
+            return true; // allow through if VK not available
+        }
+        if (proofData.length !== 256) {
+            logger_1.logger.error('Invalid withdraw v2 proof data length', { expected: 256, actual: proofData.length });
+            return false;
+        }
+        try {
+            const proof = deserializeGroth16Proof(proofData);
+            const result = await snarkjs.groth16.verify(this.withdrawV2Vk, publicSignals, proof);
+            return typeof result === 'boolean' ? result : false;
+        }
+        catch (err) {
+            logger_1.logger.error('Withdraw V2 proof verification error', { error: String(err) });
+            return false;
+        }
+    }
+    /**
      * Validate withdrawal request format
      */
     validateWithdrawRequest(request) {
@@ -632,6 +795,15 @@ class RelayerService {
                 throw new Error('Invalid mint public key');
             }
         }
+        // Validate ephemeral pubkey if provided (32 bytes = 64 hex chars)
+        if (request.ephemeralPubkey) {
+            if (!/^[0-9a-fA-F]{64}$/.test(request.ephemeralPubkey)) {
+                throw new Error('Invalid ephemeral pubkey: must be 64 hex characters');
+            }
+            if (request.ephemeralPubkey === '0'.repeat(64)) {
+                throw new Error('Invalid ephemeral pubkey: all zeros');
+            }
+        }
         if (!request.amount || !/^\d+$/.test(request.amount) || request.amount.length > 30) {
             throw new Error('Invalid amount');
         }
@@ -653,6 +825,21 @@ class RelayerService {
         }
         if (!/^[0-9a-fA-F]+$/.test(request.assetId)) {
             throw new Error('Invalid asset ID: not valid hex');
+        }
+        // Validate v2-specific fields
+        if (request.version === 'v2') {
+            if (!request.changeCommitment || request.changeCommitment.length !== 64) {
+                throw new Error('Invalid change commitment length (must be 64 hex chars)');
+            }
+            if (!/^[0-9a-fA-F]+$/.test(request.changeCommitment)) {
+                throw new Error('Invalid change commitment: not valid hex');
+            }
+            if (request.nullifierHash1 && request.nullifierHash1.length !== 64) {
+                throw new Error('Invalid nullifier hash 1 length (must be 64 hex chars)');
+            }
+            if (request.nullifierHash1 && !/^[0-9a-fA-F]+$/.test(request.nullifierHash1)) {
+                throw new Error('Invalid nullifier hash 1: not valid hex');
+            }
         }
         // Prevent DoS via extremely long strings
         const maxFieldLength = 2048;
@@ -744,9 +931,127 @@ class RelayerService {
         const [vaultTokenAccount] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vault_token'), assetVault.toBuffer()], this.config.programId);
         const recipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, params.recipient);
         const relayerTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, this.config.walletKeypair.publicKey);
-        // Build instruction - FIXED: correct args and snake_case accounts
+        // Build instruction - use withdrawMaspStealth if ephemeral pubkey provided
+        let ix;
+        if (params.ephemeralPubkey && params.ephemeralPubkey.length === 32) {
+            ix = await this.program.methods
+                .withdrawMaspStealth(Buffer.from(params.proofData), Array.from(params.merkleRoot), Array.from(params.nullifierHash), params.recipient, new anchor_1.BN(params.amount.toString()), Array.from(params.assetId), new anchor_1.BN(params.fee.toString()), Array.from(params.ephemeralPubkey))
+                .accountsStrict({
+                relayer: this.config.walletKeypair.publicKey,
+                pool_config: this.config.poolConfig,
+                merkle_tree: merkleTree,
+                vk_account: vkAccount,
+                asset_vault: assetVault,
+                vault_token_account: vaultTokenAccount,
+                recipient_token_account: recipientTokenAccount,
+                relayer_token_account: relayerTokenAccount,
+                spent_nullifier: nullifierPda,
+                relayer_registry: relayerRegistry,
+                relayer_node: relayerNode,
+                token_program: new web3_js_1.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+                system_program: new web3_js_1.PublicKey("11111111111111111111111111111111"),
+            })
+                .instruction();
+        }
+        else {
+            ix = await this.program.methods
+                .withdrawMasp(Buffer.from(params.proofData), Array.from(params.merkleRoot), Array.from(params.nullifierHash), params.recipient, new anchor_1.BN(params.amount.toString()), Array.from(params.assetId), new anchor_1.BN(params.fee.toString()))
+                .accountsStrict({
+                relayer: this.config.walletKeypair.publicKey,
+                pool_config: this.config.poolConfig,
+                merkle_tree: merkleTree,
+                vk_account: vkAccount,
+                asset_vault: assetVault,
+                vault_token_account: vaultTokenAccount,
+                recipient_token_account: recipientTokenAccount,
+                relayer_token_account: relayerTokenAccount,
+                spent_nullifier: nullifierPda,
+                relayer_registry: relayerRegistry,
+                relayer_node: relayerNode,
+                token_program: new web3_js_1.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+                system_program: new web3_js_1.PublicKey("11111111111111111111111111111111"),
+            })
+                .instruction();
+        }
+        // Build and send transaction
+        const { blockhash, lastValidBlockHeight } = await (0, retry_1.withRetry)(() => this.connection.getLatestBlockhash('confirmed'), { maxAttempts: 3, baseDelayMs: 500 });
+        const tx = new web3_js_1.Transaction({ blockhash, lastValidBlockHeight }).add(ix);
+        tx.feePayer = this.config.walletKeypair.publicKey;
+        try {
+            const signature = await (0, web3_js_1.sendAndConfirmTransaction)(this.connection, tx, [this.config.walletKeypair], {
+                commitment: 'confirmed',
+                maxRetries: 2,
+            });
+            return signature;
+        }
+        catch (err) {
+            if (err instanceof web3_js_1.TransactionExpiredBlockheightExceededError) {
+                logger_1.logger.warn('Transaction expired due to blockheight exceeded');
+            }
+            throw err;
+        }
+    }
+    /**
+     * Submit withdraw_v2 transaction with circuit breaker and retry logic
+     */
+    async submitWithdrawalV2WithRetry(params) {
+        return this.withdrawalBreaker.execute(() => (0, retry_1.withRetry)(async () => {
+            logger_1.logger.info('Submitting withdraw_v2 transaction');
+            const signature = await this.submitWithdrawalV2(params);
+            return signature;
+        }, {
+            maxAttempts: MAX_RETRY_ATTEMPTS,
+            baseDelayMs: BASE_RETRY_DELAY_MS,
+            nonRetryablePatterns: [
+                'nullifier already spent',
+                'invalid proof',
+                'insufficient funds',
+                'account not found',
+                'invalid signature',
+                'simulation failed',
+                'instruction error',
+            ],
+        }));
+    }
+    /**
+     * Submit withdraw_v2 transaction on Solana
+     */
+    async submitWithdrawalV2(params) {
+        // Derive PDAs
+        const [merkleTree] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const [assetVault] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from('vault'),
+            this.config.poolConfig.toBuffer(),
+            Buffer.from(params.assetId),
+        ], this.config.programId);
+        const [vkAccount] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vk_withdraw_v2'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const [nullifierPda0] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from('nullifier'),
+            this.config.poolConfig.toBuffer(),
+            Buffer.from(params.nullifierHash),
+        ], this.config.programId);
+        const [relayerRegistry] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('relayer_registry'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const [relayerNode] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from('relayer'),
+            relayerRegistry.toBuffer(),
+            this.config.walletKeypair.publicKey.toBuffer(),
+        ], this.config.programId);
+        const [pendingBuffer] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const [vaultTokenAccount] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vault_token'), assetVault.toBuffer()], this.config.programId);
+        const recipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, params.recipient, false);
+        const relayerTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, this.config.walletKeypair.publicKey, false);
+        // Determine optional accounts
+        const hasNullifier1 = params.nullifierHash1.some(b => b !== 0);
+        const nullifierPda1 = hasNullifier1
+            ? web3_js_1.PublicKey.findProgramAddressSync([
+                Buffer.from('nullifier'),
+                this.config.poolConfig.toBuffer(),
+                Buffer.from(params.nullifierHash1),
+            ], this.config.programId)[0]
+            : null;
+        // Build instruction via Anchor
         const ix = await this.program.methods
-            .withdrawMasp(Buffer.from(params.proofData), Array.from(params.merkleRoot), Array.from(params.nullifierHash), params.recipient, new anchor_1.BN(params.amount.toString()), Array.from(params.assetId), new anchor_1.BN(params.fee.toString()))
+            .withdrawV2(Buffer.from(params.proofData), Array.from(params.merkleRoot), Array.from(params.assetId), Array.from(params.nullifierHash), Array.from(params.nullifierHash1), Array.from(params.changeCommitment), params.recipient, new anchor_1.BN(params.amount.toString()), new anchor_1.BN(params.fee.toString()))
             .accountsStrict({
             relayer: this.config.walletKeypair.publicKey,
             pool_config: this.config.poolConfig,
@@ -756,9 +1061,12 @@ class RelayerService {
             vault_token_account: vaultTokenAccount,
             recipient_token_account: recipientTokenAccount,
             relayer_token_account: relayerTokenAccount,
-            spent_nullifier: nullifierPda,
+            spent_nullifier_0: nullifierPda0,
+            spent_nullifier_1: nullifierPda1 || this.config.programId,
+            pending_buffer: pendingBuffer,
             relayer_registry: relayerRegistry,
             relayer_node: relayerNode,
+            yield_registry: this.config.programId,
             token_program: new web3_js_1.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
             system_program: new web3_js_1.PublicKey("11111111111111111111111111111111"),
         })
@@ -776,7 +1084,7 @@ class RelayerService {
         }
         catch (err) {
             if (err instanceof web3_js_1.TransactionExpiredBlockheightExceededError) {
-                logger_1.logger.warn('Transaction expired due to blockheight exceeded');
+                logger_1.logger.warn('Withdraw V2 transaction expired due to blockheight exceeded');
             }
             throw err;
         }
@@ -829,6 +1137,11 @@ class RelayerService {
      * Start the relayer service
      */
     async start() {
+        // Initialize Anchor program from embedded IDL
+        const idlPath = path.join(__dirname, 'idl', 'white_protocol.json');
+        const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
+        this.program = new anchor_1.Program(idl, this.provider);
+        logger_1.logger.info('Anchor program initialized', { programId: this.config.programId.toBase58() });
         // Initialize API extensions for proof generation
         const apiExtensions = await (0, api_extensions_1.createApiExtensions)({
             circuitsPath: this.config.circuitsPath,
@@ -839,6 +1152,8 @@ class RelayerService {
         });
         // Mount API extensions
         this.app.use("/api", apiExtensions.getRouter());
+        // Start background tree sync
+        apiExtensions.startSyncLoop(30000);
         this.app.listen(this.config.port, () => {
             logger_1.logger.info('The White Protocol Relayer Service Started', {
                 port: this.config.port,
@@ -868,9 +1183,14 @@ exports.RelayerService = RelayerService;
  * Convert hex string to Uint8Array
  */
 function hexToBytes(hex) {
+    if (hex.length % 2 !== 0)
+        throw new Error('Invalid hex: odd length');
     const bytes = new Uint8Array(hex.length / 2);
     for (let i = 0; i < bytes.length; i++) {
-        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+        const byte = parseInt(hex.substr(i * 2, 2), 16);
+        if (Number.isNaN(byte))
+            throw new Error(`Invalid hex character at position ${i * 2}`);
+        bytes[i] = byte;
     }
     return bytes;
 }
@@ -894,15 +1214,18 @@ function bytesToBigInt(bytes) {
 }
 /**
  * Convert Solana PublicKey to scalar field element (BN254).
- * Mirrors pubkeyToScalar in the SDK.
+ * Matches on-chain: scalar_bytes = [0x00, pubkey_bytes[0..31]]
  */
 function pubkeyToScalar(pubkey) {
     const bytes = pubkey.toBytes();
+    const scalarBytes = new Uint8Array(32);
+    scalarBytes[0] = 0;
+    scalarBytes.set(bytes.slice(0, 31), 1);
     let result = 0n;
-    for (let i = 0; i < bytes.length; i++) {
-        result = (result << 8n) | BigInt(bytes[i]);
+    for (let i = 0; i < 32; i++) {
+        result = (result << 8n) | BigInt(scalarBytes[i]);
     }
-    return result % BN254_FIELD_ORDER;
+    return result;
 }
 /**
  * Validate a field element is within BN254 order
@@ -1004,6 +1327,7 @@ async function main() {
         maxWithdrawalAmount: BigInt(process.env.MAX_WITHDRAWAL || '1000000000000'),
         port: parseInt(process.env.PORT || '3000', 10),
         withdrawVkPath: process.env.WITHDRAW_VK_PATH || './circuits/build/withdraw_vk.json',
+        withdrawV2VkPath: process.env.WITHDRAW_V2_VK_PATH || './circuits/build/withdraw_v2_vk.json',
         circuitsPath: process.env.CIRCUITS_PATH || "../circuits/build",
         treeDepth: parseInt(process.env.TREE_DEPTH || "20", 10),
         baseRpcUrl: process.env.BASE_RPC_URL || 'https://sepolia.base.org',

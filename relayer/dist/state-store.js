@@ -41,11 +41,14 @@ exports.loadRelayerState = loadRelayerState;
 exports.saveRelayerState = saveRelayerState;
 exports.loadMerkleTreeState = loadMerkleTreeState;
 exports.saveMerkleTreeState = saveMerkleTreeState;
+exports.loadPendingState = loadPendingState;
+exports.savePendingState = savePendingState;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const STATE_DIR = process.env.STATE_DIR || path.join(process.cwd(), 'data');
 const RELAYER_STATE_PATH = path.join(STATE_DIR, 'relayer-state.json');
 const MERKLE_STATE_PATH = path.join(STATE_DIR, 'merkle-tree-state.json');
+const PENDING_STATE_PATH = path.join(STATE_DIR, 'pending-state.json');
 function ensureDir() {
     if (!fs.existsSync(STATE_DIR)) {
         fs.mkdirSync(STATE_DIR, { recursive: true });
@@ -84,4 +87,21 @@ function loadMerkleTreeState() {
 function saveMerkleTreeState(state) {
     ensureDir();
     fs.writeFileSync(MERKLE_STATE_PATH, JSON.stringify(state, null, 2));
+}
+function loadPendingState() {
+    try {
+        if (!fs.existsSync(PENDING_STATE_PATH))
+            return null;
+        const raw = fs.readFileSync(PENDING_STATE_PATH, 'utf8');
+        return JSON.parse(raw);
+    }
+    catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[StateStore] Failed to load pending state:', err);
+        return null;
+    }
+}
+function savePendingState(state) {
+    ensureDir();
+    fs.writeFileSync(PENDING_STATE_PATH, JSON.stringify(state, null, 2));
 }

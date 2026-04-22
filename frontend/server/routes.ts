@@ -4,10 +4,10 @@ import { Connection, PublicKey } from "@solana/web3.js";
 
 // ✅ CORRECT POOL ADDRESSES - matches relayer
 const CONFIG = {
-  PROGRAM_ID: 'BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb',
-  POOL_CONFIG: 'FX26qtKeJN7fUPKfHF17bwhUv2Fah3rS2K1t9AVpcEXj',
-  MERKLE_TREE: '6zLFi4vgvaZShwBfFBdYwvfpgLYCE2f698GiiVpdhKgy',
-  PENDING_BUFFER: '7DnGtZ3PWv89gtqryJky7HpvM62UHpj4JJ4txmzLMwUA',
+  PROGRAM_ID: 'C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW',
+  POOL_CONFIG: 'EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS',
+  MERKLE_TREE: '2DjfHs3CYK22a4SAMSH2gt6eXRwSnBzm2f4gWvmos8sD',
+  PENDING_BUFFER: '7MzDFCdPEog6orC42jCXBz53zhqysQVq5vb5J7R1DAyw',
   RPC_URL: 'https://api.devnet.solana.com',
   TREE_DEPTH: 20,
 } as const;

@@ -29,6 +29,8 @@ interface RelayerConfig {
     port: number;
     /** Path to withdraw verification key JSON (snarkjs vkey) */
     withdrawVkPath: string;
+    /** Path to withdraw_v2 verification key JSON (optional) */
+    withdrawV2VkPath?: string;
     /** Path to circuits build directory */
     circuitsPath: string;
     /** Merkle tree depth */
@@ -58,6 +60,14 @@ interface WithdrawRequest {
     mint: string;
     /** Target chain */
     chain?: 'solana' | 'base';
+    /** Optional ephemeral pubkey for stealth withdrawals (64 hex chars = 32 bytes) */
+    ephemeralPubkey?: string;
+    /** Withdrawal version: v1 = standard, v2 = partial with change output */
+    version?: 'v1' | 'v2';
+    /** Change commitment for v2 partial withdrawals (hex encoded, 64 chars) */
+    changeCommitment?: string;
+    /** Secondary nullifier hash for v2 (hex encoded, 64 chars, defaults to zeros) */
+    nullifierHash1?: string;
 }
 /** Withdrawal response interface */
 interface WithdrawResponse {
@@ -89,6 +99,7 @@ export declare class RelayerService {
     private supportedAssets;
     /** Verification key for withdraw circuit (snarkjs format) */
     private withdrawVk;
+    private withdrawV2Vk;
     /** In-flight nullifier hashes to prevent race-condition double spends */
     private pendingNullifiers;
     /** Circuit breaker for on-chain withdrawal submissions */
@@ -114,6 +125,10 @@ export declare class RelayerService {
      */
     private loadWithdrawVerificationKey;
     /**
+     * Load withdraw_v2 verification key (optional — logs warning if missing)
+     */
+    private loadWithdrawV2VerificationKey;
+    /**
      * Setup Express middleware
      */
     private setupMiddleware;
@@ -138,6 +153,10 @@ export declare class RelayerService {
      */
     private processSolanaWithdrawal;
     /**
+     * Process a Solana withdraw_v2 request (partial/full withdrawal with change output)
+     */
+    private processSolanaWithdrawalV2;
+    /**
      * Process a Base withdrawal request
      */
     private processBaseWithdrawal;
@@ -148,6 +167,11 @@ export declare class RelayerService {
      * and the serializeProof layout in sdk/src/proof/prover.ts.
      */
     private verifyWithdrawProofLocally;
+    /**
+     * Verify a withdraw_v2 proof locally before on-chain submission.
+     * Accepts pre-constructed public signals (12 values) since v2 has more inputs.
+     */
+    private verifyWithdrawV2ProofLocally;
     /**
      * Validate withdrawal request format
      */
@@ -164,6 +188,14 @@ export declare class RelayerService {
      * Submit withdrawal transaction
      */
     private submitWithdrawal;
+    /**
+     * Submit withdraw_v2 transaction with circuit breaker and retry logic
+     */
+    private submitWithdrawalV2WithRetry;
+    /**
+     * Submit withdraw_v2 transaction on Solana
+     */
+    private submitWithdrawalV2;
     /**
      * Register asset as supported
      */

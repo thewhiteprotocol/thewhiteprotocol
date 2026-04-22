@@ -9,6 +9,7 @@ const accounts_1 = require("viem/accounts");
 const chains_1 = require("viem/chains");
 const abi = (0, viem_1.parseAbi)([
     'function withdraw(bytes memory proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer) external',
+    'function withdrawStealth(bytes memory proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer, bytes32 ephemeralPubkey) external',
     'function getLastRoot() external view returns (uint256)',
     'function roots(uint256 index) external view returns (uint256)',
     'function currentRootIndex() external view returns (uint256)',
@@ -17,6 +18,7 @@ const abi = (0, viem_1.parseAbi)([
     'function LEVELS() external view returns (uint256)',
     'event Deposit(uint256 indexed commitment, uint256 amount, address indexed asset, uint256 leafIndex)',
     'event BatchSettlement(uint256 indexed startIndex, uint256 batchSize, uint256 newRoot)',
+    'event StealthWithdrawal(bytes32 indexed ephemeralPubkey, address indexed destination, uint256 blockNumber)',
 ]);
 class BaseAdapter {
     publicClient;
@@ -40,14 +42,12 @@ class BaseAdapter {
     getAddress() {
         return this.account.address;
     }
-    async submitWithdrawal(proofDataHex, nullifierHashHex, merkleRootHex, recipient, tokenAddr, amount, fee) {
+    async submitWithdrawal(proofDataHex, nullifierHashHex, merkleRootHex, recipient, tokenAddr, amount, fee, ephemeralPubkey) {
         const nullifierHash = BigInt(nullifierHashHex);
         const root = BigInt(merkleRootHex);
-        const hash = await this.walletClient.writeContract({
-            address: this.contractAddress,
-            abi,
-            functionName: 'withdraw',
-            args: [
+        const functionName = ephemeralPubkey && ephemeralPubkey !== '0x' ? 'withdrawStealth' : 'withdraw';
+        const args = ephemeralPubkey && ephemeralPubkey !== '0x'
+            ? [
                 proofDataHex,
                 nullifierHash,
                 root,
@@ -56,7 +56,23 @@ class BaseAdapter {
                 amount,
                 fee,
                 this.account.address,
-            ],
+                ephemeralPubkey,
+            ]
+            : [
+                proofDataHex,
+                nullifierHash,
+                root,
+                recipient,
+                tokenAddr,
+                amount,
+                fee,
+                this.account.address,
+            ];
+        const hash = await this.walletClient.writeContract({
+            address: this.contractAddress,
+            abi,
+            functionName,
+            args,
         });
         return hash;
     }
@@ -101,6 +117,37 @@ class BaseAdapter {
     getPendingCount() {
         // Placeholder: the contract does not expose a direct pending count
         return 0;
+    }
+    async getDepositEvents(fromBlock, toBlock) {
+        const logs = await this.publicClient.getContractEvents({
+            address: this.contractAddress,
+            abi,
+            eventName: 'Deposit',
+            fromBlock: fromBlock || 0n,
+            toBlock: toBlock || 'latest',
+        });
+        return logs.map((log) => ({
+            commitment: log.args.commitment,
+            amount: log.args.amount,
+            asset: log.args.asset,
+            leafIndex: log.args.leafIndex,
+            blockNumber: log.blockNumber,
+        }));
+    }
+    async getBatchSettlementEvents(fromBlock, toBlock) {
+        const logs = await this.publicClient.getContractEvents({
+            address: this.contractAddress,
+            abi,
+            eventName: 'BatchSettlement',
+            fromBlock: fromBlock || 0n,
+            toBlock: toBlock || 'latest',
+        });
+        return logs.map((log) => ({
+            startIndex: log.args.startIndex,
+            batchSize: log.args.batchSize,
+            newRoot: log.args.newRoot,
+            blockNumber: log.blockNumber,
+        }));
     }
 }
 exports.BaseAdapter = BaseAdapter;

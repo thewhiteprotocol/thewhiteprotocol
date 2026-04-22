@@ -28,7 +28,7 @@ if (RELAYER_API_URL && !RELAYER_API_URL.startsWith('https://') && !RELAYER_API_U
 
 // Dev-only logger - never logs in production
 const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
-const devLog = (...args: any[]) => { if (isDev) devLog(...args); };
+const devLog = (...args: any[]) => { if (isDev) console.log(...args); };
 
 const CONFIG = {
   /** Request timeout in milliseconds */

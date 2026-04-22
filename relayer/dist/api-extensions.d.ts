@@ -37,7 +37,12 @@ export declare class RelayerApiExtensions {
     private withdrawWasm;
     private withdrawZkey;
     private withdrawVk;
+    private withdrawV2Wasm;
+    private withdrawV2Zkey;
+    private withdrawV2Vk;
     private rpcCache;
+    private pendingState;
+    private syncIntervalId;
     constructor(config: ApiExtensionsConfig);
     private setupMiddleware;
     private requireAuth;
@@ -45,6 +50,14 @@ export declare class RelayerApiExtensions {
      * Initialize the API extensions (load circuits, poseidon)
      */
     initialize(): Promise<void>;
+    /**
+     * Start background sync loop (call from main relayer start())
+     */
+    startSyncLoop(intervalMs?: number): void;
+    /**
+     * Stop background sync loop
+     */
+    stopSyncLoop(): void;
     private loadCircuitArtifacts;
     /**
      * Persist current merkle tree leaves to disk
