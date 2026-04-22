@@ -12,20 +12,13 @@ import { Docs } from "@/sections/Docs";
 import { Relayer } from "@/sections/Relayer";
 import { DevnetStatus } from "@/sections/DevnetStatus";
 import { Links } from "@/sections/Links";
-import NeonCrystalCity from "@/components/ui/neon-crystal-city";
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WalletContextProvider>
         <TooltipProvider>
-          <NeonCrystalCity 
-            cameraSpeed={1.5}
-            tileSize={2.5}
-            maxSteps={70}
-            maxDist={70}
-          />
-          <div className="relative min-h-screen text-foreground">
+          <div className="relative min-h-screen text-foreground bg-[#0a0a0c]">
             <Navbar />
             <main>
               <Hero />

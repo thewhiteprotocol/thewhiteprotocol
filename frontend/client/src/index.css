@@ -289,23 +289,20 @@
 /* Dark Glass Wallet Adapter Overrides */
 .wallet-adapter-button {
   background: rgba(255,255,255,0.04) !important;
-  color: #E6EAF0 !important;
+  color: #e4e4e7 !important;
   font-weight: 600;
   border-radius: 0.75rem;
   border: 1px solid rgba(255,255,255,0.08) !important;
-  backdrop-filter: blur(12px);
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
   box-shadow: none !important;
 }
 .wallet-adapter-button:hover {
-  background: rgba(0,200,240,0.08) !important;
-  border-color: rgba(0,200,240,0.25) !important;
-  color: #00D4FF !important;
-  box-shadow: 0 0 20px rgba(0,200,240,0.08) !important;
+  background: rgba(255,255,255,0.08) !important;
+  border-color: rgba(255,255,255,0.15) !important;
+  color: #ffffff !important;
 }
 .wallet-adapter-button:active {
-  background: rgba(0,200,240,0.12) !important;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3) !important;
+  background: rgba(255,255,255,0.10) !important;
 }
 .wallet-adapter-button-trigger {
   background: rgba(255,255,255,0.04) !important;
@@ -331,9 +328,9 @@
   box-shadow: none !important;
 }
 .wallet-adapter-dropdown-list-item:hover {
-  background: rgba(0,200,240,0.06) !important;
-  color: #00D4FF !important;
-  border-color: rgba(0,200,240,0.15) !important;
+  background: rgba(255,255,255,0.06) !important;
+  color: #ffffff !important;
+  border-color: rgba(255,255,255,0.12) !important;
   box-shadow: none !important;
 }
 .wallet-adapter-modal-wrapper {
@@ -358,16 +355,16 @@
   box-shadow: none !important;
 }
 .wallet-adapter-modal-list li:hover {
-  background: rgba(0,200,240,0.06) !important;
-  border-color: rgba(0,200,240,0.15) !important;
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255,255,255,0.12) !important;
   box-shadow: none !important;
 }
 .wallet-adapter-modal-list li button {
-  color: #E6EAF0 !important;
+  color: #e4e4e7 !important;
   font-weight: 600;
 }
 .wallet-adapter-modal-list li button:hover {
-  color: #00D4FF !important;
+  color: #ffffff !important;
 }
 .wallet-adapter-modal-button-close {
   background: rgba(255,255,255,0.06) !important;

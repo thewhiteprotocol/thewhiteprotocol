@@ -9,45 +9,45 @@ export function DevnetStatus() {
     <section id="devnet" className="py-24 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Devnet Deployment</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">Devnet Deployment</h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            The White Protocol is live on Solana Devnet and Base Sepolia for testing
+            The White Protocol is live on Solana Devnet and Base Sepolia for testing.
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="p-6 rounded-2xl border border-white/10 bg-white/[0.03]">
+          <div className="p-6 rounded-xl border border-white/[0.06] bg-white/[0.02]">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20"><Globe className="h-5 w-5 text-cyan-400" /></div>
+              <div className="p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]"><Globe className="h-5 w-5 text-zinc-300" /></div>
               <div>
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Network</p>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Network</p>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
-                  <span className="text-sm font-bold text-white">Solana Devnet</span>
+                  <span className="text-sm font-semibold text-white">Solana Devnet</span>
                 </div>
               </div>
             </div>
           </div>
-          <div className="p-6 rounded-2xl border border-white/10 bg-white/[0.03]">
+          <div className="p-6 rounded-xl border border-white/[0.06] bg-white/[0.02]">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20"><Cpu className="h-5 w-5 text-cyan-400" /></div>
+              <div className="p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]"><Cpu className="h-5 w-5 text-zinc-300" /></div>
               <div>
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Base Sepolia</p>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Base Sepolia</p>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
-                  <span className="text-sm font-bold text-white">Deployed</span>
+                  <span className="text-sm font-semibold text-white">Deployed</span>
                 </div>
               </div>
             </div>
           </div>
-          <div className="p-6 rounded-2xl border border-white/10 bg-white/[0.03]">
+          <div className="p-6 rounded-xl border border-white/[0.06] bg-white/[0.02]">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20"><Wallet className="h-5 w-5 text-cyan-400" /></div>
+              <div className="p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]"><Wallet className="h-5 w-5 text-zinc-300" /></div>
               <div>
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Wallet</p>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Wallet</p>
                 <div className="flex items-center gap-2 mt-1">
                   <div className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-zinc-500"}`}></div>
-                  <span className="text-sm font-bold text-white">{connected ? "Connected" : "Not Connected"}</span>
+                  <span className="text-sm font-semibold text-white">{connected ? "Connected" : "Not Connected"}</span>
                 </div>
               </div>
             </div>
@@ -55,10 +55,10 @@ export function DevnetStatus() {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-8">
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8">
             <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20"><Code className="h-5 w-5 text-cyan-400" /></div>
-              <h3 className="text-xl font-bold text-white">Solana Deployment</h3>
+              <div className="p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]"><Code className="h-5 w-5 text-zinc-300" /></div>
+              <h3 className="text-xl font-semibold text-white">Solana Deployment</h3>
             </div>
             <div className="space-y-4">
               <div>
@@ -116,27 +116,27 @@ export function DevnetStatus() {
           </div>
         </div>
 
-        <div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.03] p-8">
+        <div className="mt-8 rounded-xl border border-white/[0.06] bg-white/[0.02] p-8">
           <div className="flex items-center gap-3 mb-6">
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20"><CheckCircle className="h-5 w-5 text-emerald-400" /></div>
-            <h3 className="text-xl font-bold text-white">Zero-Knowledge Circuits</h3>
+            <div className="p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]"><CheckCircle className="h-5 w-5 text-zinc-300" /></div>
+            <h3 className="text-xl font-semibold text-white">Zero-Knowledge Circuits</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] text-center">
-              <p className="text-2xl font-bold text-emerald-400">4</p>
-              <p className="text-xs text-zinc-500 font-bold uppercase mt-1">Circuits</p>
+            <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] text-center">
+              <p className="text-2xl font-semibold text-white">4</p>
+              <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">Circuits</p>
             </div>
-            <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] text-center">
-              <p className="text-2xl font-bold text-emerald-400">466K+</p>
-              <p className="text-xs text-zinc-500 font-bold uppercase mt-1">Max Constraints</p>
+            <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] text-center">
+              <p className="text-2xl font-semibold text-white">466K+</p>
+              <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">Max Constraints</p>
             </div>
-            <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] text-center">
-              <p className="text-2xl font-bold text-emerald-400">20</p>
-              <p className="text-xs text-zinc-500 font-bold uppercase mt-1">Tree Depth</p>
+            <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] text-center">
+              <p className="text-2xl font-semibold text-white">20</p>
+              <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">Tree Depth</p>
             </div>
-            <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] text-center">
-              <p className="text-2xl font-bold text-emerald-400">1M</p>
-              <p className="text-xs text-zinc-500 font-bold uppercase mt-1">Capacity</p>
+            <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] text-center">
+              <p className="text-2xl font-semibold text-white">1M</p>
+              <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">Capacity</p>
             </div>
           </div>
         </div>

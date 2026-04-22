@@ -46,7 +46,7 @@ export function Docs() {
     <section id="docs" className="py-24 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">
             Documentation
           </h2>
           <p className="text-lg text-zinc-400">
@@ -58,20 +58,20 @@ export function Docs() {
           {docs.map((doc, index) => (
             <div
               key={doc.title}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden transition-all hover:bg-white/[0.04]"
+              className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden transition-all hover:bg-white/[0.04]"
             >
               <button
                 onClick={() => setOpenIndex(openIndex === index ? null : index)}
                 className="w-full p-6 flex items-center gap-4 text-left transition-colors"
               >
-                <div className={`p-3 rounded-xl transition-all border ${
-                  openIndex === index 
-                    ? "bg-cyan-500/10 border-cyan-500/20" 
+                <div className={`p-3 rounded-lg transition-all border ${
+                  openIndex === index
+                    ? "bg-white/[0.06] border-white/[0.10]"
                     : "bg-white/[0.03] border-white/[0.06]"
                 }`}>
-                  <doc.icon className={`h-5 w-5 ${openIndex === index ? "text-cyan-400" : "text-zinc-400"}`} />
+                  <doc.icon className={`h-5 w-5 ${openIndex === index ? "text-white" : "text-zinc-400"}`} />
                 </div>
-                <span className={`flex-1 font-bold ${openIndex === index ? "text-cyan-400" : "text-white"}`}>
+                <span className={`flex-1 font-semibold ${openIndex === index ? "text-white" : "text-white"}`}>
                   {doc.title}
                 </span>
                 {openIndex === index ? (

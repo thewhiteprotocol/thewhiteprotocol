@@ -28,15 +28,15 @@ export function ForBusiness() {
     <section id="business" className="py-24 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-zinc-300 text-xs font-semibold uppercase tracking-wider mb-4">
             <Building2 className="w-3.5 h-3.5" />
             For Business
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">
             Privacy-First Business Tools
           </h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            The White Protocol Business tier gives you everything you need to accept private payments, stay compliant, and impress your clients.
+            Accept private payments, generate compliant receipts, and export accounting data — all without compromising client confidentiality.
           </p>
         </div>
 
@@ -44,10 +44,10 @@ export function ForBusiness() {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-all hover:border-emerald-500/30 hover:bg-white/[0.05]"
+              className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 transition-all hover:border-white/[0.12] hover:bg-white/[0.04]"
             >
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 transition-transform group-hover:scale-110">
-                <feature.icon className="h-5 w-5 text-emerald-400" />
+              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.04]">
+                <feature.icon className="h-5 w-5 text-zinc-300" />
               </div>
               <h3 className="mb-2 font-semibold text-white">{feature.title}</h3>
               <p className="text-sm text-zinc-400 leading-relaxed">{feature.description}</p>
@@ -58,12 +58,12 @@ export function ForBusiness() {
         <div className="mt-12 text-center">
           <a
             href={import.meta.env.VITE_APP_URL || "https://app.thewhiteprotocol.com"}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-white text-black font-semibold rounded-xl hover:bg-zinc-200 transition-all"
           >
             Start Free
             <ArrowRight className="w-4 h-4" />
           </a>
-          <p className="mt-3 text-xs text-zinc-500">Free on testnet. WHITE staking on mainnet.</p>
+          <p className="mt-3 text-xs text-zinc-500">Free on testnet. Mainnet coming soon.</p>
         </div>
       </div>
     </section>

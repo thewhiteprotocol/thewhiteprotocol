@@ -47,8 +47,8 @@ export function Navbar() {
       <div className="max-w-6xl mx-auto px-6">
         <div className="flex items-center justify-between h-16">
           <button onClick={() => scrollToSection("#overview")} className="flex items-center gap-3 group">
-            <img src="/logo.png" alt="White" className="w-9 h-9 rounded-xl shadow-[0_0_12px_rgba(0,200,240,0.15)] group-hover:shadow-[0_0_20px_rgba(0,200,240,0.25)] group-hover:scale-105 transition-all" />
-            <span className="font-bold text-lg text-white">The White Protocol</span>
+            <img src="/logo.png" alt="White" className="w-9 h-9 object-contain rounded-lg" />
+            <span className="font-bold text-lg text-white tracking-tight">The White Protocol</span>
           </button>
 
           <div className="hidden lg:flex items-center">
@@ -56,8 +56,8 @@ export function Navbar() {
               {navLinks.map((link) => {
                 const isActive = activeSection === link.href.slice(1);
                 const cls = isActive
-                  ? "bg-white/[0.06] text-cyan-400 border border-cyan-400/20 shadow-[0_0_10px_rgba(0,200,240,0.08)]"
-                  : "text-slate-400 hover:text-white border border-transparent";
+                  ? "bg-white/[0.08] text-white border border-white/10"
+                  : "text-zinc-400 hover:text-white border border-transparent";
                 return (
                   <button key={link.href} onClick={() => scrollToSection(link.href)} className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${cls}`}>
                     {link.label}
@@ -86,8 +86,8 @@ export function Navbar() {
             {navLinks.map((link) => {
               const isActive = activeSection === link.href.slice(1);
               const cls = isActive
-                ? "bg-cyan-400/[0.06] text-cyan-400 border border-cyan-400/20"
-                : "text-slate-400 hover:text-white bg-white/[0.03] border border-white/[0.04]";
+                ? "bg-white/[0.08] text-white border border-white/10"
+                : "text-zinc-400 hover:text-white bg-white/[0.03] border border-white/[0.04]";
               return (
                 <button key={link.href} onClick={() => scrollToSection(link.href)} className={`w-full text-left px-4 py-3 rounded-xl font-medium transition-all ${cls}`}>
                   {link.label}

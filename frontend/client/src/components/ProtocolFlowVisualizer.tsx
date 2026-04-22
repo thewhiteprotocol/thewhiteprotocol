@@ -12,16 +12,16 @@ type TooltipState = {
 };
 
 const COLORS = {
-  bg: "#090B13",
-  card: "#0f1220",
-  deposit: "#10b981",
+  bg: "#0a0a0c",
+  card: "#111114",
+  deposit: "#22c55e",
   withdraw: "#ef4444",
-  proof: "#38bdf8",
-  pool: "#a78bfa",
-  ink: "#f8fafc",
-  muted: "#94a3b8",
+  proof: "#60a5fa",
+  pool: "#818cf8",
+  ink: "#f4f4f5",
+  muted: "#71717a",
   shadow: "#000000",
-  highlight: "#1e293b",
+  highlight: "#18181b",
 };
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
@@ -37,7 +37,7 @@ function clamp(n: number, a: number, b: number) {
 }
 
 function glow(color: string) {
-  return `drop-shadow(0 0 6px ${color}80) drop-shadow(0 0 12px ${color}40)`;
+  return `drop-shadow(0 0 3px ${color}40)`;
 }
 
 function useTimers() {
@@ -268,7 +268,7 @@ export default function ProtocolFlowVisualizer() {
   const mixParticles = useMemo(() => new Array(8).fill(0).map((_, i) => ({ id: i, color: i % 3 === 0 ? COLORS.deposit : i % 3 === 1 ? COLORS.proof : "#06b6d4", phase: i * 0.8 })), []);
 
   return (
-    <div className="w-full rounded-[2rem] border border-white/10 bg-white/[0.03] p-6">
+    <div className="w-full rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -283,17 +283,17 @@ export default function ProtocolFlowVisualizer() {
                 { label: "Privacy Guarantees", onClick: showPrivacy },
                 { label: "Reset", onClick: reset },
               ].map((btn) => (
-                <button key={btn.label} onClick={btn.onClick} className="px-4 py-2 rounded-xl text-sm font-medium text-zinc-300 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.12] active:bg-white/[0.08] transition-all">
+                <button key={btn.label} onClick={btn.onClick} className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-300 bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.12] active:bg-white/[0.08] transition-all">
                   {btn.label}
                 </button>
               ))}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] px-4 py-2">
+            <div className="flex items-center gap-3 rounded-lg bg-white/[0.03] border border-white/[0.06] px-4 py-2">
               <span className="text-xs font-mono text-zinc-400">Speed</span>
-              <input type="range" min={0.5} max={2} step={0.1} value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="w-32 accent-cyan-400" />
-              <span className="text-xs font-mono text-white font-bold">{speed.toFixed(1)}x</span>
+              <input type="range" min={0.5} max={2} step={0.1} value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="w-32 accent-zinc-400" />
+              <span className="text-xs font-mono text-white font-semibold">{speed.toFixed(1)}x</span>
             </div>
             <StatPill label="Commitments" value={commitments.toLocaleString()} color={COLORS.pool} />
             <StatPill label="TVL" value={`${tvl.toLocaleString(undefined, { minimumFractionDigits: 2 })} SOL`} color={COLORS.pool} />
@@ -302,7 +302,7 @@ export default function ProtocolFlowVisualizer() {
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-2xl bg-[#090B13] border border-white/[0.08]">
+        <div className="relative overflow-hidden rounded-xl bg-[#0a0a0c] border border-white/[0.06]">
           <svg viewBox={`0 0 ${W} ${H}`} className="h-[580px] w-full select-none">
             <defs>
               <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
@@ -535,7 +535,7 @@ export default function ProtocolFlowVisualizer() {
           <AnimatePresence>
             {tooltip.visible && (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }}
-                className="pointer-events-none absolute z-50 max-w-xs rounded-xl bg-[#0f1220] border border-white/10 p-3 shadow-xl"
+                className="pointer-events-none absolute z-50 max-w-xs rounded-lg bg-[#111114] border border-white/[0.08] p-3 shadow-xl"
                 style={{ left: tooltip.x + 15, top: tooltip.y + 15 }}>
                 <div className="text-sm font-bold text-white">{tooltip.title}</div>
                 <div className="mt-1 text-xs leading-relaxed text-zinc-400">{tooltip.body}</div>

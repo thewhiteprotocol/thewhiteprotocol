@@ -28,11 +28,11 @@ export function Architecture() {
     <section id="architecture" className="py-24 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">
             Architecture
           </h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            A deep dive into the technical foundations of The White Protocol
+            Technical foundations built for scale, security, and cross-chain interoperability.
           </p>
         </div>
 
@@ -40,14 +40,14 @@ export function Architecture() {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-all hover:bg-white/[0.05] hover:border-cyan-500/20"
+              className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04] hover:border-white/[0.10]"
             >
               <div className="flex items-start gap-4">
-                <div className="p-3 rounded-2xl bg-cyan-500/10 transition-all group-hover:scale-110">
-                  <feature.icon className="h-6 w-6 text-cyan-400" />
+                <div className="p-3 rounded-lg bg-white/[0.04]">
+                  <feature.icon className="h-6 w-6 text-zinc-300" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white mb-2">
+                  <h3 className="text-lg font-semibold text-white mb-2">
                     {feature.title}
                   </h3>
                   <p className="text-zinc-400 text-sm leading-relaxed">
@@ -59,8 +59,8 @@ export function Architecture() {
           ))}
         </div>
 
-        <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-8">
-          <h3 className="text-xl font-bold text-white mb-6">Technical Stack</h3>
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8">
+          <h3 className="text-xl font-semibold text-white mb-6">Technical Stack</h3>
           
           <div className="grid md:grid-cols-2 gap-8">
             <div>
@@ -73,8 +73,8 @@ export function Architecture() {
                   "Send and receive privately across chains",
                   "Withdraw to any wallet via relayer or direct",
                 ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                    <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-500"></div>
                     <span className="text-sm text-zinc-300">{item}</span>
                   </div>
                 ))}
@@ -91,8 +91,8 @@ export function Architecture() {
                   "Groth16 on BN254 curve",
                   "20-level Merkle tree (~1M capacity)",
                 ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-500"></div>
                     <span className="text-sm text-zinc-300">{item}</span>
                   </div>
                 ))}
@@ -100,9 +100,9 @@ export function Architecture() {
             </div>
           </div>
 
-          <div className="mt-8 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+          <div className="mt-8 p-4 rounded-lg bg-white/[0.03] border border-white/[0.06]">
             <p className="text-sm text-zinc-400">
-              <span className="font-bold text-white">Note:</span> Currently deployed on Solana Devnet and Base Sepolia. Mainnet deployment is planned after comprehensive security audits.
+              <span className="font-semibold text-white">Note:</span> Currently deployed on Solana Devnet and Base Sepolia. Mainnet deployment is planned after comprehensive security audits.
             </p>
           </div>
         </div>
