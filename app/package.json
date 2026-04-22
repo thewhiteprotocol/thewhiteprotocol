@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "node -e \"const fs=require('fs'),p=require('path');const s='../packages/core',d='node_modules/@thewhiteprotocol/core';try{fs.rmSync(d,{recursive:true})}catch{};fs.mkdirSync(p.dirname(d),{recursive:true});fs.cpSync(s,d,{recursive:true,dereference:true})\""
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
