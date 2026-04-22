@@ -309,10 +309,11 @@ function isValidSolanaPubkey(value) {
     }
 }
 function withTimeout(promise, ms, message) {
-    return Promise.race([
-        promise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
-    ]);
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+    });
+    return Promise.race([promise.finally(() => clearTimeout(timer)), timeoutPromise]);
 }
 // =============================================================================
 // API EXTENSIONS CLASS
@@ -531,19 +532,23 @@ class RelayerApiExtensions {
             // Detect settled commitments by comparing with previous state
             const prevPending = this.pendingState.pendingCommitments;
             const prevNextLeafIndex = this.pendingState.nextLeafIndex;
-            if (prevPending.length > 0 && currentNextLeafIndex > prevNextLeafIndex) {
+            if (currentNextLeafIndex > prevNextLeafIndex) {
                 const numSettled = currentNextLeafIndex - prevNextLeafIndex;
                 // Settled commitments are the first N from the previous pending buffer (FIFO)
+                // If prevPending is empty (fresh start), we can't determine which commitments settled,
+                // but we still update the nextLeafIndex so future syncs work correctly.
                 const settledCommitments = prevPending.slice(0, numSettled);
-                for (let i = 0; i < settledCommitments.length; i++) {
-                    const leafIndex = prevNextLeafIndex + i;
-                    this.merkleTree.insertAt(leafIndex, settledCommitments[i]);
-                    logger_1.logger.info('Settled commitment inserted into local tree', {
-                        leafIndex,
-                        commitment: settledCommitments[i].toString(),
-                    });
+                if (settledCommitments.length > 0) {
+                    for (let i = 0; i < settledCommitments.length; i++) {
+                        const leafIndex = prevNextLeafIndex + i;
+                        this.merkleTree.insertAt(leafIndex, settledCommitments[i]);
+                        logger_1.logger.info('Settled commitment inserted into local tree', {
+                            leafIndex,
+                            commitment: settledCommitments[i].toString(),
+                        });
+                    }
+                    this.persistMerkleTree();
                 }
-                this.persistMerkleTree();
                 logger_1.logger.info('Batch settlement detected', {
                     numSettled,
                     oldNextLeafIndex: prevNextLeafIndex,
@@ -1367,7 +1372,7 @@ class RelayerApiExtensions {
         // =========================================================================
         // BUILD DEPOSIT TRANSACTION
         // =========================================================================
-        this.router.post('/build-deposit-tx', async (req, res) => {
+        this.router.post('/build-deposit-tx', this.requireAuth.bind(this), async (req, res) => {
             try {
                 const { amount, commitment, assetId, proofData, depositorPubkey, mint } = req.body;
                 if (!amount || !commitment || !assetId || !proofData || !depositorPubkey || !mint) {
@@ -1403,13 +1408,9 @@ class RelayerApiExtensions {
                 const { SystemProgram } = await Promise.resolve().then(() => __importStar(require('@solana/web3.js')));
                 const userTokenAccount = getAssociatedTokenAddressSync(mintPubkey, depositor);
                 const preInstructions = [];
-                // Check if user ATA exists and is a valid token account
-                const userAtaInfo = await this.getAccountInfoCached(userTokenAccount, 30000);
-                const ataMissing = !userAtaInfo || !userAtaInfo.owner.equals(TOKEN_PROGRAM_ID);
-                if (ataMissing) {
-                    logger_1.logger.info('build-deposit-tx user ATA does not exist or is not initialized, adding create instruction');
-                    preInstructions.push(createAssociatedTokenAccountInstruction(depositor, userTokenAccount, depositor, mintPubkey));
-                }
+                // Use idempotent ATA creation so tx succeeds even if ATA exists
+                const { createAssociatedTokenAccountIdempotentInstruction } = await Promise.resolve().then(() => __importStar(require('@solana/spl-token')));
+                preInstructions.push(createAssociatedTokenAccountIdempotentInstruction(depositor, userTokenAccount, depositor, mintPubkey, TOKEN_PROGRAM_ID));
                 // Auto-wrap native SOL into wSOL before deposit
                 if (mintPubkey.equals(NATIVE_MINT)) {
                     logger_1.logger.info('build-deposit-tx native SOL deposit, adding wrap instructions');
@@ -1426,6 +1427,7 @@ class RelayerApiExtensions {
                 amountBuf.writeBigUInt64LE(BigInt(amount));
                 const commitmentBytes = hexToBytes(commitment);
                 const proofBytes = hexToBytes(proofData);
+                const [commitmentIndex] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('commitment'), this.config.poolConfig.toBuffer(), Buffer.from(commitmentBytes)], this.config.programId);
                 const proofLenBuf = Buffer.alloc(4);
                 proofLenBuf.writeUInt32LE(proofBytes.length);
                 // encrypted_note = None (0 byte for Option::None)
@@ -1455,6 +1457,7 @@ class RelayerApiExtensions {
                         { pubkey: userTokenAccount, isSigner: false, isWritable: true },
                         { pubkey: mintPubkey, isSigner: false, isWritable: false },
                         { pubkey: depositVk, isSigner: false, isWritable: false },
+                        { pubkey: commitmentIndex, isSigner: false, isWritable: true },
                         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
                         { pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false },
                     ],
@@ -1469,17 +1472,15 @@ class RelayerApiExtensions {
                 tx.add(ix);
                 // Serialize (unsigned)
                 const serializedTx = tx.serialize({ requireAllSignatures: false }).toString('base64');
-                // Track commitment in local merkle tree for later proof generation
-                const commitmentBigInt = BigInt('0x' + commitment);
-                const insertedLeafIndex = this.merkleTree.insert(commitmentBigInt);
-                this.persistMerkleTree();
-                logger_1.logger.info('build-deposit-tx tracked commitment in local tree', { leafIndex: insertedLeafIndex });
+                // NOTE: We deliberately do NOT insert into the local Merkle tree here.
+                // The commitment is only in the pending buffer until settlement.
+                // Inserting pre-confirmation corrupts the tree if the tx never lands.
                 res.json({
                     success: true,
                     transaction: serializedTx,
                     blockhash,
                     lastValidBlockHeight,
-                    leafIndex: insertedLeafIndex, // Return leaf index for frontend tracking
+                    leafIndex: undefined, // Leaf index unknown until settlement
                 });
             }
             catch (error) {

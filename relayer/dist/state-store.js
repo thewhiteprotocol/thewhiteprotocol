@@ -69,7 +69,9 @@ function loadRelayerState() {
 }
 function saveRelayerState(state) {
     ensureDir();
-    fs.writeFileSync(RELAYER_STATE_PATH, JSON.stringify(state, null, 2));
+    const tmp = RELAYER_STATE_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+    fs.renameSync(tmp, RELAYER_STATE_PATH);
 }
 function loadMerkleTreeState() {
     try {
@@ -86,7 +88,9 @@ function loadMerkleTreeState() {
 }
 function saveMerkleTreeState(state) {
     ensureDir();
-    fs.writeFileSync(MERKLE_STATE_PATH, JSON.stringify(state, null, 2));
+    const tmp = MERKLE_STATE_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+    fs.renameSync(tmp, MERKLE_STATE_PATH);
 }
 function loadPendingState() {
     try {
@@ -103,5 +107,7 @@ function loadPendingState() {
 }
 function savePendingState(state) {
     ensureDir();
-    fs.writeFileSync(PENDING_STATE_PATH, JSON.stringify(state, null, 2));
+    const tmp = PENDING_STATE_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+    fs.renameSync(tmp, PENDING_STATE_PATH);
 }
