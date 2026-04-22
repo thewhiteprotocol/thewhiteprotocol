@@ -10,13 +10,8 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  experimental: {
-    turbo: {
-      resolveAlias: {
-        fs: './lib/node-stub.js',
-      },
-    },
-  },
+  // Turbopack aliases not supported in this Next.js version
+  // fs stub removed after eliminating proof.js from browser bundles
 };
 
 export default nextConfig;

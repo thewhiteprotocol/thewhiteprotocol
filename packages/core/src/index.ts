@@ -59,15 +59,6 @@ export {
   parseProofFromOnChain,
 } from './crypto.js';
 
-// Proof generation
-export {
-  generateProof,
-  verifyProof,
-  generateSerializedProof,
-  exportSolidityVerifier,
-  ProofGenerator,
-} from './proof.js';
-
 // Stealth addresses
 export * from './stealth/index.js';
 
