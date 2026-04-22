@@ -6,7 +6,6 @@ const nextConfig: NextConfig = {
     "@solana/wallet-adapter-react-ui",
     "@solana/wallet-adapter-wallets",
     "@rainbow-me/rainbowkit",
-    "@thewhiteprotocol/core",
   ],
   images: {
     unoptimized: true,
