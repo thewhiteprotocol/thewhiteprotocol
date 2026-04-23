@@ -57,6 +57,7 @@ export function UnlockModal() {
       await initializePoseidon();
       await initNoteStore(walletAddress, signature);
       await initTierStore();
+      window.dispatchEvent(new Event("white-protocol-notes-unlocked"));
       setOpen(false);
     } catch (err: any) {
       setError(err.message || "Failed to unlock wallet");

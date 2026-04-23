@@ -67,6 +67,8 @@ export declare class RelayerApiExtensions {
      * Cached account info fetch with optional TTL override
      */
     private getAccountInfoCached;
+    private eventBytes32ToBigInt;
+    private recoverMerkleTreeFromEvents;
     private syncMerkleTree;
     private setupRoutes;
     /**
@@ -99,5 +101,5 @@ export {};
  * // Mount the API extensions
  * app.use('/api', apiExtensions.getRouter());
  * ```
- */ 
+ */
 //# sourceMappingURL=api-extensions.d.ts.map

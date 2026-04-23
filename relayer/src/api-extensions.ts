@@ -16,6 +16,7 @@
 import express, { Request, Response, Router, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { PublicKey, Connection } from '@solana/web3.js';
+import { BorshCoder, EventParser } from '@coral-xyz/anchor';
 import * as snarkjs from 'snarkjs';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -236,6 +237,152 @@ function bytesToHex(bytes: Uint8Array): string {
     .join('');
 }
 
+function bytesToBigIntBE(bytes: Uint8Array): bigint {
+  let result = 0n;
+  for (const byte of bytes) {
+    result = (result << 8n) | BigInt(byte);
+  }
+  return result;
+}
+
+function requireAccountSize(data: Buffer | Uint8Array, minSize: number, accountName: string): void {
+  if (data.length < minSize) {
+    throw new Error(`${accountName} account too small: expected at least ${minSize} bytes, got ${data.length}`);
+  }
+}
+
+interface ParsedMerkleTreeAccount {
+  pool: PublicKey;
+  depth: number;
+  nextLeafIndex: number;
+  currentRoot: bigint;
+  currentRootBytes: Uint8Array;
+  rootHistoryIndex: number;
+  rootHistorySize: number;
+  totalLeaves: string;
+  lastInsertionAt: string;
+  version: number;
+}
+
+interface ParsedPendingDeposit {
+  commitment: bigint;
+  commitmentBytes: Uint8Array;
+  timestamp: string;
+}
+
+interface ParsedPendingBufferAccount {
+  pool: PublicKey;
+  deposits: ParsedPendingDeposit[];
+  totalPending: number;
+  lastBatchAt: string;
+  totalBatchesProcessed: string;
+  totalDepositsBatched: string;
+  bump: number;
+  version: number;
+}
+
+function parseMerkleTreeAccount(data: Buffer): ParsedMerkleTreeAccount {
+  requireAccountSize(data, 77, 'MerkleTree');
+
+  let offset = 8; // Anchor discriminator
+  const pool = new PublicKey(data.subarray(offset, offset + 32));
+  offset += 32;
+
+  const depth = data[offset];
+  offset += 1;
+
+  const nextLeafIndex = data.readUInt32LE(offset);
+  offset += 4;
+
+  const currentRootBytes = data.subarray(offset, offset + 32);
+  const currentRoot = bytesToBigIntBE(currentRootBytes);
+  offset += 32;
+
+  requireAccountSize(data, offset + 4, 'MerkleTree.root_history');
+  const rootHistoryLen = data.readUInt32LE(offset);
+  offset += 4 + rootHistoryLen * 32;
+
+  requireAccountSize(data, offset + 4, 'MerkleTree.root_history_metadata');
+  const rootHistoryIndex = data.readUInt16LE(offset);
+  offset += 2;
+  const rootHistorySize = data.readUInt16LE(offset);
+  offset += 2;
+
+  requireAccountSize(data, offset + 4, 'MerkleTree.filled_subtrees');
+  const filledSubtreesLen = data.readUInt32LE(offset);
+  offset += 4 + filledSubtreesLen * 32;
+
+  requireAccountSize(data, offset + 4, 'MerkleTree.zeros');
+  const zerosLen = data.readUInt32LE(offset);
+  offset += 4 + zerosLen * 32;
+
+  requireAccountSize(data, offset + 17, 'MerkleTree.trailing_fields');
+  const totalLeaves = data.readBigUInt64LE(offset).toString();
+  offset += 8;
+  const lastInsertionAt = data.readBigInt64LE(offset).toString();
+  offset += 8;
+  const version = data[offset];
+
+  return {
+    pool,
+    depth,
+    nextLeafIndex,
+    currentRoot,
+    currentRootBytes: Uint8Array.from(currentRootBytes),
+    rootHistoryIndex,
+    rootHistorySize,
+    totalLeaves,
+    lastInsertionAt,
+    version,
+  };
+}
+
+function parsePendingBufferAccount(data: Buffer): ParsedPendingBufferAccount {
+  requireAccountSize(data, 44, 'PendingDepositsBuffer');
+
+  let offset = 8; // Anchor discriminator
+  const pool = new PublicKey(data.subarray(offset, offset + 32));
+  offset += 32;
+
+  const depositsLen = data.readUInt32LE(offset);
+  offset += 4;
+
+  requireAccountSize(data, offset + depositsLen * 40 + 30, 'PendingDepositsBuffer.deposits');
+  const deposits: ParsedPendingDeposit[] = [];
+  for (let i = 0; i < depositsLen; i++) {
+    const commitmentBytes = data.subarray(offset, offset + 32);
+    deposits.push({
+      commitment: bytesToBigIntBE(commitmentBytes),
+      commitmentBytes: Uint8Array.from(commitmentBytes),
+      timestamp: data.readBigInt64LE(offset + 32).toString(),
+    });
+    offset += 40;
+  }
+
+  const totalPending = data.readUInt32LE(offset);
+  offset += 4;
+  const lastBatchAt = data.readBigInt64LE(offset).toString();
+  offset += 8;
+  const totalBatchesProcessed = data.readBigUInt64LE(offset).toString();
+  offset += 8;
+  const totalDepositsBatched = data.readBigUInt64LE(offset).toString();
+  offset += 8;
+  const bump = data[offset];
+  offset += 1;
+  const version = data[offset];
+
+  return {
+    pool,
+    deposits,
+    totalPending,
+    lastBatchAt,
+    totalBatchesProcessed,
+    totalDepositsBatched,
+    bump,
+    version,
+  };
+}
+
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {
@@ -426,12 +573,6 @@ export class RelayerApiExtensions {
       logger.info('Restored merkle tree from disk', { leafCount: persistedMerkle.leaves.length });
     }
     
-    // Load circuit artifacts
-    await this.loadCircuitArtifacts();
-    
-    // Sync merkle tree from chain
-    await this.syncMerkleTree();
-    
     // Restore pending state
     const persistedPending = loadPendingState();
     if (persistedPending) {
@@ -442,7 +583,14 @@ export class RelayerApiExtensions {
         nextLeafIndex: this.pendingState.nextLeafIndex,
       });
     }
-    
+
+    // Load circuit artifacts
+    await this.loadCircuitArtifacts();
+
+    // Sync merkle tree from chain after persisted state is restored so
+    // settlements that happened while the service was down are detected.
+    await this.syncMerkleTree();
+
     logger.info('API Extensions initialization complete');
   }
   
@@ -553,6 +701,100 @@ export class RelayerApiExtensions {
     this.rpcCache.set(key, info, ttlMs);
     return info;
   }
+
+  private eventBytes32ToBigInt(value: unknown): bigint | null {
+    if (value instanceof Uint8Array || Buffer.isBuffer(value)) {
+      if (value.length !== 32) return null;
+      return bytesToBigIntBE(value);
+    }
+    if (Array.isArray(value)) {
+      if (value.length !== 32) return null;
+      return bytesToBigIntBE(Uint8Array.from(value.map(v => Number(v))));
+    }
+    return null;
+  }
+
+  private async recoverMerkleTreeFromEvents(
+    targetLeafCount: number,
+    expectedRoot?: bigint
+  ): Promise<void> {
+    if (targetLeafCount <= 0) return;
+
+    const idlPath = path.join(__dirname, 'idl', 'white_protocol.json');
+    if (!fs.existsSync(idlPath)) {
+      logger.warn('Cannot recover merkle tree from events: IDL not found', { idlPath });
+      return;
+    }
+
+    const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
+    const parser = new EventParser(this.config.programId, new BorshCoder(idl));
+    const signatures = await withRetry(
+      () => this.connection.getSignaturesForAddress(this.config.programId, { limit: 1000 }, 'confirmed'),
+      { maxAttempts: 3, baseDelayMs: 500 }
+    );
+    const commitmentsByIndex = new Map<number, bigint>();
+
+    for (const signatureInfo of [...signatures].reverse()) {
+      if (commitmentsByIndex.size >= targetLeafCount) break;
+
+      const tx = await withRetry(
+        () => this.connection.getTransaction(signatureInfo.signature, {
+          commitment: 'confirmed',
+          maxSupportedTransactionVersion: 0,
+        }),
+        { maxAttempts: 3, baseDelayMs: 500 }
+      );
+      const logs = tx?.meta?.logMessages;
+      if (!logs) continue;
+
+      for (const event of parser.parseLogs(logs)) {
+        if (event.name !== 'CommitmentInsertedEvent') continue;
+
+        const data = event.data as any;
+        const pool = data.pool?.toBase58?.() ?? String(data.pool);
+        if (pool !== this.config.poolConfig.toBase58()) continue;
+
+        const leafIndexRaw = data.leaf_index ?? data.leafIndex;
+        const leafIndex = Number(leafIndexRaw);
+        if (!Number.isInteger(leafIndex) || leafIndex < 0 || leafIndex >= targetLeafCount) {
+          continue;
+        }
+
+        const commitment = this.eventBytes32ToBigInt(data.commitment);
+        if (commitment === null) continue;
+
+        commitmentsByIndex.set(leafIndex, commitment);
+      }
+    }
+
+    if (commitmentsByIndex.size === 0) {
+      logger.warn('No CommitmentInsertedEvent logs found for merkle recovery', {
+        targetLeafCount,
+        poolConfig: this.config.poolConfig.toBase58(),
+      });
+      return;
+    }
+
+    for (const [leafIndex, commitment] of [...commitmentsByIndex.entries()].sort((a, b) => a[0] - b[0])) {
+      this.merkleTree.insertAt(leafIndex, commitment);
+    }
+    this.persistMerkleTree();
+
+    const rebuiltRoot = this.merkleTree.getRoot();
+    if (expectedRoot !== undefined && rebuiltRoot !== expectedRoot) {
+      logger.warn('Recovered merkle tree root does not match on-chain root', {
+        recoveredLeaves: commitmentsByIndex.size,
+        targetLeafCount,
+        rebuiltRoot: rebuiltRoot.toString(),
+        expectedRoot: expectedRoot.toString(),
+      });
+    } else {
+      logger.info('Recovered merkle tree from CommitmentInsertedEvent logs', {
+        recoveredLeaves: commitmentsByIndex.size,
+        targetLeafCount,
+      });
+    }
+  }
   
   private async syncMerkleTree(): Promise<void> {
     try {
@@ -576,28 +818,32 @@ export class RelayerApiExtensions {
         return;
       }
       
-      // Parse next_leaf_index from account data
-      const merkleData = merkleInfo.data;
-      const currentNextLeafIndex = merkleData.readUInt32LE(40);
+      // Parse merkle tree using Anchor layout:
+      // discriminator(8), pool(32), depth(1), next_leaf_index(4), current_root(32), ...
+      const merkleAccount = parseMerkleTreeAccount(merkleInfo.data);
+      const currentNextLeafIndex = merkleAccount.nextLeafIndex;
+
+      if (this.merkleTree.getLeafCount() < currentNextLeafIndex) {
+        await this.recoverMerkleTreeFromEvents(currentNextLeafIndex, merkleAccount.currentRoot);
+      }
       
       // Read current pending buffer
       const currentPending: bigint[] = [];
       if (pendingInfo) {
-        const pendingData = pendingInfo.data;
-        const pendingCount = pendingData.readUInt32LE(40);
-        for (let i = 0; i < pendingCount; i++) {
-          const start = 44 + i * 32;
-          let c = 0n;
-          for (let j = 0; j < 32; j++) {
-            c = (c << 8n) | BigInt(pendingData[start + j]);
-          }
-          currentPending.push(c);
-        }
+        const pendingAccount = parsePendingBufferAccount(pendingInfo.data);
+        currentPending.push(...pendingAccount.deposits.map(d => d.commitment));
       }
       
       // Detect settled commitments by comparing with previous state
       const prevPending = this.pendingState.pendingCommitments;
-      const prevNextLeafIndex = this.pendingState.nextLeafIndex;
+      let prevNextLeafIndex = this.pendingState.nextLeafIndex;
+      if (prevNextLeafIndex > currentNextLeafIndex) {
+        logger.warn('Persisted pending state is ahead of on-chain merkle state; resetting sync cursor', {
+          persistedNextLeafIndex: prevNextLeafIndex,
+          currentNextLeafIndex,
+        });
+        prevNextLeafIndex = Math.min(this.merkleTree.getLeafCount(), currentNextLeafIndex);
+      }
       
       if (currentNextLeafIndex > prevNextLeafIndex) {
         const numSettled = currentNextLeafIndex - prevNextLeafIndex;
@@ -1207,36 +1453,29 @@ export class RelayerApiExtensions {
         ]);
         
         let merkleRoot = '0';
+        let merkleRootHex = bytesToHex(feToBytes32BE(0n));
         let nextLeafIndex = 0;
+        let totalLeaves = '0';
+        let rootHistoryIndex = 0;
+        let rootHistorySize = 0;
         
         if (merkleInfo) {
-          const data = merkleInfo.data;
-          // Parse root (32 bytes at offset 8)
-          const rootBytes = data.slice(8, 40);
-          let root = 0n;
-          for (let i = 0; i < 32; i++) {
-            root = (root << 8n) | BigInt(rootBytes[i]);
-          }
-          merkleRoot = root.toString();
-          nextLeafIndex = data.readUInt32LE(40);
+          const merkleAccount = parseMerkleTreeAccount(merkleInfo.data);
+          merkleRoot = merkleAccount.currentRoot.toString();
+          merkleRootHex = bytesToHex(merkleAccount.currentRootBytes);
+          nextLeafIndex = merkleAccount.nextLeafIndex;
+          totalLeaves = merkleAccount.totalLeaves;
+          rootHistoryIndex = merkleAccount.rootHistoryIndex;
+          rootHistorySize = merkleAccount.rootHistorySize;
         }
         
         let pendingCount = 0;
         const pendingCommitments: string[] = [];
         
         if (pendingInfo) {
-          const data = pendingInfo.data;
-          pendingCount = data.readUInt32LE(40);
-          
-          for (let i = 0; i < pendingCount; i++) {
-            const start = 44 + i * 32;
-            const commitmentBytes = data.slice(start, start + 32);
-            let commitment = 0n;
-            for (let j = 0; j < 32; j++) {
-              commitment = (commitment << 8n) | BigInt(commitmentBytes[j]);
-            }
-            pendingCommitments.push(commitment.toString());
-          }
+          const pendingAccount = parsePendingBufferAccount(pendingInfo.data);
+          pendingCount = pendingAccount.totalPending;
+          pendingCommitments.push(...pendingAccount.deposits.map(d => d.commitment.toString()));
         }
         
         res.json({
@@ -1246,9 +1485,13 @@ export class RelayerApiExtensions {
           merkle: {
             address: merkleTreePda.toBase58(),
             root: merkleRoot,
-            rootHex: bytesToHex(feToBytes32BE(BigInt(merkleRoot))),
+            rootHex: merkleRootHex,
             nextLeafIndex: nextLeafIndex,
+            totalLeaves,
+            rootHistoryIndex,
+            rootHistorySize,
             treeDepth: this.config.treeDepth,
+            localLeafCount: this.merkleTree.getLeafCount(),
           },
           pending: {
             address: pendingBufferPda.toBase58(),
@@ -1397,17 +1640,9 @@ export class RelayerApiExtensions {
         
         const pendingInfo = await this.getAccountInfoCached(pendingBufferPda);
         if (pendingInfo) {
-          const data = pendingInfo.data;
-          const pendingCount = data.readUInt32LE(40);
-          
-          for (let i = 0; i < pendingCount; i++) {
-            const start = 44 + i * 32;
-            const commitmentBytes = data.slice(start, start + 32);
-            let c = 0n;
-            for (let j = 0; j < 32; j++) {
-              c = (c << 8n) | BigInt(commitmentBytes[j]);
-            }
-            if (c === commitmentBigInt) {
+          const pendingAccount = parsePendingBufferAccount(pendingInfo.data);
+          for (let i = 0; i < pendingAccount.deposits.length; i++) {
+            if (pendingAccount.deposits[i].commitment === commitmentBigInt) {
               return res.json({
                 success: true,
                 status: 'pending',

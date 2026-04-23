@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,21 +37,40 @@ export default function ShieldPage() {
   const [notes, setNotes] = useState<StoredNote[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(true);
 
+  const refreshNotes = useCallback(async () => {
+    const loadedNotes = await getNotes();
+    setNotes(loadedNotes);
+  }, []);
+
   useEffect(() => {
     if (!isConnected) {
+      setNotes([]);
       setLoadingNotes(false);
       return;
     }
     let mounted = true;
+    setLoadingNotes(true);
     getNotes()
-      .then((n) => {
-        if (mounted) setNotes(n);
+      .then((loadedNotes) => {
+        if (mounted) setNotes(loadedNotes);
       })
       .catch(() => {})
       .finally(() => {
         if (mounted) setLoadingNotes(false);
       });
-  }, [isConnected, walletAddress]);
+  }, [isConnected, walletAddress, refreshNotes]);
+
+  useEffect(() => {
+    const handleUnlocked = () => {
+      setLoadingNotes(true);
+      refreshNotes()
+        .catch(() => {})
+        .finally(() => setLoadingNotes(false));
+    };
+
+    window.addEventListener("white-protocol-notes-unlocked", handleUnlocked);
+    return () => window.removeEventListener("white-protocol-notes-unlocked", handleUnlocked);
+  }, [refreshNotes]);
 
   const settledNotes = useMemo(
     () => notes.filter((n) => n.status === "settled" && n.chain === activeChain),
@@ -87,10 +106,7 @@ export default function ShieldPage() {
             solanaWallet={solanaWallet}
             evmWalletClient={evmWalletClient}
             onDeposit={(note) => setNotes((prev) => [...prev, note])}
-            onNoteUpdated={async () => {
-              const n = await getNotes();
-              setNotes(n);
-            }}
+            onNoteUpdated={refreshNotes}
           />
           <WithdrawTab
             activeChain={activeChain}
@@ -98,9 +114,7 @@ export default function ShieldPage() {
             evmWalletClient={evmWalletClient}
             notes={settledNotes}
             loadingNotes={loadingNotes}
-            onWithdraw={() =>
-              getNotes().then((n) => setNotes(n)).catch(() => {})
-            }
+            onWithdraw={() => refreshNotes().catch(() => {})}
           />
         </div>
       )}
