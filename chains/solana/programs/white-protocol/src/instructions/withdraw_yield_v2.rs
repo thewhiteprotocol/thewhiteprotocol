@@ -116,10 +116,10 @@ pub struct WithdrawYieldV2<'info> {
         ],
         bump,
     )]
-    pub spent_nullifier_0: Account<'info, SpentNullifier>,
+    pub spent_nullifier_0: Box<Account<'info, SpentNullifier>>,
 
     /// Secondary spent nullifier account (optional, for 2-input join-split)
-    pub spent_nullifier_1: Option<Account<'info, SpentNullifier>>,
+    pub spent_nullifier_1: Option<Box<Account<'info, SpentNullifier>>>,
 
     /// Pending deposits buffer (for change commitment)
     #[account(
@@ -136,7 +136,7 @@ pub struct WithdrawYieldV2<'info> {
     pub relayer_registry: Box<Account<'info, RelayerRegistry>>,
 
     /// Relayer node (optional, for registered relayers)
-    pub relayer_node: Option<Account<'info, RelayerNode>>,
+    pub relayer_node: Option<Box<Account<'info, RelayerNode>>>,
 
     /// Token program
     /// Yield registry (validates yield assets)

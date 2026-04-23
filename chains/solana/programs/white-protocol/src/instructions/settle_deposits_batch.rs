@@ -217,30 +217,22 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     let is_valid = verify(&vk, &proof, &public_inputs)?;
     require!(is_valid, WhiteProtocolError::InvalidProof);
 
-    msg!("✓ Batch proof verified for {} deposits", batch_size);
-
-    // Emit structured settlement logs for recovery
-    for i in 0..batch_size {
-        msg!("SETTLED_LEAF idx={} commit={:02x?}", start_index + i as u32, commitments[i]);
-    }
-    msg!("SETTLED_BATCH start={} size={} root={:02x?}", start_index, batch_size, args.new_root);
     // =========================================================================
     // 6. UPDATE MERKLE TREE STATE
     // =========================================================================
-    // Perform actual on-chain insertion to keep filled_subtrees consistent.
-    // With MAX_BATCH_SIZE=1 this is cheap (~20 Poseidon hashes = ~40k CUs).
-    for deposit in pending_deposits.iter().take(batch_size) {
-        merkle_tree.insert_leaf(deposit.commitment, deposit.timestamp)?;
-    }
-
-    // Sanity check: computed root must match proof's newRoot
-    require!(
-        merkle_tree.get_current_root() == args.new_root,
-        WhiteProtocolError::InvalidProof
-    );
-
-    // Update next leaf index (should already match after insert_leaf)
+    // The Groth16 proof already attests to the full tree transition
+    // `(old_root, start_index) -> new_root` for this batch. Recomputing the
+    // incremental insertion on-chain defeats the purpose of off-chain
+    // settlement and exceeds Solana CU limits. The sequencer maintains the
+    // full tree off-chain; the program only needs canonical root history and
+    // counters for withdrawal verification.
+    merkle_tree.current_root = args.new_root;
     merkle_tree.next_leaf_index = start_index + batch_size as u32;
+    merkle_tree.total_leaves = merkle_tree
+        .total_leaves
+        .checked_add(batch_size as u64)
+        .ok_or(error!(WhiteProtocolError::ArithmeticOverflow))?;
+    merkle_tree.last_insertion_at = timestamp;
 
     // Add to root history
     // Add to root history (circular buffer)
@@ -285,14 +277,6 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
         commitments_hash: commitments_sha256,
         timestamp,
     });
-
-    msg!(
-        "Batch settled: {} deposits, indices {}-{}, new root: {:?}",
-        batch_size,
-        start_index,
-        start_index + batch_size as u32 - 1,
-        &args.new_root[0..8]
-    );
 
     Ok(())
 }

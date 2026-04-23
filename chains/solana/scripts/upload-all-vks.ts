@@ -8,13 +8,38 @@ import { PublicKey, SystemProgram, ComputeBudgetProgram, Transaction, sendAndCon
 import * as fs from "fs";
 import * as path from "path";
 
-const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey(process.env.POOL_CONFIG || "J92qBrNomkSQ6tjmjbh7rVk2T8R6e6yxkGbB7jQirRRX");
+const PROGRAM_ID = new PublicKey(
+  process.env.PROGRAM_ID || "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW",
+);
+const POOL_CONFIG = new PublicKey(
+  process.env.POOL_CONFIG || "EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS",
+);
 
 const VK_CONFIGS = [
-  { name: "deposit", path: "circuits/build/deposit_vk.json", seed: "vk_deposit", proofType: { deposit: {} } },
-  { name: "withdraw", path: "circuits/build/withdraw_vk.json", seed: "vk_withdraw", proofType: { withdraw: {} } },
-  { name: "merkle_batch", path: "circuits/build/merkle_batch_update/verification_key.json", seed: "vk_merkle_batch", proofType: { merkleBatchUpdate: {} } },
+  {
+    name: "deposit",
+    path: "circuits/build/deposit_vk.json",
+    seed: "vk_deposit",
+    proofType: { deposit: {} },
+  },
+  {
+    name: "withdraw",
+    path: "circuits/build/withdraw_vk.json",
+    seed: "vk_withdraw",
+    proofType: { withdraw: {} },
+  },
+  {
+    name: "merkle_batch",
+    path: "circuits/merkle_batch_update/build/verification_key.json",
+    seed: "vk_merkle_batch",
+    proofType: { merkleBatchUpdate: {} },
+  },
+  {
+    name: "withdraw_v2",
+    path: "circuits/withdraw_v2/build/withdraw_v2_vk.json",
+    seed: "vk_withdraw_v2",
+    proofType: { withdrawV2: {} },
+  },
 ];
 
 interface VKJson {

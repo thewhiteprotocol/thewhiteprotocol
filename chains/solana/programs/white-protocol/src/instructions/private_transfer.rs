@@ -56,21 +56,21 @@ pub struct PrivateTransferJoinSplit<'info> {
         has_one = merkle_tree,
         has_one = relayer_registry,
     )]
-    pub pool_config: Account<'info, PoolConfig>,
+    pub pool_config: Box<Account<'info, PoolConfig>>,
 
     /// Merkle tree account
     #[account(
         mut,
         constraint = merkle_tree.is_known_root(&merkle_root) @ WhiteProtocolError::InvalidMerkleRoot,
     )]
-    pub merkle_tree: Account<'info, MerkleTree>,
+    pub merkle_tree: Box<Account<'info, MerkleTree>>,
 
     /// Verification key for join-split proofs
     #[account(
         seeds = [ProofType::JoinSplit.as_seed(), pool_config.key().as_ref()],
         bump = vk_account.bump,
     )]
-    pub vk_account: Account<'info, VerificationKeyAccount>,
+    pub vk_account: Box<Account<'info, VerificationKeyAccount>>,
 
     /// Asset vault account (needed for public flows)
     #[account(
@@ -83,24 +83,24 @@ pub struct PrivateTransferJoinSplit<'info> {
         bump = asset_vault.bump,
         constraint = asset_vault.is_active @ WhiteProtocolError::AssetNotActive,
     )]
-    pub asset_vault: Account<'info, AssetVault>,
+    pub asset_vault: Box<Account<'info, AssetVault>>,
 
     /// Vault token account
     #[account(
         mut,
         constraint = vault_token_account.key() == asset_vault.token_account @ WhiteProtocolError::InvalidOwner,
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Relayer's token account for fee
     #[account(
         mut,
         constraint = relayer_token_account.mint == asset_vault.mint @ WhiteProtocolError::InvalidMint,
     )]
-    pub relayer_token_account: Account<'info, TokenAccount>,
+    pub relayer_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Relayer registry
-    pub relayer_registry: Account<'info, RelayerRegistry>,
+    pub relayer_registry: Box<Account<'info, RelayerRegistry>>,
 
     /// Token program
     pub token_program: Program<'info, Token>,
