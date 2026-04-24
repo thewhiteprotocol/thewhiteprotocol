@@ -31,6 +31,7 @@ import {
   Transaction,
   sendAndConfirmTransaction,
   TransactionExpiredBlockheightExceededError,
+  ComputeBudgetProgram,
 } from '@solana/web3.js';
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
 import {
@@ -1565,6 +1566,77 @@ export class RelayerService {
   }
   
   /**
+   * Run Solana sequencer loop — auto-settles pending deposits via batch_process_deposits.
+   * Respects the program's 60-second MIN_BATCH_INTERVAL_SECONDS cooldown.
+   */
+  private runSolanaSequencer(): void {
+    const loop = async () => {
+      // Small startup delay so the relayer is fully initialized before first poll
+      await sleep(10000);
+      while (true) {
+        try {
+          const [pendingBufferPda] = PublicKey.findProgramAddressSync(
+            [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
+            this.config.programId
+          );
+          const [merkleTreePda] = PublicKey.findProgramAddressSync(
+            [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
+            this.config.programId
+          );
+
+          const pendingBuffer: any = await (this.program.account as any).pendingDepositsBuffer.fetch(pendingBufferPda);
+          const pendingCount = pendingBuffer?.deposits?.length || 0;
+
+          if (pendingCount > 0) {
+            const batchSize = Math.min(pendingCount, 5); // Conservative CU limit
+            logger.info('Solana settlement needed', { pendingDeposits: pendingCount, batchSize });
+
+            try {
+              const ix = await (this.program.methods as any)
+                .batchProcessDeposits(batchSize)
+                .accounts({
+                  batcher: this.config.walletKeypair.publicKey,
+                  poolConfig: this.config.poolConfig,
+                  merkleTree: merkleTreePda,
+                  pendingBuffer: pendingBufferPda,
+                })
+                .instruction();
+
+              const tx = new Transaction().add(
+                ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }),
+                ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
+                ix
+              );
+
+              const signature = await sendAndConfirmTransaction(
+                this.connection,
+                tx,
+                [this.config.walletKeypair],
+                { commitment: 'confirmed', maxRetries: 3 }
+              );
+
+              logger.info('Solana batch settled', { signature, batchSize });
+            } catch (err: any) {
+              const msg = err?.message || '';
+              if (msg.includes('BatchNotReady') || msg.includes('batch not ready')) {
+                logger.info('Solana batch cooldown active, waiting...');
+              } else if (msg.includes('already been processed') || msg.includes('already processed')) {
+                logger.info('Solana settlement tx already processed, skipping');
+              } else {
+                logger.error('Solana settlement failed', { error: msg });
+              }
+            }
+          }
+        } catch (err) {
+          logger.error('Solana sequencer error', { error: String(err) });
+        }
+        await sleep(60000); // 60 seconds between attempts (matches program cooldown)
+      }
+    };
+    loop();
+  }
+
+  /**
    * Run Base sequencer loop
    */
   private runBaseSequencer(): void {
@@ -1620,6 +1692,9 @@ export class RelayerService {
       });
     });
     
+    // Start background Solana settlement sequencer
+    this.runSolanaSequencer();
+
     if (this.baseAdapter) {
       this.runBaseSequencer();
     }
