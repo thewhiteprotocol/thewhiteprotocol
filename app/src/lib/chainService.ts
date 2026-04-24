@@ -512,34 +512,62 @@ export class SolanaChainService {
       preInstructions.push(createSyncNativeInstruction(userTokenAccount));
     }
 
-    const tx = await (program.methods as any)
-      .depositMasp(
-        new BN(amount.toString()),
-        Array.from(bigintToBytes32(commitment)),
-        Array.from(assetId),
-        Buffer.from(proof),
-        null
-      )
-      .accounts({
-        depositor,
-        poolConfig: SOLANA_POOL_CONFIG,
-        authority: poolAuthority,
-        merkleTree,
-        pendingBuffer,
-        assetVault,
-        vaultTokenAccount,
-        userTokenAccount,
-        mint,
-        depositVk,
-        commitmentIndex,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .preInstructions(preInstructions)
-      .postInstructions(postInstructions)
-      .rpc();
+    // Pre-flight: if this commitment is already pending, the deposit was likely
+    // already submitted (e.g. wallet auto-broadcast, retry, or page refresh).
+    // Treat it as success so the UI can move to polling instead of erroring.
+    const alreadyPending = await this.isCommitmentPending(commitment.toString(16).padStart(64, "0"));
+    if (alreadyPending) {
+      return `pending-${commitment.toString()}`;
+    }
 
-    return tx;
+    try {
+      const tx = await (program.methods as any)
+        .depositMasp(
+          new BN(amount.toString()),
+          Array.from(bigintToBytes32(commitment)),
+          Array.from(assetId),
+          Buffer.from(proof),
+          null
+        )
+        .accounts({
+          depositor,
+          poolConfig: SOLANA_POOL_CONFIG,
+          authority: poolAuthority,
+          merkleTree,
+          pendingBuffer,
+          assetVault,
+          vaultTokenAccount,
+          userTokenAccount,
+          mint,
+          depositVk,
+          commitmentIndex,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .preInstructions(preInstructions)
+        .postInstructions(postInstructions)
+        .rpc();
+
+      return tx;
+    } catch (err: any) {
+      const msg = err?.message || "";
+      // "already processed" means the tx landed on-chain but the client didn't
+      // receive the confirmation (wallet auto-broadcast, RPC timeout, etc).
+      if (msg.includes("already been processed") || msg.includes("already processed")) {
+        // Give the RPC a moment to index the pending deposit
+        await new Promise((r) => setTimeout(r, 2000));
+        const confirmedPending = await this.isCommitmentPending(commitment.toString(16).padStart(64, "0"));
+        if (confirmedPending) {
+          return `pending-${commitment.toString()}`;
+        }
+        // Also check recent logs as a fallback
+        const inLogs = await this.findDepositInLogs(commitment.toString(16).padStart(64, "0"));
+        if (inLogs) {
+          return `pending-${commitment.toString()}`;
+        }
+      }
+      throw err;
+    }
   }
 
   async withdraw(
