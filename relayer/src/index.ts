@@ -1594,10 +1594,11 @@ export class RelayerService {
             logger.info('Solana settlement needed', { pendingDeposits: pendingCount, batchSize });
 
             try {
+              const batcher = this.config.authorityKeypair || this.config.walletKeypair;
               const ix = await (this.program.methods as any)
                 .batchProcessDeposits(batchSize)
                 .accounts({
-                  batcher: this.config.walletKeypair.publicKey,
+                  batcher: batcher.publicKey,
                   poolConfig: this.config.poolConfig,
                   merkleTree: merkleTreePda,
                   pendingBuffer: pendingBufferPda,
