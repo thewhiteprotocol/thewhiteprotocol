@@ -15,9 +15,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Shield, Loader2 } from "lucide-react";
+import { Shield, Loader2, Trash2 } from "lucide-react";
 
 const UNLOCK_MESSAGE = "Unlock White Protocol Shielded Wallet";
+const STORAGE_PREFIX = "white_protocol_notes_v2";
 
 export function UnlockModal() {
   const { activeChain, walletAddress, isConnected } = useChain();
@@ -26,6 +27,7 @@ export function UnlockModal() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasStaleData, setHasStaleData] = useState(false);
 
   useEffect(() => {
     if (!isConnected || !walletAddress) {
@@ -35,6 +37,7 @@ export function UnlockModal() {
     const needsUnlock = !hasSessionKey();
     if (needsUnlock) {
       setOpen(true);
+      setHasStaleData(isStoreInitialized(walletAddress));
     }
   }, [isConnected, walletAddress]);
 
@@ -61,9 +64,26 @@ export function UnlockModal() {
       setOpen(false);
     } catch (err: any) {
       setError(err.message || "Failed to unlock wallet");
+      if (err?.message?.includes("DECRYPTION_FAILED")) {
+        setHasStaleData(true);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReset = () => {
+    if (!walletAddress) return;
+    if (typeof window !== "undefined") {
+      const storageKey = `${STORAGE_PREFIX}_${walletAddress.toLowerCase()}`;
+      localStorage.removeItem(storageKey);
+      // Also clear any tier store data tied to this wallet
+      localStorage.removeItem(`white_protocol_tier_v1_${walletAddress.toLowerCase()}`);
+    }
+    setHasStaleData(false);
+    setError(null);
+    // After clearing, try unlocking again with a fresh store
+    handleUnlock();
   };
 
   if (!isConnected || !walletAddress) return null;
@@ -86,7 +106,11 @@ export function UnlockModal() {
             <span className="text-zinc-500">Message:</span>
             <p className="mt-1 font-medium text-zinc-200">{UNLOCK_MESSAGE}</p>
           </div>
-          {error && <p className="text-center text-sm text-red-400">{error}</p>}
+          {error && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
+              {error}
+            </div>
+          )}
           <Button
             onClick={handleUnlock}
             disabled={loading}
@@ -101,6 +125,17 @@ export function UnlockModal() {
               "Sign to Unlock"
             )}
           </Button>
+          {hasStaleData && (
+            <Button
+              onClick={handleReset}
+              disabled={loading}
+              variant="outline"
+              className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Clear Local Data & Start Fresh
+            </Button>
+          )}
           <p className="text-center text-xs text-zinc-500">
             Your notes are encrypted locally. If you clear browser data without a backup, your
             shielded funds cannot be recovered.
