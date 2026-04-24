@@ -1590,7 +1590,7 @@ export class RelayerService {
           const pendingCount = pendingBuffer?.deposits?.length || 0;
 
           if (pendingCount > 0) {
-            const batchSize = Math.min(pendingCount, 5); // Conservative CU limit
+            const batchSize = Math.min(pendingCount, 1); // CU limit: batch_process_deposits exceeds 1.4M CUs for >1 deposit
             logger.info('Solana settlement needed', { pendingDeposits: pendingCount, batchSize });
 
             try {
