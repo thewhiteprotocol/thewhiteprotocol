@@ -204,6 +204,7 @@ export declare class RelayerService {
      * Remove asset from supported list
      */
     removeSupportedAsset(assetId: string): void;
+    private isSupportedAsset;
     /**
      * Run Base sequencer loop
      */

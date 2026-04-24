@@ -33,7 +33,12 @@ import {
   TransactionExpiredBlockheightExceededError,
 } from '@solana/web3.js';
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+} from '@solana/spl-token';
 
 // =============================================================================
 // CONSTANTS
@@ -335,6 +340,10 @@ export class RelayerService {
    * Setup Express middleware
    */
   private setupMiddleware(): void {
+    // Render and most production hosts put Express behind a reverse proxy.
+    // express-rate-limit requires this so req.ip is derived from X-Forwarded-For.
+    this.app.set('trust proxy', parseTrustProxySetting(process.env.TRUST_PROXY_HOPS));
+
     // Security headers
     this.app.use(helmet());
     
@@ -526,11 +535,7 @@ export class RelayerService {
     }
     
     // 3. Check asset is supported BEFORE expensive proof verification
-    if (
-      this.supportedAssets.size > 0 &&
-      !this.supportedAssets.has(request.assetId) &&
-      !this.supportedAssets.has(request.mint)
-    ) {
+    if (!this.isSupportedAsset(request.assetId, request.mint)) {
       throw new Error(`Asset ${request.assetId} not supported by this relayer`);
     }
     
@@ -641,11 +646,7 @@ export class RelayerService {
     }
     
     // Check asset is supported
-    if (
-      this.supportedAssets.size > 0 &&
-      !this.supportedAssets.has(request.assetId) &&
-      !this.supportedAssets.has(request.mint)
-    ) {
+    if (!this.isSupportedAsset(request.assetId, request.mint)) {
       throw new Error(`Asset ${request.assetId} not supported by this relayer`);
     }
     
@@ -777,11 +778,7 @@ export class RelayerService {
     }
     
     // Check asset is supported BEFORE expensive proof verification
-    if (
-      this.supportedAssets.size > 0 &&
-      !this.supportedAssets.has(request.assetId) &&
-      !this.supportedAssets.has(request.mint)
-    ) {
+    if (!this.isSupportedAsset(request.assetId, request.mint)) {
       throw new Error(`Asset ${request.assetId} not supported by this relayer`);
     }
     
@@ -1199,6 +1196,8 @@ export class RelayerService {
       ],
       this.config.programId
     );
+    const relayerNodeInfo = await this.connection.getAccountInfo(relayerNode);
+    const relayerNodeAccount = relayerNodeInfo ? relayerNode : null;
     
     // Get token accounts
     const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
@@ -1210,6 +1209,25 @@ export class RelayerService {
       params.mint,
       this.config.walletKeypair.publicKey
     );
+    const preInstructions = [
+      createAssociatedTokenAccountIdempotentInstruction(
+        this.config.walletKeypair.publicKey,
+        recipientTokenAccount,
+        params.recipient,
+        params.mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+      ),
+      createAssociatedTokenAccountIdempotentInstruction(
+        this.config.walletKeypair.publicKey,
+        relayerTokenAccount,
+        this.config.walletKeypair.publicKey,
+        params.mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+      ),
+    ];
+
     // Build instruction - use withdrawMaspStealth if ephemeral pubkey provided
     let ix;
     if (params.ephemeralPubkey && params.ephemeralPubkey.length === 32) {
@@ -1235,9 +1253,9 @@ export class RelayerService {
           relayerTokenAccount,
           spentNullifier: nullifierPda,
           relayerRegistry,
-          relayerNode: relayerNode as any,
+          relayerNode: relayerNodeAccount as any,
           yieldRegistry: null as any,
-          tokenProgram: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+          tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: new PublicKey("11111111111111111111111111111111"),
         })
         .instruction();
@@ -1263,9 +1281,9 @@ export class RelayerService {
           relayerTokenAccount,
           spentNullifier: nullifierPda,
           relayerRegistry,
-          relayerNode: relayerNode as any,
+          relayerNode: relayerNodeAccount as any,
           yieldRegistry: null as any,
-          tokenProgram: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+          tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: new PublicKey("11111111111111111111111111111111"),
         })
         .instruction();
@@ -1276,7 +1294,7 @@ export class RelayerService {
       () => this.connection.getLatestBlockhash('confirmed'),
       { maxAttempts: 3, baseDelayMs: 500 }
     );
-    const tx = new Transaction({ blockhash, lastValidBlockHeight }).add(ix);
+    const tx = new Transaction({ blockhash, lastValidBlockHeight }).add(...preInstructions, ix);
     tx.feePayer = this.config.walletKeypair.publicKey;
     
     try {
@@ -1394,6 +1412,8 @@ export class RelayerService {
       ],
       this.config.programId
     );
+    const relayerNodeInfo = await this.connection.getAccountInfo(relayerNode);
+    const relayerNodeAccount = relayerNodeInfo ? relayerNode : null;
     
     const [pendingBuffer] = PublicKey.findProgramAddressSync(
       [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
@@ -1411,6 +1431,24 @@ export class RelayerService {
       this.config.walletKeypair.publicKey,
       false
     );
+    const preInstructions = [
+      createAssociatedTokenAccountIdempotentInstruction(
+        this.config.walletKeypair.publicKey,
+        recipientTokenAccount,
+        params.recipient,
+        params.mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+      ),
+      createAssociatedTokenAccountIdempotentInstruction(
+        this.config.walletKeypair.publicKey,
+        relayerTokenAccount,
+        this.config.walletKeypair.publicKey,
+        params.mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+      ),
+    ];
     
     // Determine optional accounts
     const hasNullifier1 = params.nullifierHash1.some(b => b !== 0);
@@ -1451,9 +1489,9 @@ export class RelayerService {
         spentNullifier1: nullifierPda1 as any,
         pendingBuffer: pendingBuffer,
         relayerRegistry,
-        relayerNode: relayerNode as any,
+        relayerNode: relayerNodeAccount as any,
         yieldRegistry: null as any,
-        tokenProgram: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+        tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: new PublicKey("11111111111111111111111111111111"),
       })
       .instruction();
@@ -1463,7 +1501,7 @@ export class RelayerService {
       () => this.connection.getLatestBlockhash('confirmed'),
       { maxAttempts: 3, baseDelayMs: 500 }
     );
-    const tx = new Transaction({ blockhash, lastValidBlockHeight }).add(ix);
+    const tx = new Transaction({ blockhash, lastValidBlockHeight }).add(...preInstructions, ix);
     tx.feePayer = this.config.walletKeypair.publicKey;
     
     try {
@@ -1495,7 +1533,7 @@ export class RelayerService {
     if (!isHexAssetId && !isBase58Mint) {
       throw new Error('Invalid asset ID format: must be 64 hex characters or a valid Solana mint address');
     }
-    this.supportedAssets.add(assetId.toLowerCase());
+    this.supportedAssets.add(normalizeSupportedAssetKey(assetId));
     this.persistState();
     logger.info('Registered supported asset', { assetId });
   }
@@ -1504,9 +1542,26 @@ export class RelayerService {
    * Remove asset from supported list
    */
   removeSupportedAsset(assetId: string): void {
+    this.supportedAssets.delete(normalizeSupportedAssetKey(assetId));
     this.supportedAssets.delete(assetId.toLowerCase());
     this.persistState();
     logger.info('Removed supported asset', { assetId });
+  }
+
+  private isSupportedAsset(assetId: string, mint: string): boolean {
+    if (this.supportedAssets.size === 0) {
+      return true;
+    }
+
+    const assetIdKey = normalizeSupportedAssetKey(assetId);
+    const mintKey = normalizeSupportedAssetKey(mint);
+
+    return (
+      this.supportedAssets.has(assetIdKey) ||
+      this.supportedAssets.has(mintKey) ||
+      // Backward compatibility for older persisted state that lowercased base58 mints.
+      this.supportedAssets.has(mint.toLowerCase())
+    );
   }
   
   /**
@@ -1583,6 +1638,26 @@ export class RelayerService {
 // =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
+
+function parseTrustProxySetting(raw: string | undefined): number | boolean {
+  if (raw === undefined || raw.trim() === '') {
+    return process.env.NODE_ENV === 'production' ? 1 : false;
+  }
+
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+
+  const hops = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(hops) || hops < 0) {
+    return process.env.NODE_ENV === 'production' ? 1 : false;
+  }
+  return hops;
+}
+
+function normalizeSupportedAssetKey(value: string): string {
+  return /^[0-9a-fA-F]{64}$/.test(value) ? value.toLowerCase() : value;
+}
 
 /**
  * Convert hex string to Uint8Array

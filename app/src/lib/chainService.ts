@@ -582,10 +582,6 @@ export class SolanaChainService {
       [Buffer.from("relayer_registry"), SOLANA_POOL_CONFIG.toBuffer()],
       SOLANA_PROGRAM_ID
     );
-    const [pendingBuffer] = PublicKey.findProgramAddressSync(
-      [Buffer.from("pending"), SOLANA_POOL_CONFIG.toBuffer()],
-      SOLANA_PROGRAM_ID
-    );
 
     const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
       [Buffer.from("vault_token"), assetVault.toBuffer()],
@@ -609,8 +605,19 @@ export class SolanaChainService {
       )
     );
 
-    // Auto-unwrap wSOL to native SOL after withdrawal by closing the recipient ATA
-    if (mint.equals(NATIVE_MINT)) {
+    preInstructions.push(
+      createAssociatedTokenAccountIdempotentInstruction(
+        signer,
+        relayerTokenAccount,
+        actualRelayer,
+        mint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      )
+    );
+
+    // Auto-unwrap wSOL only for self-withdrawals; closing another recipient's ATA requires their signature.
+    if (mint.equals(NATIVE_MINT) && recipient.equals(signer)) {
       postInstructions.push(
         createCloseAccountInstruction(
           recipientTokenAccount,
@@ -641,7 +648,8 @@ export class SolanaChainService {
         relayerTokenAccount,
         spentNullifier,
         relayerRegistry,
-        pendingBuffer,
+        relayerNode: null,
+        yieldRegistry: null,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })

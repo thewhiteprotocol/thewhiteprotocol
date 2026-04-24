@@ -221,6 +221,9 @@ class RelayerService {
      * Setup Express middleware
      */
     setupMiddleware() {
+        // Render and most production hosts put Express behind a reverse proxy.
+        // express-rate-limit requires this so req.ip is derived from X-Forwarded-For.
+        this.app.set('trust proxy', parseTrustProxySetting(process.env.TRUST_PROXY_HOPS));
         // Security headers
         this.app.use((0, helmet_1.default)());
         // CORS — never default to wildcard in production
@@ -393,9 +396,7 @@ class RelayerService {
             throw new Error(`Amount above maximum: ${this.config.maxWithdrawalAmount}`);
         }
         // 3. Check asset is supported BEFORE expensive proof verification
-        if (this.supportedAssets.size > 0 &&
-            !this.supportedAssets.has(request.assetId) &&
-            !this.supportedAssets.has(request.mint)) {
+        if (!this.isSupportedAsset(request.assetId, request.mint)) {
             throw new Error(`Asset ${request.assetId} not supported by this relayer`);
         }
         // 4. Decode inputs
@@ -485,9 +486,7 @@ class RelayerService {
             throw new Error(`Amount above maximum: ${this.config.maxWithdrawalAmount}`);
         }
         // Check asset is supported
-        if (this.supportedAssets.size > 0 &&
-            !this.supportedAssets.has(request.assetId) &&
-            !this.supportedAssets.has(request.mint)) {
+        if (!this.isSupportedAsset(request.assetId, request.mint)) {
             throw new Error(`Asset ${request.assetId} not supported by this relayer`);
         }
         // Decode inputs
@@ -595,9 +594,7 @@ class RelayerService {
             throw new Error(`Amount above maximum: ${this.config.maxWithdrawalAmount}`);
         }
         // Check asset is supported BEFORE expensive proof verification
-        if (this.supportedAssets.size > 0 &&
-            !this.supportedAssets.has(request.assetId) &&
-            !this.supportedAssets.has(request.mint)) {
+        if (!this.isSupportedAsset(request.assetId, request.mint)) {
             throw new Error(`Asset ${request.assetId} not supported by this relayer`);
         }
         // Decode inputs
@@ -929,10 +926,16 @@ class RelayerService {
             relayerRegistry.toBuffer(),
             this.config.walletKeypair.publicKey.toBuffer(),
         ], this.config.programId);
+        const relayerNodeInfo = await this.connection.getAccountInfo(relayerNode);
+        const relayerNodeAccount = relayerNodeInfo ? relayerNode : null;
         // Get token accounts
         const [vaultTokenAccount] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vault_token'), assetVault.toBuffer()], this.config.programId);
         const recipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, params.recipient);
         const relayerTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, this.config.walletKeypair.publicKey);
+        const preInstructions = [
+            (0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(this.config.walletKeypair.publicKey, recipientTokenAccount, params.recipient, params.mint, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID),
+            (0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(this.config.walletKeypair.publicKey, relayerTokenAccount, this.config.walletKeypair.publicKey, params.mint, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID),
+        ];
         // Build instruction - use withdrawMaspStealth if ephemeral pubkey provided
         let ix;
         if (params.ephemeralPubkey && params.ephemeralPubkey.length === 32) {
@@ -949,9 +952,9 @@ class RelayerService {
                 relayerTokenAccount,
                 spentNullifier: nullifierPda,
                 relayerRegistry,
-                relayerNode: relayerNode,
+                relayerNode: relayerNodeAccount,
                 yieldRegistry: null,
-                tokenProgram: new web3_js_1.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+                tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
                 systemProgram: new web3_js_1.PublicKey("11111111111111111111111111111111"),
             })
                 .instruction();
@@ -970,16 +973,16 @@ class RelayerService {
                 relayerTokenAccount,
                 spentNullifier: nullifierPda,
                 relayerRegistry,
-                relayerNode: relayerNode,
+                relayerNode: relayerNodeAccount,
                 yieldRegistry: null,
-                tokenProgram: new web3_js_1.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+                tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
                 systemProgram: new web3_js_1.PublicKey("11111111111111111111111111111111"),
             })
                 .instruction();
         }
         // Build and send transaction
         const { blockhash, lastValidBlockHeight } = await (0, retry_1.withRetry)(() => this.connection.getLatestBlockhash('confirmed'), { maxAttempts: 3, baseDelayMs: 500 });
-        const tx = new web3_js_1.Transaction({ blockhash, lastValidBlockHeight }).add(ix);
+        const tx = new web3_js_1.Transaction({ blockhash, lastValidBlockHeight }).add(...preInstructions, ix);
         tx.feePayer = this.config.walletKeypair.publicKey;
         try {
             const signature = await (0, web3_js_1.sendAndConfirmTransaction)(this.connection, tx, [this.config.walletKeypair], {
@@ -1040,10 +1043,16 @@ class RelayerService {
             relayerRegistry.toBuffer(),
             this.config.walletKeypair.publicKey.toBuffer(),
         ], this.config.programId);
+        const relayerNodeInfo = await this.connection.getAccountInfo(relayerNode);
+        const relayerNodeAccount = relayerNodeInfo ? relayerNode : null;
         const [pendingBuffer] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending'), this.config.poolConfig.toBuffer()], this.config.programId);
         const [vaultTokenAccount] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vault_token'), assetVault.toBuffer()], this.config.programId);
         const recipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, params.recipient, false);
         const relayerTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, this.config.walletKeypair.publicKey, false);
+        const preInstructions = [
+            (0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(this.config.walletKeypair.publicKey, recipientTokenAccount, params.recipient, params.mint, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID),
+            (0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(this.config.walletKeypair.publicKey, relayerTokenAccount, this.config.walletKeypair.publicKey, params.mint, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID),
+        ];
         // Determine optional accounts
         const hasNullifier1 = params.nullifierHash1.some(b => b !== 0);
         const nullifierPda1 = hasNullifier1
@@ -1069,15 +1078,15 @@ class RelayerService {
             spentNullifier1: nullifierPda1,
             pendingBuffer: pendingBuffer,
             relayerRegistry,
-            relayerNode: relayerNode,
+            relayerNode: relayerNodeAccount,
             yieldRegistry: null,
-            tokenProgram: new web3_js_1.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+            tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
             systemProgram: new web3_js_1.PublicKey("11111111111111111111111111111111"),
         })
             .instruction();
         // Build and send transaction
         const { blockhash, lastValidBlockHeight } = await (0, retry_1.withRetry)(() => this.connection.getLatestBlockhash('confirmed'), { maxAttempts: 3, baseDelayMs: 500 });
-        const tx = new web3_js_1.Transaction({ blockhash, lastValidBlockHeight }).add(ix);
+        const tx = new web3_js_1.Transaction({ blockhash, lastValidBlockHeight }).add(...preInstructions, ix);
         tx.feePayer = this.config.walletKeypair.publicKey;
         try {
             const signature = await (0, web3_js_1.sendAndConfirmTransaction)(this.connection, tx, [this.config.walletKeypair], {
@@ -1103,7 +1112,7 @@ class RelayerService {
         if (!isHexAssetId && !isBase58Mint) {
             throw new Error('Invalid asset ID format: must be 64 hex characters or a valid Solana mint address');
         }
-        this.supportedAssets.add(assetId.toLowerCase());
+        this.supportedAssets.add(normalizeSupportedAssetKey(assetId));
         this.persistState();
         logger_1.logger.info('Registered supported asset', { assetId });
     }
@@ -1111,9 +1120,21 @@ class RelayerService {
      * Remove asset from supported list
      */
     removeSupportedAsset(assetId) {
+        this.supportedAssets.delete(normalizeSupportedAssetKey(assetId));
         this.supportedAssets.delete(assetId.toLowerCase());
         this.persistState();
         logger_1.logger.info('Removed supported asset', { assetId });
+    }
+    isSupportedAsset(assetId, mint) {
+        if (this.supportedAssets.size === 0) {
+            return true;
+        }
+        const assetIdKey = normalizeSupportedAssetKey(assetId);
+        const mintKey = normalizeSupportedAssetKey(mint);
+        return (this.supportedAssets.has(assetIdKey) ||
+            this.supportedAssets.has(mintKey) ||
+            // Backward compatibility for older persisted state that lowercased base58 mints.
+            this.supportedAssets.has(mint.toLowerCase()));
     }
     /**
      * Run Base sequencer loop
@@ -1183,6 +1204,24 @@ exports.RelayerService = RelayerService;
 // =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
+function parseTrustProxySetting(raw) {
+    if (raw === undefined || raw.trim() === '') {
+        return process.env.NODE_ENV === 'production' ? 1 : false;
+    }
+    const normalized = raw.trim().toLowerCase();
+    if (normalized === 'true')
+        return true;
+    if (normalized === 'false')
+        return false;
+    const hops = Number.parseInt(normalized, 10);
+    if (!Number.isFinite(hops) || hops < 0) {
+        return process.env.NODE_ENV === 'production' ? 1 : false;
+    }
+    return hops;
+}
+function normalizeSupportedAssetKey(value) {
+    return /^[0-9a-fA-F]{64}$/.test(value) ? value.toLowerCase() : value;
+}
 /**
  * Convert hex string to Uint8Array
  */

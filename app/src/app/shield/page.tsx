@@ -15,14 +15,13 @@ import { PublicKey } from "@solana/web3.js";
 import { useToast } from "@/providers/ToastContext";
 import { getAssetsForChain, AssetConfig, SUPPORTED_ASSETS } from "@/config/constants";
 import { CHAINS } from "@/config/chains";
-import { initializePoseidon, computeCommitment, computeNullifierHash, computeAssetIdBigInt, randomFieldElement, formatProofForOnChain, MERKLE_TREE_DEPTH } from "@/lib/crypto";
+import { initializePoseidon, computeCommitment, computeNullifierHash, computeAssetIdBigInt, randomFieldElement, formatProofForOnChain, MERKLE_TREE_DEPTH, pubkeyToScalar } from "@/lib/crypto";
 import { generateDepositProof, generateWithdrawProof } from "@/lib/proofService";
 import { solanaChainService, baseChainService } from "@/lib/chainService";
 import { getNotes, addNote, updateNote, markSpent } from "@/lib/noteStore";
 import { maybeCreateReceipt } from "@/lib/autoReceipt";
 import { StoredNote } from "@/lib/types";
 import { formatTokenAmount, parseTokenAmount } from "@/lib/balanceService";
-import { keccak_256 } from "@noble/hashes/sha3.js";
 import { getRelayerQuote, submitRelayedWithdrawal, checkNoteStatus, getMerkleProof, trackDeposit, RelayerQuote } from "@/lib/relayerClient";
 
 function truncate(str: string, len = 8) {
@@ -465,7 +464,7 @@ function WithdrawTab({
     };
   }, [selectedNote]);
 
-  async function buildWithdrawalProof() {
+  async function buildWithdrawalProof(viaRelayer: boolean) {
     if (!selectedNote) throw new Error("No note selected");
     if (selectedNote.leafIndex === undefined) {
       throw new Error("Note has not been settled yet. leafIndex is missing.");
@@ -494,11 +493,19 @@ function WithdrawTab({
       ? pubkeyToScalar(recipient)
       : BigInt(recipient);
     
-    // Fetch relayer quote for gasless withdrawal
-    setStep("Fetching relayer quote...");
-    const quote = await getRelayerQuote(selectedNote.amount);
-    const relayerFee = BigInt(quote.fee);
-    const relayerAddress = activeChain === "solana" ? quote.relayer.solana : quote.relayer.base;
+    let relayerFee = 0n;
+    let relayerAddress: string | null | undefined;
+    if (viaRelayer) {
+      setStep("Fetching relayer quote...");
+      const quote = await getRelayerQuote(selectedNote.amount);
+      relayerFee = BigInt(quote.fee);
+      relayerAddress = activeChain === "solana" ? quote.relayer.solana : quote.relayer.base;
+    } else if (activeChain === "solana") {
+      relayerAddress = solanaWallet.publicKey?.toBase58();
+    } else {
+      relayerAddress = "0";
+    }
+
     if (!relayerAddress) {
       throw new Error("Relayer address not available for this chain");
     }
@@ -591,7 +598,7 @@ function WithdrawTab({
     setError(null);
     setShowFallback(false);
     try {
-      const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof();
+      const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof(true);
 
       setStep("Submitting to relayer...");
       const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote.asset);
@@ -627,7 +634,7 @@ function WithdrawTab({
     setError(null);
     setShowFallback(false);
     try {
-      const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof();
+      const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof(false);
       setStep("Sending transaction...");
       const txHash = await submitDirectWithdrawal(proofBytes, nullifierHash, merkleRoot, amount, assetId);
       await finalizeWithdrawal(txHash, false);
@@ -800,11 +807,4 @@ function bigintToBytes32(value: bigint): Uint8Array {
 
 function bytes32ToBigint(bytes: Uint8Array): bigint {
   return BigInt("0x" + Buffer.from(bytes).toString("hex"));
-}
-
-function pubkeyToScalar(pubkey: string): bigint {
-  // Solana addresses are base58; hash them to fit in BN254 field
-  const bytes = keccak_256(new TextEncoder().encode(pubkey));
-  const fieldBytes = bytes.slice(0, 31);
-  return BigInt("0x" + Buffer.from(fieldBytes).toString("hex"));
 }
