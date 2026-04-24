@@ -557,7 +557,19 @@ pub fn verify_commitment(
 
 #[inline(never)]
 pub fn hash_two_to_one(left: &Scalar, right: &Scalar) -> Result<Scalar> {
-    poseidon2(left, right)
+    #[cfg(target_os = "solana")]
+    {
+        let hash = solana_poseidon::hashv(
+            solana_poseidon::Parameters::Bn254X5,
+            solana_poseidon::Endianness::BigEndian,
+            &[left.as_slice(), right.as_slice()],
+        ).map_err(|_| error!(crate::error::WhiteProtocolError::CryptographyError))?;
+        Ok(hash.to_bytes())
+    }
+    #[cfg(not(target_os = "solana"))]
+    {
+        poseidon2(left, right)
+    }
 }
 
 #[inline(never)]
