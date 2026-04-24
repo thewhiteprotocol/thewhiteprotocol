@@ -1696,6 +1696,12 @@ export class RelayerService {
     });
     
     // Start background Solana settlement sequencer
+    const authPk = this.config.authorityKeypair?.publicKey.toBase58();
+    logger.info('Solana sequencer config', {
+      authorityLoaded: !!this.config.authorityKeypair,
+      authorityPublicKey: authPk || 'FALLBACK_TO_RELAYER',
+      relayerPublicKey: this.config.walletKeypair.publicKey.toBase58(),
+    });
     this.runSolanaSequencer();
 
     if (this.baseAdapter) {
