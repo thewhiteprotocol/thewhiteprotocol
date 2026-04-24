@@ -12,16 +12,16 @@
     "idl:generate": "anchor idl generate"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.30.1",
-    "@solana/web3.js": "^1.91.0",
+    "@coral-xyz/anchor": "^0.32.1",
     "@solana/spl-token": "^0.4.6",
+    "@solana/web3.js": "^1.91.0",
     "@thewhiteprotocol/core": "file:../../packages/core",
     "circomlibjs": "^0.1.7",
     "snarkjs": "^0.7.3"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.5",
-    "typescript": "^5.3.3",
-    "tsx": "^4.7.0"
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }

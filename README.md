@@ -30,14 +30,20 @@ The protocol supports shielded pools for multiple token mints (SPL on Solana, ER
 
 ### Solana Devnet
 
-**Program ID:** `C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW`
+**Program ID:** `DbYzCrBEt1Efxf9LB2P7A6vqPjuA8ugDBh1kCunESJZk`
 
 | Component | Address |
 |-----------|---------|
-| Pool Config | `EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS` |
-| Merkle Tree | `2DjfHs3CYK22a4SAMSH2gt6eXRwSnBzm2f4gWvmos8sD` |
-| Pending Buffer | `7MzDFCdPEog6orC42jCXBz53zhqysQVq5vb5J7R1DAyw` |
-| wSOL Vault | `629JMEcz1u4AjyahByEcQtyGF3TwDnBPY7nHhaLVB9PS` |
+| Pool Config | `5tiLj9YYhsc28h1JVVBBeUmUKmwTEUEnzn7q86NNso6q` |
+| Merkle Tree | `3Zo9P2p8582y9mTbP49TUC7hk8aDDo5Sz3fYQBDFkFhc` |
+| Pending Buffer | `4A63xarGARyQyq5C37kHQcZEixeoyKhkqEoocGGEkjxh` |
+| Relayer Registry | `715a4CV88FaHK6iZSJTTbszMaeW9Hzswg6M9jft9rrkn` |
+| Compliance Config | `3KH7hwedekKeX2V3B8HCwgdydbdSF9g5myCZTqPguSrH` |
+| wSOL Asset Vault | `5RBtEyYpEHcs1hPvR8yjcdRfreoUxHVDV4R8yFrS2VTR` |
+| wSOL Vault Token Account | `FQXWAr5EZ7ky7qbtJrkvAxLTeujyFXQXdJ3D7oLqo2Cg` |
+| Deposit VK | `76pr1bQiavpRWtWNiWkKcUdAW1gy1y18gbTcA7xc4SoS` |
+| Withdraw VK | `38X9JDCNNscRWzkRhGcyvs8TwRJjTAeyKbjKuRNeCj2x` |
+| MerkleBatch VK | `6Wd1N2HYQYeFy2yP1h7kN7vJQFXJodtXJrH2Zgfxg6Vd` |
 
 **Supported Assets**
 
@@ -303,7 +309,7 @@ cd chains/base && forge test
 
 **Frontend:** [White Protocol](https://app.thewhiteprotocol.org) (or your deployed URL)
 
-**Solana Explorer:** [View Program on Solana Explorer](https://explorer.solana.com/address/C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW?cluster=devnet)
+**Solana Explorer:** [View Program on Solana Explorer](https://explorer.solana.com/address/DbYzCrBEt1Efxf9LB2P7A6vqPjuA8ugDBh1kCunESJZk?cluster=devnet)
 
 **Base Sepolia:**
 - [WhiteProtocol](https://sepolia.basescan.org/address/0xCE959493cf6F15314b4B9eEbb28369716341e7FE)

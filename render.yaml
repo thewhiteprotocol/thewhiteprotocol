@@ -21,15 +21,15 @@ services:
       - key: RELAYER_KEYPAIR
         fromGroup: white-protocol
       - key: PROGRAM_ID
-        value: "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW"
+        value: "DbYzCrBEt1Efxf9LB2P7A6vqPjuA8ugDBh1kCunESJZk"
       - key: POOL_CONFIG
-        value: "EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS"
+        value: "5tiLj9YYhsc28h1JVVBBeUmUKmwTEUEnzn7q86NNso6q"
       - key: MERKLE_TREE
-        value: "2DjfHs3CYK22a4SAMSH2gt6eXRwSnBzm2f4gWvmos8sD"
+        value: "3Zo9P2p8582y9mTbP49TUC7hk8aDDo5Sz3fYQBDFkFhc"
       - key: PENDING_BUFFER
-        value: "7MzDFCdPEog6orC42jCXBz53zhqysQVq5vb5J7R1DAyw"
+        value: "4A63xarGARyQyq5C37kHQcZEixeoyKhkqEoocGGEkjxh"
       - key: WSOL_VAULT
-        value: "629JMEcz1u4AjyahByEcQtyGF3TwDnBPY7nHhaLVB9PS"
+        value: "5RBtEyYpEHcs1hPvR8yjcdRfreoUxHVDV4R8yFrS2VTR"
       - key: BASE_RPC_URL
         value: "https://sepolia.base.org"
       - key: BASE_PROTOCOL_ADDRESS

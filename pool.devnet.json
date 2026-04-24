@@ -1,24 +1,46 @@
 {
   "network": "devnet",
-  "programId": "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW",
+  "programId": "DbYzCrBEt1Efxf9LB2P7A6vqPjuA8ugDBh1kCunESJZk",
   "authority": "8JQmzyFhPQzzL8TBNJoQwzLZDqnBNx2SZPkseUUdvgey",
-  "poolConfig": "Hbkbx1EJiAQYsdFCEFhCZ1RWdBoUH3sXLX63KwYsRdfd",
-  "merkleTree": "7zDxURRYPEGqxM4zZJe5uuzcPERKha3GMUA8DfV25hAT",
-  "pendingDeposits": "Dee8rSD2R3MKEES1Rk3a9GQctA4JqsXXdV5NtqcsxxbE",
-  "relayerRegistry": "wQta1sHXuFtSkBZjQiANzDBbu2iXhKy3TirFmVhgt42",
-  "complianceConfig": "3UYLUAN35EoFZcZZJENQVtVggvayzj9M3g6wo3V5RKLG",
-  "verificationKeys": {
-    "deposit": "4qaz9uVuJQwrencxstigpxQZU6SG1J7WVoiuuCemRh4r",
-    "withdraw": "H4ED8u1KPz57vGLSVuJqBpE7YfMAbiWgLfPmFnnD4Ek6",
-    "membership": "FBTjajb5wWGWTYkyEMfSKdbV3Pztd9hD82yCywP8X7M2"
-  },
+  "poolConfig": "5tiLj9YYhsc28h1JVVBBeUmUKmwTEUEnzn7q86NNso6q",
+  "merkleTree": "3Zo9P2p8582y9mTbP49TUC7hk8aDDo5Sz3fYQBDFkFhc",
+  "pendingDeposits": "4A63xarGARyQyq5C37kHQcZEixeoyKhkqEoocGGEkjxh",
+  "relayerRegistry": "715a4CV88FaHK6iZSJTTbszMaeW9Hzswg6M9jft9rrkn",
+  "complianceConfig": "3KH7hwedekKeX2V3B8HCwgdydbdSF9g5myCZTqPguSrH",
+  "relayerNode": "hEW2r9DF8cToZwDiYBJU1eUdNzjmQNvwoe37douKr22",
+  "yieldRegistry": "HPuTspPpbNs76cvN8wdUDJNK27qPua1JJxZhh5PR4zVU",
   "assets": {
     "wSOL": {
       "mint": "So11111111111111111111111111111111111111112",
       "assetIdHex": "004a067d98373879008ada3415ad678dcd5354c0b29b52233a604774c94a82e0",
-      "assetVault": "FuVvYz3wM9naPD6GyohU4QpZypkX9G5oDYaNzAfCxyC5",
-      "registerTx": "3GNU1UUXG7E88aBE3i1WgzsXhR8yzCmaA2RqPD15A1fX34UnMguf8jgHL9RYitqpgVHqB8CFwK2P7jLd9wDV36rq"
+      "assetVault": "5RBtEyYpEHcs1hPvR8yjcdRfreoUxHVDV4R8yFrS2VTR",
+      "vaultTokenAccount": "FQXWAr5EZ7ky7qbtJrkvAxLTeujyFXQXdJ3D7oLqo2Cg",
+      "registerTx": "2GYzEHZBJkPSJABfTD9mGXCGi2S37PbtvWLeaqgbbvpJ9K2aJ1G8yM6AMfpNtPT5ACJH5JPtVA7jv1deDypVEJeZ"
+    },
+    "USDC": {
+      "mint": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+      "assetIdHex": "00f2217c84e99aeaeba16a418f8eaf74de9ab82f3e2ef07c9771dc10161618ca",
+      "assetVault": "EfXPvHbAtQUdygYQYxC1Bg2CTngKGbH5sJMNoyVK7NuK",
+      "vaultTokenAccount": "DpQXEL5YpjjJBWyTiQuMSzP31nUaWKPv2j4HsndC3Y9k",
+      "registerTx": "4EZ1ocGLaeDtQpKC7S1TEQ34fyiPEE1KvS7J5kLJJMfLwszhdtEmDa5znBfXBfUiWvQC5W6zyQCpEuT3kVwr1x9t"
     }
   },
-  "deployedAt": "2026-04-11T23:15:00Z"
+  "verificationKeys": {
+    "deposit": "76pr1bQiavpRWtWNiWkKcUdAW1gy1y18gbTcA7xc4SoS",
+    "withdraw": "38X9JDCNNscRWzkRhGcyvs8TwRJjTAeyKbjKuRNeCj2x",
+    "withdrawV2": "7SXDBpYm1jcJ2DkQGNHGsSYQVopEmikDT7AzTEQvhNL6",
+    "membership": "Gi78eX3TdMkZ7V93HhrSSaG4qnvYoLaqM3p39mWdgfFe",
+    "joinsplit": "7KpBU8VheZvxeL6JxvaSSxcHsQEhv2G9AbtVJBoLWmYY",
+    "merkleBatchUpdate": "6Wd1N2HYQYeFy2yP1h7kN7vJQFXJodtXJrH2Zgfxg6Vd"
+  },
+  "featureFlags": {
+    "masp": true,
+    "joinSplit": true,
+    "membership": true,
+    "shieldedCpi": true,
+    "compliance": true,
+    "yieldEnforcement": false
+  },
+  "deployedAt": "2026-04-24T13:37:49Z",
+  "lastUpdated": "2026-04-24T14:00:00Z"
 }

@@ -1,13 +1,13 @@
 export const DEVNET_CONFIG = {
-  PROGRAM_ID: 'C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW',
-  POOL_CONFIG: 'EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS',
-  MERKLE_TREE: '2DjfHs3CYK22a4SAMSH2gt6eXRwSnBzm2f4gWvmos8sD',
-  PENDING_BUFFER: '7MzDFCdPEog6orC42jCXBz53zhqysQVq5vb5J7R1DAyw',
+  PROGRAM_ID: 'DbYzCrBEt1Efxf9LB2P7A6vqPjuA8ugDBh1kCunESJZk',
+  POOL_CONFIG: '5tiLj9YYhsc28h1JVVBBeUmUKmwTEUEnzn7q86NNso6q',
+  MERKLE_TREE: '3Zo9P2p8582y9mTbP49TUC7hk8aDDo5Sz3fYQBDFkFhc',
+  PENDING_BUFFER: '4A63xarGARyQyq5C37kHQcZEixeoyKhkqEoocGGEkjxh',
   RPC_URL: 'https://api.devnet.solana.com',
   RELAYER_ENDPOINT: import.meta.env.VITE_RELAYER_API_URL || 'https://relayer.thewhiteprotocol.com',
   NATIVE_SOL_ASSET_ID: BigInt(0),
   NETWORK: 'Solana Devnet',
-  EXPLORER_URL: 'https://explorer.solana.com/address/C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW?cluster=devnet',
+  EXPLORER_URL: 'https://explorer.solana.com/address/DbYzCrBEt1Efxf9LB2P7A6vqPjuA8ugDBh1kCunESJZk?cluster=devnet',
   TREE_DEPTH: 20,
 } as const;
 
