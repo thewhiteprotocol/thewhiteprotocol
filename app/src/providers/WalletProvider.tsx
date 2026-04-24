@@ -20,15 +20,45 @@ import "@rainbow-me/rainbowkit/styles.css";
 
 const queryClient = new QueryClient();
 
-const wagmiConfig = getDefaultConfig({
-  appName: "The White Protocol",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "white-protocol",
-  chains: [baseSepolia],
-  transports: {
-    [baseSepolia.id]: http(CHAINS.base.rpcUrl),
-  },
-  ssr: true,
-});
+function InnerWalletProvider({ children }: { children: React.ReactNode }) {
+  const solanaEndpoint = CHAINS.solana.rpcUrl;
+  const solanaWallets = React.useMemo(
+    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
+    []
+  );
+
+  const wagmiConfig = React.useMemo(
+    () =>
+      getDefaultConfig({
+        appName: "The White Protocol",
+        projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "white-protocol",
+        chains: [baseSepolia],
+        transports: {
+          [baseSepolia.id]: http(CHAINS.base.rpcUrl),
+        },
+        ssr: true,
+      }),
+    []
+  );
+
+  return (
+    <ConnectionProvider endpoint={solanaEndpoint}>
+      <SolanaWalletProvider wallets={solanaWallets} autoConnect>
+        <WalletModalProvider>
+          <SolanaWalletBridge>
+            <WagmiProvider config={wagmiConfig}>
+              <QueryClientProvider client={queryClient}>
+                <RainbowKitProvider>
+                  <EvmWalletBridge>{children}</EvmWalletBridge>
+                </RainbowKitProvider>
+              </QueryClientProvider>
+            </WagmiProvider>
+          </SolanaWalletBridge>
+        </WalletModalProvider>
+      </SolanaWalletProvider>
+    </ConnectionProvider>
+  );
+}
 
 function SolanaWalletBridge({ children }: { children: React.ReactNode }) {
   const { publicKey, connected } = useSolanaWallet();
@@ -69,32 +99,6 @@ export function EvmConnectButton() {
       chainStatus="icon"
       accountStatus="address"
     />
-  );
-}
-
-function InnerWalletProvider({ children }: { children: React.ReactNode }) {
-  const solanaEndpoint = CHAINS.solana.rpcUrl;
-  const solanaWallets = React.useMemo(
-    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
-    []
-  );
-
-  return (
-    <ConnectionProvider endpoint={solanaEndpoint}>
-      <SolanaWalletProvider wallets={solanaWallets} autoConnect>
-        <WalletModalProvider>
-          <SolanaWalletBridge>
-            <WagmiProvider config={wagmiConfig}>
-              <QueryClientProvider client={queryClient}>
-                <RainbowKitProvider>
-                  <EvmWalletBridge>{children}</EvmWalletBridge>
-                </RainbowKitProvider>
-              </QueryClientProvider>
-            </WagmiProvider>
-          </SolanaWalletBridge>
-        </WalletModalProvider>
-      </SolanaWalletProvider>
-    </ConnectionProvider>
   );
 }
 

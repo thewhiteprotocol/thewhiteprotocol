@@ -1,11 +1,11 @@
 import { PublicKey } from "@solana/web3.js";
 
 export const SOLANA_PROGRAM_ID = new PublicKey(
-  process.env.NEXT_PUBLIC_SOLANA_PROGRAM_ID || "DbYzCrBEt1Efxf9LB2P7A6vqPjuA8ugDBh1kCunESJZk"
+  process.env.NEXT_PUBLIC_SOLANA_PROGRAM_ID || "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW"
 );
 
 export const SOLANA_POOL_CONFIG = new PublicKey(
-  process.env.NEXT_PUBLIC_SOLANA_POOL_CONFIG || "5tiLj9YYhsc28h1JVVBBeUmUKmwTEUEnzn7q86NNso6q"
+  process.env.NEXT_PUBLIC_SOLANA_POOL_CONFIG || "EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS"
 );
 
 // Derive Merkle Tree PDA
@@ -20,7 +20,7 @@ export const getSolanaMerkleTreePda = () => {
 // Derive Pending Deposits Buffer PDA
 export const getSolanaPendingDepositsPda = () => {
   const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("pending_deposits"), SOLANA_POOL_CONFIG.toBuffer()],
+    [Buffer.from("pending"), SOLANA_POOL_CONFIG.toBuffer()],
     SOLANA_PROGRAM_ID
   );
   return pda;

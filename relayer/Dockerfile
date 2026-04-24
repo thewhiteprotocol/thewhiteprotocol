@@ -19,6 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy and build the shared core package first (relayer depends on it)
+COPY ./packages/core /packages/core
+RUN cd /packages/core && npm install && npm run build
+
 # Copy relayer package files and install all dependencies (including devDeps for build)
 COPY ./relayer/package*.json ./
 RUN npm install
@@ -39,6 +43,9 @@ ENV PORT=3000
 WORKDIR /app
 RUN chown -R node:node /app
 USER node
+
+# Copy the BUILT core package so the file: dependency resolves correctly
+COPY --chown=node:node --from=builder /packages/core /packages/core
 
 # Copy package files and install production dependencies only
 COPY --chown=node:node ./relayer/package*.json ./

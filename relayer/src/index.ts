@@ -1816,7 +1816,7 @@ export async function main(): Promise<void> {
   const config: RelayerConfig = {
     rpcEndpoint: process.env.RPC_ENDPOINT || 'https://api.devnet.solana.com',
     walletKeypair: Keypair.fromSecretKey(parseRelayerKeypair()),
-    programId: new PublicKey(process.env.PROGRAM_ID || 'DbYzCrBEt1Efxf9LB2P7A6vqPjuA8ugDBh1kCunESJZk'),
+    programId: new PublicKey(process.env.PROGRAM_ID || 'C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW'),
     poolConfig: new PublicKey(process.env.POOL_CONFIG || '11111111111111111111111111111111'),
     feeBps: parseInt(process.env.FEE_BPS || '50', 10),
     minWithdrawalAmount: BigInt(process.env.MIN_WITHDRAWAL || '1000000'),
