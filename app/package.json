@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "prebuild": "echo 'prebuild hook'"
+    "prebuild": "cd ../packages/core && npm install && npm run build"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
