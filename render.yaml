@@ -20,6 +20,8 @@ services:
         fromGroup: white-protocol
       - key: RELAYER_KEYPAIR
         fromGroup: white-protocol
+      - key: AUTHORITY_KEYPAIR
+        fromGroup: white-protocol
       - key: PROGRAM_ID
         value: "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW"
       - key: POOL_CONFIG

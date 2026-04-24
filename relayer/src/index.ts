@@ -66,6 +66,8 @@ interface RelayerConfig {
   rpcEndpoint: string;
   /** Relayer wallet keypair */
   walletKeypair: Keypair;
+  /** Pool authority keypair (used for settlement; defaults to walletKeypair if unset) */
+  authorityKeypair?: Keypair;
   /** The White Protocol program ID */
   programId: PublicKey;
   /** Pool configuration account */
@@ -1608,10 +1610,11 @@ export class RelayerService {
                 ix
               );
 
+              const signer = this.config.authorityKeypair || this.config.walletKeypair;
               const signature = await sendAndConfirmTransaction(
                 this.connection,
                 tx,
-                [this.config.walletKeypair],
+                [signer],
                 { commitment: 'confirmed', maxRetries: 3 }
               );
 
@@ -1886,6 +1889,20 @@ function parseRelayerKeypair(): Uint8Array {
   }
 }
 
+function parseAuthorityKeypair(): Uint8Array {
+  const raw = process.env.AUTHORITY_KEYPAIR || '[]';
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      throw new Error(`AUTHORITY_KEYPAIR parsed as non-array: ${typeof parsed}`);
+    }
+    return Uint8Array.from(parsed);
+  } catch (err: any) {
+    logger.error('Failed to parse AUTHORITY_KEYPAIR', { rawLength: raw.length, rawPreview: raw.slice(0, 200), error: err?.message });
+    throw new Error(`Invalid AUTHORITY_KEYPAIR: ${err?.message}. Ensure it is a valid JSON array of 64 numbers with no line breaks or extra quotes.`);
+  }
+}
+
 export async function main(): Promise<void> {
   // Load configuration from environment
   const config: RelayerConfig = {
@@ -1904,6 +1921,9 @@ export async function main(): Promise<void> {
     baseRpcUrl: process.env.BASE_RPC_URL || 'https://sepolia.base.org',
     baseProtocolAddress: process.env.BASE_PROTOCOL_ADDRESS || '0xCE959493cf6F15314b4B9eEbb28369716341e7FE',
     baseDeployerPrivateKey: process.env.BASE_DEPLOYER_PRIVATE_KEY,
+    authorityKeypair: process.env.AUTHORITY_KEYPAIR
+      ? Keypair.fromSecretKey(parseAuthorityKeypair())
+      : undefined,
   };
   
   const relayer = createRelayer(config);
