@@ -622,15 +622,26 @@ class RelayerApiExtensions {
         }
         const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
         const parser = new anchor_1.EventParser(this.config.programId, new anchor_1.BorshCoder(idl));
-        const signatures = await (0, retry_1.withRetry)(() => this.connection.getSignaturesForAddress(this.config.programId, { limit: 1000 }, 'confirmed'), { maxAttempts: 3, baseDelayMs: 500 });
+        const signatureLimit = Math.max(targetLeafCount * 20, parseInt(process.env.MERKLE_RECOVERY_SIGNATURE_LIMIT || '100', 10));
+        const signatures = await (0, retry_1.withRetry)(() => this.connection.getSignaturesForAddress(this.config.programId, { limit: Math.min(signatureLimit, 1000) }, 'confirmed'), { maxAttempts: 3, baseDelayMs: 500 });
         const commitmentsByIndex = new Map();
-        for (const signatureInfo of [...signatures].reverse()) {
+        for (const signatureInfo of signatures) {
             if (commitmentsByIndex.size >= targetLeafCount)
                 break;
-            const tx = await (0, retry_1.withRetry)(() => this.connection.getTransaction(signatureInfo.signature, {
-                commitment: 'confirmed',
-                maxSupportedTransactionVersion: 0,
-            }), { maxAttempts: 3, baseDelayMs: 500 });
+            let tx;
+            try {
+                tx = await (0, retry_1.withRetry)(() => this.connection.getTransaction(signatureInfo.signature, {
+                    commitment: 'confirmed',
+                    maxSupportedTransactionVersion: 0,
+                }), { maxAttempts: 2, baseDelayMs: 500 });
+            }
+            catch (err) {
+                logger_1.logger.warn('Skipping transaction during merkle recovery', {
+                    signature: signatureInfo.signature,
+                    error: String(err),
+                });
+                continue;
+            }
             const logs = tx?.meta?.logMessages;
             if (!logs)
                 continue;
@@ -649,7 +660,9 @@ class RelayerApiExtensions {
                 const commitment = this.eventBytes32ToBigInt(data.commitment);
                 if (commitment === null)
                     continue;
-                commitmentsByIndex.set(leafIndex, commitment);
+                if (!commitmentsByIndex.has(leafIndex)) {
+                    commitmentsByIndex.set(leafIndex, commitment);
+                }
             }
         }
         if (commitmentsByIndex.size === 0) {
