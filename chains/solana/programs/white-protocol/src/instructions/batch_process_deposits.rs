@@ -6,7 +6,11 @@ use crate::state::{MerkleTree, PendingDepositsBuffer, PoolConfig};
 use crate::utils::cu;
 
 /// Maximum deposits to process in a single batch
-pub const MAX_BATCH_SIZE: u16 = 50;
+/// 
+/// Set to 10 to stay well within Solana 1.4M CU limits.
+/// Each insertion does ~20 Poseidon hashes (one per tree level).
+/// At ~3,000 CU per hash + overhead, 10 leaves leaves comfortable headroom.
+pub const MAX_BATCH_SIZE: u16 = 10;
 
 /// Accounts for batch processing deposits (authority-only; no batcher_role account required)
 #[derive(Accounts)]
@@ -161,6 +165,9 @@ mod tests {
         const OVERHEAD_CU: u32 = 400_000;
 
         let batch_cu = MAX_BATCH_SIZE as u32 * CU_PER_INSERTION;
-        assert!(batch_cu + OVERHEAD_CU <= SOLANA_CU_LIMIT);
+        assert!(batch_cu + OVERHEAD_CU <= SOLANA_CU_LIMIT,
+            "MAX_BATCH_SIZE {} exceeds compute budget: {} CU needed, {} CU available",
+            MAX_BATCH_SIZE, batch_cu + OVERHEAD_CU, SOLANA_CU_LIMIT
+        );
     }
 }

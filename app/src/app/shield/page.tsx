@@ -33,6 +33,7 @@ export default function ShieldPage() {
   const { activeChain, isConnected, walletAddress } = useChain();
   const solanaWallet = useSolanaWallet();
   const { data: evmWalletClient } = useWalletClient();
+  const { showToast } = useToast();
   const [notes, setNotes] = useState<StoredNote[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(true);
 
@@ -53,7 +54,17 @@ export default function ShieldPage() {
       .then((loadedNotes) => {
         if (mounted) setNotes(loadedNotes);
       })
-      .catch(() => {})
+      .catch((err: any) => {
+        if (mounted) {
+          // Show decryption errors to the user so they know why history is empty
+          if (err?.message?.includes("DECRYPTION_FAILED")) {
+            showToast(
+              "Unable to load shielded notes. Please ensure you are using the same wallet and chain, or restore from backup.",
+              "error"
+            );
+          }
+        }
+      })
       .finally(() => {
         if (mounted) setLoadingNotes(false);
       });
@@ -228,6 +239,21 @@ function DepositTab({
         txHash,
       };
       await addNote(note);
+
+      // Auto-download note as JSON backup
+      try {
+        const blob = new Blob([JSON.stringify(note, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `white-protocol-note-${note.commitment.slice(0, 8)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch {
+        // Non-critical: if auto-download fails, still continue
+      }
       
       // Notify relayer about this deposit so it can track it
       trackDeposit(note.commitment, txHash).catch((err: any) => {
@@ -275,6 +301,7 @@ function DepositTab({
         txHash: txHash || "",
       });
       showToast("Deposit submitted successfully", "success");
+      showToast("Note file auto-downloaded. Keep it safe — it's your only recovery backup!", "info");
     } catch (err: any) {
       setError(err?.message || "Deposit failed");
       showToast(err?.message || "Deposit failed", "error");

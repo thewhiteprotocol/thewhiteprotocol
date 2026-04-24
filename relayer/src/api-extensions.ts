@@ -99,10 +99,20 @@ function poseidonHash(inputs: bigint[]): bigint {
 /**
  * Server-side Merkle Tree implementation
  */
+/**
+ * Sparse incremental Merkle tree.
+ * 
+ * Stores only non-zero nodes in a Map, using level:index keys.
+ * Updates are O(depth) per insertion. Path queries are O(depth).
+ * This avoids the O(2^depth) memory blowup of naive implementations.
+ */
 class ServerMerkleTree {
   private depth: number;
   private leaves: bigint[];
   private zeros: bigint[];
+  // Sparse storage: only non-zero nodes are stored.
+  // Key format: "level:index" → hash value
+  private nodes: Map<string, bigint> = new Map();
   
   constructor(depth: number = 20) {
     this.depth = depth;
@@ -118,58 +128,94 @@ class ServerMerkleTree {
     return zeros;
   }
   
+  private nodeKey(level: number, index: number): string {
+    return `${level}:${index}`;
+  }
+  
+  private getNode(level: number, index: number): bigint {
+    return this.nodes.get(this.nodeKey(level, index)) ?? this.zeros[level];
+  }
+  
+  private setNode(level: number, index: number, value: bigint): void {
+    const key = this.nodeKey(level, index);
+    if (value === this.zeros[level]) {
+      this.nodes.delete(key);
+    } else {
+      this.nodes.set(key, value);
+    }
+  }
+  
   getRoot(): bigint {
-    if (this.leaves.length === 0) return this.zeros[this.depth];
-    
-    let level = [...this.leaves];
-    const size = 1 << this.depth;
-    while (level.length < size) level.push(0n);
+    return this.getNode(this.depth, 0);
+  }
+  
+  /**
+   * Incrementally update the path from a leaf to the root.
+   * Correctly handles out-of-order insertions because it reads
+   * the CURRENT sibling hash at each level (which may have been
+   * set by a previous insertion).
+   */
+  private updatePath(leafIndex: number, commitment: bigint): void {
+    let currentHash = commitment;
+    let currentIndex = leafIndex;
     
     for (let d = 0; d < this.depth; d++) {
-      const nextLevel: bigint[] = [];
-      for (let i = 0; i < level.length; i += 2) {
-        nextLevel.push(poseidonHash([level[i], level[i + 1]]));
+      this.setNode(d, currentIndex, currentHash);
+      
+      const siblingIndex = currentIndex ^ 1;
+      const siblingHash = this.getNode(d, siblingIndex);
+      
+      if (currentIndex & 1) {
+        // Right child
+        currentHash = poseidonHash([siblingHash, currentHash]);
+      } else {
+        // Left child
+        currentHash = poseidonHash([currentHash, siblingHash]);
       }
-      level = nextLevel;
+      
+      currentIndex = currentIndex >> 1;
     }
-    return level[0];
+    
+    // Set root
+    this.setNode(this.depth, 0, currentHash);
   }
   
   getMerklePath(index: number): { pathElements: bigint[]; pathIndices: number[] } {
+    if (index < 0 || index >= (1 << this.depth)) {
+      throw new Error(`Leaf index ${index} out of bounds for depth ${this.depth}`);
+    }
+    
     const pathElements: bigint[] = [];
     const pathIndices: number[] = [];
     let currentIndex = index;
     
-    let level = [...this.leaves];
-    const size = 1 << this.depth;
-    while (level.length < size) level.push(0n);
-    
     for (let d = 0; d < this.depth; d++) {
       const siblingIndex = currentIndex ^ 1;
-      pathElements.push(level[siblingIndex] ?? this.zeros[d]);
+      pathElements.push(this.getNode(d, siblingIndex));
       pathIndices.push(currentIndex & 1);
-      
-      const nextLevel: bigint[] = [];
-      for (let i = 0; i < level.length; i += 2) {
-        nextLevel.push(poseidonHash([level[i], level[i + 1]]));
-      }
-      level = nextLevel;
       currentIndex = currentIndex >> 1;
     }
+    
     return { pathElements, pathIndices };
   }
   
   insert(commitment: bigint): number {
     const index = this.leaves.length;
     this.leaves.push(commitment);
+    this.updatePath(index, commitment);
     return index;
   }
   
   insertAt(index: number, commitment: bigint): void {
+    const maxIndex = (1 << this.depth) - 1;
+    if (index < 0 || index > maxIndex) {
+      throw new Error(`Cannot insert at index ${index}: max is ${maxIndex}`);
+    }
     while (this.leaves.length <= index) {
       this.leaves.push(0n);
     }
     this.leaves[index] = commitment;
+    this.updatePath(index, commitment);
   }
   
   getLeafCount(): number {
@@ -182,6 +228,28 @@ class ServerMerkleTree {
   
   setLeaves(leaves: bigint[]): void {
     this.leaves = [...leaves];
+    this.nodes.clear();
+    // Batch rebuild: only process non-zero subtrees
+    for (let i = 0; i < this.leaves.length; i++) {
+      if (this.leaves[i] !== 0n) {
+        this.setNode(0, i, this.leaves[i]);
+      }
+    }
+    for (let d = 0; d < this.depth; d++) {
+      const nodeCount = 1 << (this.depth - d - 1);
+      for (let i = 0; i < nodeCount; i++) {
+        const leftKey = this.nodeKey(d, i * 2);
+        const rightKey = this.nodeKey(d, i * 2 + 1);
+        // Skip if both children are zero (not in map)
+        if (!this.nodes.has(leftKey) && !this.nodes.has(rightKey)) {
+          continue;
+        }
+        const left = this.getNode(d, i * 2);
+        const right = this.getNode(d, i * 2 + 1);
+        const parent = poseidonHash([left, right]);
+        this.setNode(d + 1, i, parent);
+      }
+    }
   }
 }
 
@@ -842,8 +910,26 @@ export class RelayerApiExtensions {
       const merkleAccount = parseMerkleTreeAccount(merkleInfo.data);
       const currentNextLeafIndex = merkleAccount.nextLeafIndex;
 
-      if (this.merkleTree.getLeafCount() < currentNextLeafIndex) {
+      // Try to recover missing tree leaves from on-chain events before proceeding
+      const localLeafCount = this.merkleTree.getLeafCount();
+      if (localLeafCount < currentNextLeafIndex) {
         await this.recoverMerkleTreeFromEvents(currentNextLeafIndex, merkleAccount.currentRoot);
+      }
+      
+      // After recovery, check if we successfully backfilled
+      const recoveredLeafCount = this.merkleTree.getLeafCount();
+      const recoveryFailed = recoveredLeafCount < currentNextLeafIndex;
+      if (recoveryFailed) {
+        logger.warn('Merkle tree recovery incomplete; local tree is behind on-chain state', {
+          localLeafCount: recoveredLeafCount,
+          onChainNextLeafIndex: currentNextLeafIndex,
+          gap: currentNextLeafIndex - recoveredLeafCount,
+        });
+        // CRITICAL FIX: Do NOT advance the pending-state cursor when recovery fails.
+        // Advancing the cursor would permanently orphan those settled commitments,
+        // making them impossible to verify for withdrawals. Leave the old cursor
+        // in place so the next sync attempt can try recovery again (e.g., after
+        // more RPC history is available or the IDL is fixed).
       }
       
       // Read current pending buffer
@@ -864,11 +950,10 @@ export class RelayerApiExtensions {
         prevNextLeafIndex = Math.min(this.merkleTree.getLeafCount(), currentNextLeafIndex);
       }
       
-      if (currentNextLeafIndex > prevNextLeafIndex) {
+      // Only detect settlements if our local tree is caught up
+      if (!recoveryFailed && currentNextLeafIndex > prevNextLeafIndex) {
         const numSettled = currentNextLeafIndex - prevNextLeafIndex;
         // Settled commitments are the first N from the previous pending buffer (FIFO)
-        // If prevPending is empty (fresh start), we can't determine which commitments settled,
-        // but we still update the nextLeafIndex so future syncs work correctly.
         const settledCommitments = prevPending.slice(0, numSettled);
         
         if (settledCommitments.length > 0) {
@@ -888,14 +973,22 @@ export class RelayerApiExtensions {
           oldNextLeafIndex: prevNextLeafIndex,
           newNextLeafIndex: currentNextLeafIndex,
         });
+      } else if (recoveryFailed && currentNextLeafIndex > prevNextLeafIndex) {
+        logger.warn('Skipping settlement detection because local tree recovery failed', {
+          numSettled: currentNextLeafIndex - prevNextLeafIndex,
+          prevNextLeafIndex,
+          currentNextLeafIndex,
+        });
       }
       
-      // Update pending state
+      // Update pending state ONLY with current on-chain buffer.
+      // Keep the old nextLeafIndex if recovery failed so we retry next sync.
       this.pendingState.pendingCommitments = currentPending;
-      this.pendingState.nextLeafIndex = currentNextLeafIndex;
+      const newNextLeafIndex = recoveryFailed ? prevNextLeafIndex : currentNextLeafIndex;
+      this.pendingState.nextLeafIndex = newNextLeafIndex;
       savePendingState({
         pendingCommitments: currentPending.map(c => c.toString()),
-        nextLeafIndex: currentNextLeafIndex,
+        nextLeafIndex: newNextLeafIndex,
         lastSyncedAt: Date.now(),
       });
       

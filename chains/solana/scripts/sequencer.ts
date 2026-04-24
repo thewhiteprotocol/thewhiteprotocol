@@ -29,7 +29,9 @@ const POOL_CONFIG = new PublicKey("2Nz4ursFKF6HjtofSFZcn5n4jionZXRfEyPgprBERVqQ"
 const MERKLE_TREE = new PublicKey("5PrZuZjt93CERcoe6NuNpuZoCGR15s1p2msH2xR7eryf");
 const PENDING_BUFFER = new PublicKey("CwZNKy7oJUnyNPPrASRzLMfxvKTrpw3VSBk8ZHNewUw3");
 
-const MAX_BATCH_SIZE = 16;
+// MUST match the compiled circuit's maxBatch parameter.
+// The current merkle_batch_update circuit is compiled with maxBatch=1.
+const MAX_BATCH_SIZE = 1;
 const MERKLE_DEPTH = 20;
 
 const CIRCUIT_WASM = path.join(__dirname, "../circuits/build/merkle_batch_update/merkle_batch_update_js/merkle_batch_update.wasm");
@@ -202,23 +204,61 @@ function bytes32ToBigint(bytes: number[] | Uint8Array): bigint {
   return BigInt(hex);
 }
 
-// Compute sha256 hash matching circuit encoding
-function computeCommitmentsHash(commitments: bigint[], batchSize: number): bigint {
-  // Create buffer: MAX_BATCH_SIZE * 32 bytes
-  const buffer = Buffer.alloc(MAX_BATCH_SIZE * 32);
-  
-  for (let i = 0; i < batchSize; i++) {
-    const bytes = bigintToBytes32BE(commitments[i]);
-    Buffer.from(bytes).copy(buffer, i * 32);
+// BN254 base field prime p (big-endian)
+const BN254_P = Buffer.from([
+  0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29,
+  0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58, 0x5d,
+  0x97, 0x81, 0x6a, 0x91, 0x68, 0x71, 0xca, 0x8d,
+  0x3c, 0x20, 0x8c, 0x16, 0xd8, 0x7c, 0xfd, 0x47,
+]);
+
+function isGteBigEndian(a: Buffer, b: Buffer): boolean {
+  for (let i = 0; i < 32; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
   }
-  // Remaining slots are already 0
-  
+  return true;
+}
+
+function subBigEndian(a: Buffer, b: Buffer): Buffer {
+  const result = Buffer.alloc(32);
+  let borrow = 0;
+  for (let i = 31; i >= 0; i--) {
+    const diff = a[i] - b[i] - borrow;
+    if (diff < 0) {
+      result[i] = diff + 256;
+      borrow = 1;
+    } else {
+      result[i] = diff;
+      borrow = 0;
+    }
+  }
+  return result;
+}
+
+function reduceModP(value: bigint): Buffer {
+  let bytes = Buffer.from(value.toString(16).padStart(64, '0'), 'hex');
+  while (isGteBigEndian(bytes, BN254_P)) {
+    bytes = subBigEndian(bytes, BN254_P);
+  }
+  return bytes;
+}
+
+// Compute sha256 hash matching on-chain encoding EXACTLY
+function computeCommitmentsHash(commitments: bigint[], batchSize: number): bigint {
+  const buffer = Buffer.alloc(MAX_BATCH_SIZE * 32, 0);
+
+  for (let i = 0; i < batchSize && i < commitments.length; i++) {
+    // Poseidon outputs are always < P, but we reduce defensively
+    const reduced = reduceModP(commitments[i]);
+    reduced.copy(buffer, i * 32);
+  }
+  // Remaining slots stay zero
+
   const hash = createHash("sha256").update(buffer).digest();
-  
-  // Convert to field: take lower 253 bits
-  const hashBigint = bytes32ToBigint(hash);
-  const mask = (1n << 253n) - 1n;
-  return hashBigint & mask;
+  // Clear top 3 bits to get a 253-bit field element (matches on-chain sha256_to_field)
+  hash[0] &= 0x1F;
+  return bytes32ToBigint(hash);
 }
 
 async function generateProof(

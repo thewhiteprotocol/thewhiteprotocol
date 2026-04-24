@@ -231,6 +231,7 @@ export default function DepositWithdrawUI() {
       
       if (BigInt(amountBaseUnits) < 1000n) {
         toast({ title: "Amount too small", description: "Minimum deposit required", variant: "destructive" });
+        isSubmittingRef.current = false;
         return;
       }
       
@@ -248,7 +249,7 @@ export default function DepositWithdrawUI() {
       proofHex = bytesToHex(proofBytes);
 
       const txData = await buildDepositTx({
-        amount: amountBaseUnits, commitment: note.commitment, assetId: note.assetIdHex,
+        amount: amountBaseUnits, commitment: note.commitment, assetIdHex: note.assetIdHex,
         proofData: proofHex, depositorPubkey: publicKey.toBase58(), mint: asset.mint,
       });
 

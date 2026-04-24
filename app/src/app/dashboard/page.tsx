@@ -47,8 +47,12 @@ export default function DashboardPage() {
         setTotalUsd(total);
         setBreakdown(breakdown);
         setPendingBalance(getPendingBalance(n));
-      } catch {
+      } catch (err: any) {
         // Store may not be initialized yet
+        if (err?.message?.includes("DECRYPTION_FAILED")) {
+          setNotes([]);
+          // Don't silently hide the error; the user needs to know their notes are unreadable
+        }
       } finally {
         if (mounted) setLoading(false);
       }

@@ -61,6 +61,7 @@ pub struct SettleDepositsBatch<'info> {
         ],
         bump,
         constraint = verification_key.is_valid() @ WhiteProtocolError::VerificationKeyNotSet,
+        constraint = verification_key.proof_type == ProofType::MerkleBatchUpdate as u8 @ WhiteProtocolError::InvalidVerificationKeyType,
     )]
     pub verification_key: Box<Account<'info, VerificationKeyAccount>>,
 }
@@ -90,6 +91,10 @@ fn sha256_to_field(hash: &[u8; 32]) -> [u8; 32] {
 
 /// Compute commitments hash matching circuit encoding
 /// Circuit hashes MAX_BATCH_SIZE slots, inactive slots are 0
+/// 
+/// SECURITY: Commitments are Poseidon hashes which are guaranteed to be < P
+/// (BN254 base field). We keep the reduction logic for defense-in-depth
+/// but use a proper loop to handle any value.
 fn compute_commitments_hash(commitments: &[[u8; 32]], batch_size: usize) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     
@@ -105,27 +110,13 @@ fn compute_commitments_hash(commitments: &[[u8; 32]], batch_size: usize) -> [u8;
     
     for i in 0..MAX_BATCH_SIZE {
         if i < batch_size && i < commitments.len() {
-            // Reduce mod p if >= p (matches circuit field semantics)
             let c = &commitments[i];
-            let need_reduce = c.iter().zip(P.iter()).fold(None, |acc, (&a, &b)| {
-                acc.or_else(|| if a > b { Some(true) } else if a < b { Some(false) } else { None })
-            }).unwrap_or(false);
-            
-            if need_reduce {
-                let mut borrow = 0i16;
-                for j in (0..32).rev() {
-                    let diff = c[j] as i16 - P[j] as i16 - borrow;
-                    if diff < 0 {
-                        preimage[i * 32 + j] = (diff + 256) as u8;
-                        borrow = 1;
-                    } else {
-                        preimage[i * 32 + j] = diff as u8;
-                        borrow = 0;
-                    }
-                }
-            } else {
-                preimage[i * 32..(i + 1) * 32].copy_from_slice(c);
+            // Proper modular reduction: subtract P while c >= P
+            let mut current = *c;
+            while is_gte_big_endian(&current, &P) {
+                current = sub_big_endian(&current, &P);
             }
+            preimage[i * 32..(i + 1) * 32].copy_from_slice(&current);
         }
     }
     
@@ -133,6 +124,32 @@ fn compute_commitments_hash(commitments: &[[u8; 32]], batch_size: usize) -> [u8;
     let mut h = [0u8; 32];
     h.copy_from_slice(&hash);
     h
+}
+
+/// Compare two 32-byte big-endian numbers: a >= b
+fn is_gte_big_endian(a: &[u8; 32], b: &[u8; 32]) -> bool {
+    for i in 0..32 {
+        if a[i] > b[i] { return true; }
+        if a[i] < b[i] { return false; }
+    }
+    true // equal
+}
+
+/// Subtract two 32-byte big-endian numbers: a - b (assumes a >= b)
+fn sub_big_endian(a: &[u8; 32], b: &[u8; 32]) -> [u8; 32] {
+    let mut result = [0u8; 32];
+    let mut borrow = 0i16;
+    for j in (0..32).rev() {
+        let diff = a[j] as i16 - b[j] as i16 - borrow;
+        if diff < 0 {
+            result[j] = (diff + 256) as u8;
+            borrow = 1;
+        } else {
+            result[j] = diff as u8;
+            borrow = 0;
+        }
+    }
+    result
 }
 
 

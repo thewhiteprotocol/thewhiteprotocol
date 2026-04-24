@@ -17,11 +17,52 @@ export function hasSessionKey(): boolean {
   return cachedKey !== null && cachedWalletAddress !== null;
 }
 
+/**
+ * Normalize an EVM signature for stable key derivation.
+ * EVM signatures can vary in `v` encoding (27/28, 0/1, EIP-155 chain-encoded).
+ * We canonicalize `v` to 27/28 so the same message + key always produces
+ * the same derivation input, preventing "notes disappeared" bugs.
+ */
+function normalizeSignature(signature: Uint8Array, chain?: string): Uint8Array {
+  // Solana ed25519 signatures are deterministic — no normalization needed
+  if (chain === "solana" || signature.length !== 65) {
+    return signature;
+  }
+
+  // EVM ECDSA signature: r (32 bytes) || s (32 bytes) || v (1 byte)
+  const normalized = new Uint8Array(signature);
+  const v = normalized[64];
+
+  // Canonicalize v to 27 or 28
+  let canonicalV: number;
+  if (v >= 35) {
+    // EIP-155 encoded: v = chainId * 2 + 35 or chainId * 2 + 36
+    canonicalV = ((v - 35) % 2 === 0) ? 27 : 28;
+  } else if (v === 0 || v === 1) {
+    canonicalV = v + 27;
+  } else {
+    canonicalV = v; // already 27 or 28
+  }
+
+  normalized[64] = canonicalV;
+  return normalized;
+}
+
 export async function initEncryption(
   walletAddress: string,
-  signature: Uint8Array
+  signature: Uint8Array,
+  chain?: string
 ): Promise<void> {
-  const hash = await crypto.subtle.digest("SHA-256", signature as unknown as ArrayBuffer);
+  const normalized = normalizeSignature(signature, chain);
+  // Include wallet address in the key derivation so:
+  // 1. Different wallets never share keys (even if signatures collide)
+  // 2. We have a stable component for debugging / partial recovery
+  const combined = new Uint8Array(20 + normalized.length);
+  const addressBytes = new TextEncoder().encode(walletAddress.toLowerCase().slice(0, 20));
+  combined.set(addressBytes, 0);
+  combined.set(normalized, 20);
+
+  const hash = await crypto.subtle.digest("SHA-256", combined as unknown as ArrayBuffer);
   cachedKey = await crypto.subtle.importKey("raw", hash, { name: "AES-GCM" }, false, [
     "encrypt",
     "decrypt",
@@ -68,12 +109,22 @@ export async function decryptData<T>(store: EncryptedStore): Promise<T> {
   }
   const iv = base64ToArrayBuffer(store.iv);
   const ciphertext = base64ToArrayBuffer(store.ciphertext);
-  const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    key,
-    ciphertext as ArrayBuffer
-  );
-  return JSON.parse(new TextDecoder().decode(plaintext)) as T;
+  try {
+    const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      key,
+      ciphertext as ArrayBuffer
+    );
+    return JSON.parse(new TextDecoder().decode(plaintext)) as T;
+  } catch (err) {
+    // Distinguish decryption failures from other errors so callers can
+    // show helpful UI instead of silently showing empty history.
+    throw new Error(
+      "DECRYPTION_FAILED: Unable to decrypt notes. " +
+      "This usually means your wallet produced a different signature than before. " +
+      "Try restoring from a backup, or ensure you are using the same wallet and chain."
+    );
+  }
 }
 
 export function getStorageKey(prefix: string, walletAddress: string): string {

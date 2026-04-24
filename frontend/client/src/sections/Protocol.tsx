@@ -346,6 +346,7 @@ export function Protocol() {
           description: "Minimum deposit is 0.001 SOL",
           variant: "destructive",
         });
+        isSubmittingRef.current = false;
         return;
       }
     } catch (error) {
@@ -354,6 +355,7 @@ export function Protocol() {
         description: "Please enter a valid SOL amount",
         variant: "destructive",
       });
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -409,7 +411,7 @@ export function Protocol() {
       const txData = await buildDepositTx({
         amount: amountLamports,
         commitment: note.commitment,
-        assetId: note.assetIdHex,
+        assetIdHex: note.assetIdHex,
         proofData: proofHex,
         depositorPubkey: publicKey.toBase58(),
         mint: WRAPPED_SOL_MINT.toBase58(),

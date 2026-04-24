@@ -55,7 +55,7 @@ export function UnlockModal() {
         signature = Uint8Array.from(Buffer.from(sigHex.slice(2), "hex"));
       }
       await initializePoseidon();
-      await initNoteStore(walletAddress, signature);
+      await initNoteStore(walletAddress, signature, activeChain);
       await initTierStore();
       window.dispatchEvent(new Event("white-protocol-notes-unlocked"));
       setOpen(false);

@@ -17,14 +17,20 @@ const STORAGE_PREFIX = "white_protocol_notes_v2";
 
 export async function initNoteStore(
   walletAddress: string,
-  signature: Uint8Array
+  signature: Uint8Array,
+  chain?: string
 ): Promise<StoredNote[]> {
-  await initEncryption(walletAddress, signature);
+  await initEncryption(walletAddress, signature, chain);
   return await loadNotes();
 }
 
 export async function addNote(note: StoredNote): Promise<void> {
   const notes = await loadNotes();
+  // Prevent duplicate notes (same commitment) which can happen from
+  // double-clicks, retries, or race conditions between tabs.
+  if (notes.some((n) => n.commitment === note.commitment)) {
+    return;
+  }
   notes.push(note);
   await saveNotes(notes);
 }
@@ -79,8 +85,17 @@ export function isStoreInitialized(walletAddress?: string): boolean {
 export { hasEncryptionSession as hasSessionKey };
 
 async function loadNotes(): Promise<StoredNote[]> {
-  const notes = await loadFromStore<StoredNote[]>(STORAGE_PREFIX);
-  return notes ?? [];
+  try {
+    const notes = await loadFromStore<StoredNote[]>(STORAGE_PREFIX);
+    return notes ?? [];
+  } catch (err: any) {
+    // Re-throw decryption failures so UI can show a proper error message
+    if (err?.message?.includes("DECRYPTION_FAILED")) {
+      throw err;
+    }
+    // For other errors (missing store, corrupt JSON), start fresh
+    return [];
+  }
 }
 
 async function saveNotes(notes: StoredNote[]): Promise<void> {

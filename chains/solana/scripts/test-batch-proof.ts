@@ -17,47 +17,59 @@ const FIELD_PRIME = BigInt("2188824287183927522224640574525727508854836440041603
 const PROGRAM_ID = new PublicKey("C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW");
 const POOL_CONFIG = new PublicKey("EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS");
 
-// Compute commitments hash the same way as the circuit
+// BN254 base field prime p (big-endian) — same as on-chain
+const BN254_P = Buffer.from([
+  0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29,
+  0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58, 0x5d,
+  0x97, 0x81, 0x6a, 0x91, 0x68, 0x71, 0xca, 0x8d,
+  0x3c, 0x20, 0x8c, 0x16, 0xd8, 0x7c, 0xfd, 0x47,
+]);
+
+function isGteBigEndian(a: Buffer, b: Buffer): boolean {
+  for (let i = 0; i < 32; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return true;
+}
+
+function subBigEndian(a: Buffer, b: Buffer): Buffer {
+  const result = Buffer.alloc(32);
+  let borrow = 0;
+  for (let i = 31; i >= 0; i--) {
+    const diff = a[i] - b[i] - borrow;
+    if (diff < 0) {
+      result[i] = diff + 256;
+      borrow = 1;
+    } else {
+      result[i] = diff;
+      borrow = 0;
+    }
+  }
+  return result;
+}
+
+function reduceModP(value: bigint): Buffer {
+  let bytes = Buffer.from(value.toString(16).padStart(64, '0'), 'hex');
+  while (isGteBigEndian(bytes, BN254_P)) {
+    bytes = subBigEndian(bytes, BN254_P);
+  }
+  return bytes;
+}
+
+// Compute commitments hash EXACTLY as on-chain settle_deposits_batch does
 function computeCommitmentsHash(commitments: bigint[], batchSize: number, maxBatch: number): bigint {
-    const bitsBE: number[] = [];
-    
-    for (let i = 0; i < maxBatch; i++) {
-        const isActive = i < batchSize;
-        const value = isActive ? commitments[i] : BigInt(0);
-        
-        for (let j = 255; j >= 0; j--) {
-            bitsBE.push(Number((value >> BigInt(j)) & BigInt(1)));
-        }
-    }
-    
-    const bytes = Buffer.alloc(bitsBE.length / 8);
-    for (let i = 0; i < bitsBE.length; i += 8) {
-        let byte = 0;
-        for (let j = 0; j < 8; j++) {
-            byte = (byte << 1) | bitsBE[i + j];
-        }
-        bytes[i / 8] = byte;
-    }
-    
-    const hash = createHash('sha256');
-    hash.update(bytes);
-    const digest = hash.digest();
-    
-    const digestBits: number[] = [];
-    for (let i = 0; i < digest.length; i++) {
-        for (let j = 7; j >= 0; j--) {
-            digestBits.push((digest[i] >> j) & 1);
-        }
-    }
-    
-    let result = BigInt(0);
-    for (let i = 0; i < 253; i++) {
-        const bitPos = 255 - i;
-        const bit = digestBits[bitPos];
-        result = result | (BigInt(bit) << BigInt(i));
-    }
-    
-    return result % FIELD_PRIME;
+  const buffer = Buffer.alloc(maxBatch * 32, 0);
+
+  for (let i = 0; i < batchSize && i < commitments.length; i++) {
+    const reduced = reduceModP(commitments[i]);
+    reduced.copy(buffer, i * 32);
+  }
+
+  const hash = createHash('sha256').update(buffer).digest();
+  // Clear top 3 bits to ensure < field prime (matches on-chain sha256_to_field)
+  hash[0] &= 0x1F;
+  return BigInt('0x' + hash.toString('hex'));
 }
 
 async function generateBatchProof() {

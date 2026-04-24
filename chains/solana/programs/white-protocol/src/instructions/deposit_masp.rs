@@ -3,6 +3,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::crypto::DepositPublicInputs;
 use crate::error::WhiteProtocolError;
+use crate::events::DepositQueuedEvent;
 use crate::state::{
     AssetVault, CommitmentIndex, MerkleTree, PendingDepositsBuffer, PoolConfig, VerificationKeyAccount,
 };
@@ -232,7 +233,17 @@ pub fn handler(
     ctx.accounts.commitment_index.bump = ctx.bumps.commitment_index;
 
     asset_vault.record_deposit(amount, timestamp)?;
-    pool_config.record_deposit(timestamp)?;
+    // NOTE: We intentionally do NOT call pool_config.record_deposit here.
+    // total_deposits should only count *settled* deposits (in batch_process_deposits
+    // or settle_deposits_batch). Counting at deposit time causes double-counting.
+    // pool_config.record_deposit(timestamp)?;
+
+    emit!(DepositQueuedEvent {
+        pool: ctx.accounts.pool_config.key(),
+        commitment,
+        asset_id,
+        timestamp,
+    });
 
     msg!(
         "MASP deposit queued: pending_index={}, pending_count={}",

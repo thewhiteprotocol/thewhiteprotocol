@@ -385,8 +385,13 @@ impl MerkleTree {
                 // Left sibling exists in filled_subtrees for completed subtrees
                 self.filled_subtrees[level_usize]
             } else {
-                // Right sibling - would need to recompute or store
-                // For now, return zero (this is a simplification)
+                // Right sibling exists but we don't store right subtrees on-chain.
+                // This is only accurate when filled_subtrees is fully maintained
+                // (i.e., after batch_process_deposits). After settle_deposits_batch,
+                // filled_subtrees is NOT updated, so this path may return an
+                // incorrect zero hash. For ZK-settled trees, Merkle proofs MUST
+                // be generated from an off-chain tree mirror (e.g., the relayer).
+                // SECURITY: Withdrawals verify the root, not this path, on-chain.
                 self.zeros[level_usize]
             };
 

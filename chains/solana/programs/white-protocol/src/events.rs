@@ -131,6 +131,20 @@ pub struct VerificationKeyLockedV2 {
 ///
 /// While the depositor address is visible in transaction accounts, omitting it
 /// from events makes large-scale indexing and correlation significantly harder.
+/// Emitted when a deposit is queued in the pending buffer.
+/// Note: leaf_index is NOT available at this stage; use CommitmentInsertedEvent
+/// or BatchProcessedEvent to learn the final leaf index after settlement.
+#[event]
+pub struct DepositQueuedEvent {
+    pub pool: Pubkey,
+    pub commitment: [u8; 32],
+    pub asset_id: [u8; 32],
+    pub timestamp: i64,
+}
+
+/// Emitted when a deposit is fully settled into the Merkle tree.
+/// For batch settlements, BatchProcessedEvent and CommitmentInsertedEvent
+/// are also emitted.
 #[event]
 pub struct DepositMaspEvent {
     /// Pool this deposit belongs to
