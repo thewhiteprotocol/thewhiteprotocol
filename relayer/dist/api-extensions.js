@@ -513,6 +513,9 @@ function withTimeout(promise, ms, message) {
     });
     return Promise.race([promise.finally(() => clearTimeout(timer)), timeoutPromise]);
 }
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 // =============================================================================
 // API EXTENSIONS CLASS
 // =============================================================================
@@ -758,18 +761,20 @@ class RelayerApiExtensions {
         }
         const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
         const parser = new anchor_1.EventParser(this.config.programId, new anchor_1.BorshCoder(idl));
-        const signatureLimit = Math.max(targetLeafCount * 20, parseInt(process.env.MERKLE_RECOVERY_SIGNATURE_LIMIT || '100', 10));
+        const signatureLimit = Math.max(targetLeafCount * 10, parseInt(process.env.MERKLE_RECOVERY_SIGNATURE_LIMIT || '50', 10));
         const signatures = await (0, retry_1.withRetry)(() => this.connection.getSignaturesForAddress(this.config.programId, { limit: Math.min(signatureLimit, 1000) }, 'confirmed'), { maxAttempts: 3, baseDelayMs: 500 });
         const commitmentsByIndex = new Map();
         for (const signatureInfo of signatures) {
             if (commitmentsByIndex.size >= targetLeafCount)
                 break;
+            // Small delay to avoid RPC rate limits (public RPCs are strict)
+            await sleep(150);
             let tx;
             try {
                 tx = await (0, retry_1.withRetry)(() => this.connection.getTransaction(signatureInfo.signature, {
                     commitment: 'confirmed',
                     maxSupportedTransactionVersion: 0,
-                }), { maxAttempts: 2, baseDelayMs: 500 });
+                }), { maxAttempts: 2, baseDelayMs: 1000 });
             }
             catch (err) {
                 logger_1.logger.warn('Skipping transaction during merkle recovery', {

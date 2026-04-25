@@ -596,6 +596,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   return Promise.race([promise.finally(() => clearTimeout(timer)), timeoutPromise]);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // =============================================================================
 // API EXTENSIONS CLASS
 // =============================================================================
@@ -880,8 +884,8 @@ export class RelayerApiExtensions {
     const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
     const parser = new EventParser(this.config.programId, new BorshCoder(idl));
     const signatureLimit = Math.max(
-      targetLeafCount * 20,
-      parseInt(process.env.MERKLE_RECOVERY_SIGNATURE_LIMIT || '100', 10)
+      targetLeafCount * 10,
+      parseInt(process.env.MERKLE_RECOVERY_SIGNATURE_LIMIT || '50', 10)
     );
     const signatures = await withRetry(
       () => this.connection.getSignaturesForAddress(
@@ -896,6 +900,9 @@ export class RelayerApiExtensions {
     for (const signatureInfo of signatures) {
       if (commitmentsByIndex.size >= targetLeafCount) break;
 
+      // Small delay to avoid RPC rate limits (public RPCs are strict)
+      await sleep(150);
+
       let tx;
       try {
         tx = await withRetry(
@@ -903,7 +910,7 @@ export class RelayerApiExtensions {
             commitment: 'confirmed',
             maxSupportedTransactionVersion: 0,
           }),
-          { maxAttempts: 2, baseDelayMs: 500 }
+          { maxAttempts: 2, baseDelayMs: 1000 }
         );
       } catch (err) {
         logger.warn('Skipping transaction during merkle recovery', {
