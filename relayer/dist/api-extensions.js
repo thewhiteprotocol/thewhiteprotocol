@@ -633,69 +633,86 @@ class RelayerApiExtensions {
     }
     async loadCircuitArtifacts() {
         const circuitsPath = this.config.circuitsPath;
+        // Fallback path relative to dist/ (e.g. Render native Node.js)
+        const fallbackPath = path.join(__dirname, '..', 'circuits', 'build');
+        const pathsToTry = [circuitsPath, fallbackPath];
+        const tryLoad = (relPath) => {
+            for (const base of pathsToTry) {
+                const full = path.join(base, relPath);
+                if (fs.existsSync(full))
+                    return full;
+            }
+            return null;
+        };
         // Load deposit circuit
-        const depositWasmPath = path.join(circuitsPath, 'deposit_js', 'deposit.wasm');
-        const depositZkeyPath = path.join(circuitsPath, 'deposit.zkey');
-        const depositVkPath = path.join(circuitsPath, 'deposit_vk.json');
-        if (fs.existsSync(depositWasmPath)) {
-            this.depositWasm = new Uint8Array(fs.readFileSync(depositWasmPath));
-            logger_1.logger.info('Loaded deposit.wasm');
+        const depositWasm = tryLoad(path.join('deposit_js', 'deposit.wasm'));
+        const depositZkey = tryLoad('deposit.zkey');
+        const depositVk = tryLoad('deposit_vk.json');
+        if (depositWasm) {
+            this.depositWasm = new Uint8Array(fs.readFileSync(depositWasm));
+            logger_1.logger.info('Loaded deposit.wasm', { path: depositWasm });
         }
-        if (fs.existsSync(depositZkeyPath)) {
-            this.depositZkey = new Uint8Array(fs.readFileSync(depositZkeyPath));
-            logger_1.logger.info('Loaded deposit.zkey');
+        if (depositZkey) {
+            this.depositZkey = new Uint8Array(fs.readFileSync(depositZkey));
+            logger_1.logger.info('Loaded deposit.zkey', { path: depositZkey });
         }
-        if (fs.existsSync(depositVkPath)) {
-            this.depositVk = JSON.parse(fs.readFileSync(depositVkPath, 'utf8'));
-            logger_1.logger.info('Loaded deposit_vk.json');
+        if (depositVk) {
+            this.depositVk = JSON.parse(fs.readFileSync(depositVk, 'utf8'));
+            logger_1.logger.info('Loaded deposit_vk.json', { path: depositVk });
         }
         // Load withdraw circuit
-        const withdrawWasmPath = path.join(circuitsPath, 'withdraw_js', 'withdraw.wasm');
-        const withdrawZkeyPath = path.join(circuitsPath, 'withdraw.zkey');
-        const withdrawVkPath = path.join(circuitsPath, 'withdraw_vk.json');
-        if (fs.existsSync(withdrawWasmPath)) {
-            this.withdrawWasm = new Uint8Array(fs.readFileSync(withdrawWasmPath));
-            logger_1.logger.info('Loaded withdraw.wasm');
+        const withdrawWasm = tryLoad(path.join('withdraw_js', 'withdraw.wasm'));
+        const withdrawZkey = tryLoad('withdraw.zkey');
+        const withdrawVk = tryLoad('withdraw_vk.json');
+        if (withdrawWasm) {
+            this.withdrawWasm = new Uint8Array(fs.readFileSync(withdrawWasm));
+            logger_1.logger.info('Loaded withdraw.wasm', { path: withdrawWasm });
         }
-        if (fs.existsSync(withdrawZkeyPath)) {
-            this.withdrawZkey = new Uint8Array(fs.readFileSync(withdrawZkeyPath));
-            logger_1.logger.info('Loaded withdraw.zkey');
+        if (withdrawZkey) {
+            this.withdrawZkey = new Uint8Array(fs.readFileSync(withdrawZkey));
+            logger_1.logger.info('Loaded withdraw.zkey', { path: withdrawZkey });
         }
-        if (fs.existsSync(withdrawVkPath)) {
-            this.withdrawVk = JSON.parse(fs.readFileSync(withdrawVkPath, 'utf8'));
-            logger_1.logger.info('Loaded withdraw_vk.json');
+        if (withdrawVk) {
+            this.withdrawVk = JSON.parse(fs.readFileSync(withdrawVk, 'utf8'));
+            logger_1.logger.info('Loaded withdraw_vk.json', { path: withdrawVk });
         }
         // Load withdraw_v2 circuit
-        const withdrawV2WasmPath = path.join(circuitsPath, 'withdraw_v2_js', 'withdraw_v2.wasm');
-        const withdrawV2ZkeyPath = path.join(circuitsPath, 'withdraw_v2.zkey');
-        const withdrawV2VkPath = path.join(circuitsPath, 'withdraw_v2_vk.json');
-        if (fs.existsSync(withdrawV2WasmPath)) {
-            this.withdrawV2Wasm = new Uint8Array(fs.readFileSync(withdrawV2WasmPath));
-            logger_1.logger.info('Loaded withdraw_v2.wasm');
+        const withdrawV2Wasm = tryLoad(path.join('withdraw_v2_js', 'withdraw_v2.wasm'));
+        const withdrawV2Zkey = tryLoad('withdraw_v2.zkey');
+        const withdrawV2Vk = tryLoad('withdraw_v2_vk.json');
+        if (withdrawV2Wasm) {
+            this.withdrawV2Wasm = new Uint8Array(fs.readFileSync(withdrawV2Wasm));
+            logger_1.logger.info('Loaded withdraw_v2.wasm', { path: withdrawV2Wasm });
         }
-        if (fs.existsSync(withdrawV2ZkeyPath)) {
-            this.withdrawV2Zkey = new Uint8Array(fs.readFileSync(withdrawV2ZkeyPath));
-            logger_1.logger.info('Loaded withdraw_v2.zkey');
+        if (withdrawV2Zkey) {
+            this.withdrawV2Zkey = new Uint8Array(fs.readFileSync(withdrawV2Zkey));
+            logger_1.logger.info('Loaded withdraw_v2.zkey', { path: withdrawV2Zkey });
         }
-        if (fs.existsSync(withdrawV2VkPath)) {
-            this.withdrawV2Vk = JSON.parse(fs.readFileSync(withdrawV2VkPath, 'utf8'));
-            logger_1.logger.info('Loaded withdraw_v2_vk.json');
+        if (withdrawV2Vk) {
+            this.withdrawV2Vk = JSON.parse(fs.readFileSync(withdrawV2Vk, 'utf8'));
+            logger_1.logger.info('Loaded withdraw_v2_vk.json', { path: withdrawV2Vk });
         }
         // Load merkle_batch_update circuit for settlement
-        const batchUpdateWasmPath = path.join(circuitsPath, 'merkle_batch_update', 'merkle_batch_update_js', 'merkle_batch_update.wasm');
-        const batchUpdateZkeyPath = path.join(circuitsPath, 'merkle_batch_update', 'merkle_batch_update_final.zkey');
-        const batchUpdateVkPath = path.join(circuitsPath, 'merkle_batch_update', 'verification_key.json');
-        if (fs.existsSync(batchUpdateWasmPath)) {
-            this.batchUpdateWasm = new Uint8Array(fs.readFileSync(batchUpdateWasmPath));
-            logger_1.logger.info('Loaded merkle_batch_update.wasm');
+        const batchUpdateWasm = tryLoad(path.join('merkle_batch_update', 'merkle_batch_update_js', 'merkle_batch_update.wasm'));
+        const batchUpdateZkey = tryLoad(path.join('merkle_batch_update', 'merkle_batch_update.zkey'));
+        const batchUpdateVk = tryLoad(path.join('merkle_batch_update', 'verification_key.json'));
+        if (batchUpdateWasm) {
+            this.batchUpdateWasm = new Uint8Array(fs.readFileSync(batchUpdateWasm));
+            logger_1.logger.info('Loaded merkle_batch_update.wasm', { path: batchUpdateWasm });
         }
-        if (fs.existsSync(batchUpdateZkeyPath)) {
-            this.batchUpdateZkey = new Uint8Array(fs.readFileSync(batchUpdateZkeyPath));
-            logger_1.logger.info('Loaded merkle_batch_update_final.zkey');
+        else {
+            logger_1.logger.warn('merkle_batch_update.wasm not found in any search path', { paths: pathsToTry });
         }
-        if (fs.existsSync(batchUpdateVkPath)) {
-            this.batchUpdateVk = JSON.parse(fs.readFileSync(batchUpdateVkPath, 'utf8'));
-            logger_1.logger.info('Loaded merkle_batch_update verification_key.json');
+        if (batchUpdateZkey) {
+            this.batchUpdateZkey = new Uint8Array(fs.readFileSync(batchUpdateZkey));
+            logger_1.logger.info('Loaded merkle_batch_update.zkey', { path: batchUpdateZkey });
+        }
+        else {
+            logger_1.logger.warn('merkle_batch_update.zkey not found in any search path', { paths: pathsToTry });
+        }
+        if (batchUpdateVk) {
+            this.batchUpdateVk = JSON.parse(fs.readFileSync(batchUpdateVk, 'utf8'));
+            logger_1.logger.info('Loaded merkle_batch_update verification_key.json', { path: batchUpdateVk });
         }
     }
     /**
