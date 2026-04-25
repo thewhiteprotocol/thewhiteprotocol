@@ -114,6 +114,8 @@ export declare class RelayerService {
     private baseAdapter?;
     /** API extensions (merkle tree, proof generation) */
     private apiExtensions?;
+    /** Solana settlement sequencer */
+    private sequencer?;
     constructor(config: RelayerConfig);
     /**
      * Load persisted relayer state
@@ -209,11 +211,6 @@ export declare class RelayerService {
      */
     removeSupportedAsset(assetId: string): void;
     private isSupportedAsset;
-    /**
-     * Run Solana sequencer loop — auto-settles pending deposits via settle_deposits_batch.
-     * Uses off-chain ZK proof generation + on-chain Groth16 verification (~300K CU).
-     */
-    private runSolanaSequencer;
     /**
      * Run Base sequencer loop
      */

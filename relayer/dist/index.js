@@ -54,6 +54,7 @@ const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const api_extensions_1 = require("./api-extensions");
+const sequencer_1 = require("./sequencer");
 const fs = __importStar(require("fs"));
 const snarkjs = __importStar(require("snarkjs"));
 const logger_1 = require("./logger");
@@ -106,6 +107,8 @@ class RelayerService {
     baseAdapter;
     /** API extensions (merkle tree, proof generation) */
     apiExtensions;
+    /** Solana settlement sequencer */
+    sequencer;
     constructor(config) {
         this.config = config;
         this.connection = new web3_js_1.Connection(config.rpcEndpoint, 'confirmed');
@@ -287,6 +290,7 @@ class RelayerService {
                 proofVerificationEnabled: !!this.withdrawVk,
                 pendingNullifiers: this.pendingNullifiers.size,
                 circuitBreaker: this.withdrawalBreaker.getStatus(),
+                sequencer: this.sequencer?.getStatus() || { running: false, settleCount: 0, lastSettleAt: null, lastError: null },
                 memoryMb: {
                     rss: Math.round(mem.rss / 1024 / 1024),
                     heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
@@ -732,8 +736,8 @@ class RelayerService {
      */
     async verifyWithdrawV2ProofLocally(proofData, publicSignals) {
         if (!this.withdrawV2Vk) {
-            logger_1.logger.warn('Withdraw V2 verification key not loaded, skipping local verification');
-            return true; // allow through if VK not available
+            logger_1.logger.error('Withdraw V2 verification key not loaded — rejecting proof');
+            return false;
         }
         if (proofData.length !== 256) {
             logger_1.logger.error('Invalid withdraw v2 proof data length', { expected: 256, actual: proofData.length });
@@ -1139,70 +1143,6 @@ class RelayerService {
             this.supportedAssets.has(mint.toLowerCase()));
     }
     /**
-     * Run Solana sequencer loop — auto-settles pending deposits via settle_deposits_batch.
-     * Uses off-chain ZK proof generation + on-chain Groth16 verification (~300K CU).
-     */
-    runSolanaSequencer() {
-        const loop = async () => {
-            // Small startup delay so the relayer is fully initialized before first poll
-            await sleep(10000);
-            while (true) {
-                try {
-                    if (!this.apiExtensions) {
-                        logger_1.logger.warn('Solana sequencer waiting for API extensions...');
-                        await sleep(30000);
-                        continue;
-                    }
-                    const settlement = await this.apiExtensions.settlePendingDeposits();
-                    if (!settlement) {
-                        await sleep(60000);
-                        continue;
-                    }
-                    const { proofBytes, newRootBytes, batchSize, merkleTreePda, pendingBufferPda, vkPda } = settlement;
-                    logger_1.logger.info('Solana settlement: submitting ZK proof', { batchSize });
-                    const authority = this.config.authorityKeypair || this.config.walletKeypair;
-                    const ix = await this.program.methods
-                        .settleDepositsBatch({
-                        proof: Array.from(proofBytes),
-                        newRoot: Array.from(newRootBytes),
-                        batchSize,
-                    })
-                        .accounts({
-                        authority: authority.publicKey,
-                        poolConfig: this.config.poolConfig,
-                        merkleTree: merkleTreePda,
-                        pendingBuffer: pendingBufferPda,
-                        verificationKey: vkPda,
-                    })
-                        .instruction();
-                    const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }), web3_js_1.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }), ix);
-                    const signature = await (0, web3_js_1.sendAndConfirmTransaction)(this.connection, tx, [authority], { commitment: 'confirmed', maxRetries: 3 });
-                    logger_1.logger.info('Solana batch settled via ZK proof', { signature, batchSize });
-                }
-                catch (err) {
-                    const msg = err?.message || '';
-                    if (msg.includes('BatchNotReady') || msg.includes('batch not ready')) {
-                        logger_1.logger.info('Solana batch cooldown active, waiting...');
-                    }
-                    else if (msg.includes('already been processed') || msg.includes('already processed')) {
-                        logger_1.logger.info('Solana settlement tx already processed, skipping');
-                    }
-                    else if (msg.includes('No pending deposits') || msg.includes('not enough pending')) {
-                        logger_1.logger.info('No pending deposits to settle');
-                    }
-                    else if (msg.includes('root mismatch') || msg.includes('stale proof')) {
-                        logger_1.logger.warn('Local tree out of sync, will retry on next sync', { error: msg });
-                    }
-                    else {
-                        logger_1.logger.error('Solana settlement failed', { error: msg });
-                    }
-                }
-                await sleep(60000); // 60 seconds between attempts (matches program cooldown)
-            }
-        };
-        loop();
-    }
-    /**
      * Run Base sequencer loop
      */
     runBaseSequencer() {
@@ -1255,12 +1195,28 @@ class RelayerService {
         });
         // Start background Solana settlement sequencer
         const authPk = this.config.authorityKeypair?.publicKey.toBase58();
+        const wallet = this.config.authorityKeypair || this.config.walletKeypair;
         logger_1.logger.info('Solana sequencer config', {
             authorityLoaded: !!this.config.authorityKeypair,
             authorityPublicKey: authPk || 'FALLBACK_TO_RELAYER',
             relayerPublicKey: this.config.walletKeypair.publicKey.toBase58(),
         });
-        this.runSolanaSequencer();
+        const [merkleTreePda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const [pendingBufferPda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const [vkPda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vk_merkle_batch'), this.config.poolConfig.toBuffer()], this.config.programId);
+        this.sequencer = new sequencer_1.Sequencer({
+            connection: this.connection,
+            wallet,
+            program: this.program,
+            apiExtensions: this.apiExtensions,
+            poolConfig: this.config.poolConfig,
+            merkleTree: merkleTreePda,
+            pendingBuffer: pendingBufferPda,
+            vkPda,
+            pollIntervalMs: 30000,
+            logger: logger_1.logger,
+        });
+        this.sequencer.start().catch((err) => logger_1.logger.error('Sequencer crashed', { err: String(err) }));
         if (this.baseAdapter) {
             this.runBaseSequencer();
         }

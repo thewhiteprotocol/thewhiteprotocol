@@ -281,13 +281,14 @@ function hexToBytes32(hex) {
     return bytes;
 }
 function feToBytes32BE(value) {
-    let v = ((value % BN254_FIELD_ORDER) + BN254_FIELD_ORDER) % BN254_FIELD_ORDER;
-    const out = new Uint8Array(32);
-    for (let i = 31; i >= 0; i--) {
-        out[i] = Number(v & 0xffn);
-        v >>= 8n;
+    // Do NOT reduce modulo scalar order — proof coordinates are base field elements.
+    // Also used for Merkle roots and commitments which must preserve full base-field representation.
+    const hex = value.toString(16).padStart(64, '0');
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+        bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
     }
-    return out;
+    return bytes;
 }
 function serializeGroth16Proof(proof) {
     const proofBytes = new Uint8Array(256);
@@ -1869,7 +1870,10 @@ class RelayerApiExtensions {
         };
         logger_1.logger.info('Generating batch settlement ZK proof', { batchSize, startIndex });
         const startTime = Date.now();
-        const { proof, publicSignals } = await snarkjs.groth16.fullProve(circuitInput, this.batchUpdateWasm, this.batchUpdateZkey);
+        const { proof, publicSignals } = await Promise.race([
+            snarkjs.groth16.fullProve(circuitInput, this.batchUpdateWasm, this.batchUpdateZkey),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Proof generation timeout')), 120000))
+        ]);
         logger_1.logger.info('Batch proof generated', { durationMs: Date.now() - startTime });
         // Optional: local verification
         if (this.batchUpdateVk) {
