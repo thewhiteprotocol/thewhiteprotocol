@@ -28,6 +28,14 @@ packages/*/dist/
 psol-v2-wip.zip
 solana.tar.bz2
 *.tar.bz2
+
+# Test artifacts & notes
+chains/solana/tests/e2e-note.json
+chains/solana/tests/e2e-withdraw-result.json
+chains/solana/tests/test-withdraw-note.json
+chains/solana/tests/*.json
+!chains/solana/tests/package.json
+!chains/solana/tests/tsconfig.json
 *.orig
 *.rej
 

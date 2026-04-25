@@ -1,60 +1,58 @@
+# Render Blueprint for The White Protocol Relayer
+# Deploys the relayer service from the relayer/ directory
 services:
   - type: web
-    name: white-protocol-relayer
+    name: thewhiteprotocol-relayer
     runtime: node
+    plan: starter
     rootDir: relayer
     buildCommand: npm install && npm run build
     startCommand: npm start
-    plan: starter
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: "3000"
-      - key: LOG_LEVEL
-        value: info
       - key: STATE_DIR
         value: /app/data
       - key: RPC_ENDPOINT
-        fromGroup: white-protocol
-      - key: RELAYER_KEYPAIR
-        fromGroup: white-protocol
-      - key: AUTHORITY_KEYPAIR
-        fromGroup: white-protocol
-      - key: PROGRAM_ID
-        value: "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW"
-      - key: POOL_CONFIG
-        value: "EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS"
-      - key: MERKLE_TREE
-        value: "2DjfHs3CYK22a4SAMSH2gt6eXRwSnBzm2f4gWvmos8sD"
-      - key: PENDING_BUFFER
-        value: "7MzDFCdPEog6orC42jCXBz53zhqysQVq5vb5J7R1DAyw"
-      - key: WSOL_VAULT
-        value: "629JMEcz1u4AjyahByEcQtyGF3TwDnBPY7nHhaLVB9PS"
+        value: https://api.devnet.solana.com
       - key: BASE_RPC_URL
-        value: "https://sepolia.base.org"
+        value: https://sepolia.base.org
+      - key: PROGRAM_ID
+        value: C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW
+      - key: POOL_CONFIG
+        value: EYjYoV3RpvmYBcUi6LVGaYUzCbEjeHxga7nE7D5GEgaS
+      - key: MERKLE_TREE
+        value: 2DjfHs3CYK22a4SAMSH2gt6eXRwSnBzm2f4gWvmos8sD
+      - key: PENDING_BUFFER
+        value: 7MzDFCdPEog6orC42jCXBz53zhqysQVq5vb5J7R1DAyw
+      - key: WSOL_VAULT
+        value: 629JMEcz1u4AjyahByEcQtyGF3TwDnBPY7nHhaLVB9PS
       - key: BASE_PROTOCOL_ADDRESS
-        value: "0xCE959493cf6F15314b4B9eEbb28369716341e7FE"
-      - key: BASE_DEPLOYER_PRIVATE_KEY
-        fromGroup: white-protocol
+        value: 0xCE959493cf6F15314b4B9eEbb28369716341e7FE
       - key: FEE_BPS
         value: "50"
+      - key: WITHDRAW_VK_PATH
+        value: ./circuits/build/withdraw_vk.json
+      - key: WITHDRAW_V2_VK_PATH
+        value: ./circuits/build/withdraw_v2_vk.json
+      - key: CIRCUITS_PATH
+        value: ./circuits/build
+      - key: TREE_DEPTH
+        value: "20"
       - key: MIN_WITHDRAWAL
         value: "1000000"
       - key: MAX_WITHDRAWAL
         value: "1000000000000"
-      - key: WITHDRAW_VK_PATH
-        value: "./circuits/build/withdraw_vk.json"
-      - key: CIRCUITS_PATH
-        value: "./circuits/build"
-      - key: TREE_DEPTH
-        value: "20"
-      - key: CORS_ORIGIN
-        value: "https://app.thewhiteprotocol.com,https://thewhiteprotocol.com"
-      - key: SEQUENCER_AUTH_TOKEN
-        generateValue: true
       - key: SUPPORTED_ASSETS
-        value: "So11111111111111111111111111111111111111112"
-      - key: NODE_OPTIONS
-        value: "--max-old-space-size=2048"
+        value: So11111111111111111111111111111111111111112
+      - key: CORS_ORIGIN
+        value: https://app.thewhiteprotocol.com
+      # Secrets — set these in Render dashboard, not here
+      # - RELAYER_KEYPAIR
+      # - AUTHORITY_KEYPAIR (optional; falls back to RELAYER_KEYPAIR)
+      # - BASE_DEPLOYER_PRIVATE_KEY
+      # - SEQUENCER_AUTH_TOKEN
+      # - WALLETCONNECT_PROJECT_ID (if needed)
