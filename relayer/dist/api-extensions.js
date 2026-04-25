@@ -110,10 +110,20 @@ function poseidonHash(inputs) {
 /**
  * Server-side Merkle Tree implementation
  */
+/**
+ * Sparse incremental Merkle tree.
+ *
+ * Stores only non-zero nodes in a Map, using level:index keys.
+ * Updates are O(depth) per insertion. Path queries are O(depth).
+ * This avoids the O(2^depth) memory blowup of naive implementations.
+ */
 class ServerMerkleTree {
     depth;
     leaves;
     zeros;
+    // Sparse storage: only non-zero nodes are stored.
+    // Key format: "level:index" → hash value
+    nodes = new Map();
     constructor(depth = 20) {
         this.depth = depth;
         this.leaves = [];
@@ -126,39 +136,61 @@ class ServerMerkleTree {
         }
         return zeros;
     }
-    getRoot() {
-        if (this.leaves.length === 0)
-            return this.zeros[this.depth];
-        let level = [...this.leaves];
-        const size = 1 << this.depth;
-        while (level.length < size)
-            level.push(0n);
-        for (let d = 0; d < this.depth; d++) {
-            const nextLevel = [];
-            for (let i = 0; i < level.length; i += 2) {
-                nextLevel.push(poseidonHash([level[i], level[i + 1]]));
-            }
-            level = nextLevel;
+    nodeKey(level, index) {
+        return `${level}:${index}`;
+    }
+    getNode(level, index) {
+        return this.nodes.get(this.nodeKey(level, index)) ?? this.zeros[level];
+    }
+    setNode(level, index, value) {
+        const key = this.nodeKey(level, index);
+        if (value === this.zeros[level]) {
+            this.nodes.delete(key);
         }
-        return level[0];
+        else {
+            this.nodes.set(key, value);
+        }
+    }
+    getRoot() {
+        return this.getNode(this.depth, 0);
+    }
+    /**
+     * Incrementally update the path from a leaf to the root.
+     * Correctly handles out-of-order insertions because it reads
+     * the CURRENT sibling hash at each level (which may have been
+     * set by a previous insertion).
+     */
+    updatePath(leafIndex, commitment) {
+        let currentHash = commitment;
+        let currentIndex = leafIndex;
+        for (let d = 0; d < this.depth; d++) {
+            this.setNode(d, currentIndex, currentHash);
+            const siblingIndex = currentIndex ^ 1;
+            const siblingHash = this.getNode(d, siblingIndex);
+            if (currentIndex & 1) {
+                // Right child
+                currentHash = poseidonHash([siblingHash, currentHash]);
+            }
+            else {
+                // Left child
+                currentHash = poseidonHash([currentHash, siblingHash]);
+            }
+            currentIndex = currentIndex >> 1;
+        }
+        // Set root
+        this.setNode(this.depth, 0, currentHash);
     }
     getMerklePath(index) {
+        if (index < 0 || index >= (1 << this.depth)) {
+            throw new Error(`Leaf index ${index} out of bounds for depth ${this.depth}`);
+        }
         const pathElements = [];
         const pathIndices = [];
         let currentIndex = index;
-        let level = [...this.leaves];
-        const size = 1 << this.depth;
-        while (level.length < size)
-            level.push(0n);
         for (let d = 0; d < this.depth; d++) {
             const siblingIndex = currentIndex ^ 1;
-            pathElements.push(level[siblingIndex] ?? this.zeros[d]);
+            pathElements.push(this.getNode(d, siblingIndex));
             pathIndices.push(currentIndex & 1);
-            const nextLevel = [];
-            for (let i = 0; i < level.length; i += 2) {
-                nextLevel.push(poseidonHash([level[i], level[i + 1]]));
-            }
-            level = nextLevel;
             currentIndex = currentIndex >> 1;
         }
         return { pathElements, pathIndices };
@@ -166,13 +198,19 @@ class ServerMerkleTree {
     insert(commitment) {
         const index = this.leaves.length;
         this.leaves.push(commitment);
+        this.updatePath(index, commitment);
         return index;
     }
     insertAt(index, commitment) {
+        const maxIndex = (1 << this.depth) - 1;
+        if (index < 0 || index > maxIndex) {
+            throw new Error(`Cannot insert at index ${index}: max is ${maxIndex}`);
+        }
         while (this.leaves.length <= index) {
             this.leaves.push(0n);
         }
         this.leaves[index] = commitment;
+        this.updatePath(index, commitment);
     }
     getLeafCount() {
         return this.leaves.length;
@@ -182,6 +220,51 @@ class ServerMerkleTree {
     }
     setLeaves(leaves) {
         this.leaves = [...leaves];
+        this.nodes.clear();
+        // Batch rebuild: only process non-zero subtrees
+        for (let i = 0; i < this.leaves.length; i++) {
+            if (this.leaves[i] !== 0n) {
+                this.setNode(0, i, this.leaves[i]);
+            }
+        }
+        for (let d = 0; d < this.depth; d++) {
+            const nodeCount = 1 << (this.depth - d - 1);
+            for (let i = 0; i < nodeCount; i++) {
+                const leftKey = this.nodeKey(d, i * 2);
+                const rightKey = this.nodeKey(d, i * 2 + 1);
+                // Skip if both children are zero (not in map)
+                if (!this.nodes.has(leftKey) && !this.nodes.has(rightKey)) {
+                    continue;
+                }
+                const left = this.getNode(d, i * 2);
+                const right = this.getNode(d, i * 2 + 1);
+                const parent = poseidonHash([left, right]);
+                this.setNode(d + 1, i, parent);
+            }
+        }
+    }
+    /**
+     * Simulate inserting a batch of commitments without mutating the tree.
+     * Returns the Merkle paths for each insertion and the new root.
+     * Used for off-chain ZK proof generation.
+     */
+    simulateBatchInsert(commitments, startIndex) {
+        const savedLeaves = [...this.leaves];
+        const savedNodes = new Map(this.nodes);
+        while (this.leaves.length < startIndex) {
+            this.leaves.push(0n);
+        }
+        const paths = [];
+        for (const commitment of commitments) {
+            const index = this.leaves.length;
+            const { pathElements } = this.getMerklePath(index);
+            paths.push(pathElements);
+            this.insert(commitment);
+        }
+        const newRoot = this.getRoot();
+        this.leaves = savedLeaves;
+        this.nodes = savedNodes;
+        return { paths, newRoot };
     }
 }
 // =============================================================================
@@ -220,6 +303,23 @@ function serializeGroth16Proof(proof) {
     proofBytes.set(feToBytes32BE(BigInt(proof.pi_c[0])), 192);
     proofBytes.set(feToBytes32BE(BigInt(proof.pi_c[1])), 224);
     return proofBytes;
+}
+/** Maximum batch size — must match circuit compilation */
+const MAX_BATCH_SIZE = 1;
+/**
+ * Compute SHA-256 hash of padded commitments, masked to 253 bits.
+ * Matches on-chain commitmentsHash computation.
+ */
+function computeCommitmentsHash(commitments, batchSize) {
+    const buffer = Buffer.alloc(MAX_BATCH_SIZE * 32);
+    for (let i = 0; i < batchSize; i++) {
+        const bytes = feToBytes32BE(commitments[i]);
+        buffer.set(bytes, i * 32);
+    }
+    const hash = crypto.createHash('sha256').update(buffer).digest();
+    const hashBigint = bytesToBigIntBE(hash);
+    const mask = (1n << 253n) - 1n;
+    return hashBigint & mask;
 }
 function bytesToHex(bytes) {
     return Array.from(bytes)
@@ -431,6 +531,9 @@ class RelayerApiExtensions {
     withdrawV2Wasm = null;
     withdrawV2Zkey = null;
     withdrawV2Vk = null;
+    batchUpdateWasm = null;
+    batchUpdateZkey = null;
+    batchUpdateVk = null;
     // RPC response cache (5s TTL default)
     rpcCache = new ttl_cache_1.TtlCache(5000);
     // Pending state tracking for sync
@@ -578,6 +681,22 @@ class RelayerApiExtensions {
             this.withdrawV2Vk = JSON.parse(fs.readFileSync(withdrawV2VkPath, 'utf8'));
             logger_1.logger.info('Loaded withdraw_v2_vk.json');
         }
+        // Load merkle_batch_update circuit for settlement
+        const batchUpdateWasmPath = path.join(circuitsPath, 'merkle_batch_update', 'merkle_batch_update_js', 'merkle_batch_update.wasm');
+        const batchUpdateZkeyPath = path.join(circuitsPath, 'merkle_batch_update', 'merkle_batch_update_final.zkey');
+        const batchUpdateVkPath = path.join(circuitsPath, 'merkle_batch_update', 'verification_key.json');
+        if (fs.existsSync(batchUpdateWasmPath)) {
+            this.batchUpdateWasm = new Uint8Array(fs.readFileSync(batchUpdateWasmPath));
+            logger_1.logger.info('Loaded merkle_batch_update.wasm');
+        }
+        if (fs.existsSync(batchUpdateZkeyPath)) {
+            this.batchUpdateZkey = new Uint8Array(fs.readFileSync(batchUpdateZkeyPath));
+            logger_1.logger.info('Loaded merkle_batch_update_final.zkey');
+        }
+        if (fs.existsSync(batchUpdateVkPath)) {
+            this.batchUpdateVk = JSON.parse(fs.readFileSync(batchUpdateVkPath, 'utf8'));
+            logger_1.logger.info('Loaded merkle_batch_update verification_key.json');
+        }
     }
     /**
      * Persist current merkle tree leaves to disk
@@ -708,8 +827,25 @@ class RelayerApiExtensions {
             // discriminator(8), pool(32), depth(1), next_leaf_index(4), current_root(32), ...
             const merkleAccount = parseMerkleTreeAccount(merkleInfo.data);
             const currentNextLeafIndex = merkleAccount.nextLeafIndex;
-            if (this.merkleTree.getLeafCount() < currentNextLeafIndex) {
+            // Try to recover missing tree leaves from on-chain events before proceeding
+            const localLeafCount = this.merkleTree.getLeafCount();
+            if (localLeafCount < currentNextLeafIndex) {
                 await this.recoverMerkleTreeFromEvents(currentNextLeafIndex, merkleAccount.currentRoot);
+            }
+            // After recovery, check if we successfully backfilled
+            const recoveredLeafCount = this.merkleTree.getLeafCount();
+            const recoveryFailed = recoveredLeafCount < currentNextLeafIndex;
+            if (recoveryFailed) {
+                logger_1.logger.warn('Merkle tree recovery incomplete; local tree is behind on-chain state', {
+                    localLeafCount: recoveredLeafCount,
+                    onChainNextLeafIndex: currentNextLeafIndex,
+                    gap: currentNextLeafIndex - recoveredLeafCount,
+                });
+                // CRITICAL FIX: Do NOT advance the pending-state cursor when recovery fails.
+                // Advancing the cursor would permanently orphan those settled commitments,
+                // making them impossible to verify for withdrawals. Leave the old cursor
+                // in place so the next sync attempt can try recovery again (e.g., after
+                // more RPC history is available or the IDL is fixed).
             }
             // Read current pending buffer
             const currentPending = [];
@@ -727,11 +863,10 @@ class RelayerApiExtensions {
                 });
                 prevNextLeafIndex = Math.min(this.merkleTree.getLeafCount(), currentNextLeafIndex);
             }
-            if (currentNextLeafIndex > prevNextLeafIndex) {
+            // Only detect settlements if our local tree is caught up
+            if (!recoveryFailed && currentNextLeafIndex > prevNextLeafIndex) {
                 const numSettled = currentNextLeafIndex - prevNextLeafIndex;
                 // Settled commitments are the first N from the previous pending buffer (FIFO)
-                // If prevPending is empty (fresh start), we can't determine which commitments settled,
-                // but we still update the nextLeafIndex so future syncs work correctly.
                 const settledCommitments = prevPending.slice(0, numSettled);
                 if (settledCommitments.length > 0) {
                     for (let i = 0; i < settledCommitments.length; i++) {
@@ -750,12 +885,21 @@ class RelayerApiExtensions {
                     newNextLeafIndex: currentNextLeafIndex,
                 });
             }
-            // Update pending state
+            else if (recoveryFailed && currentNextLeafIndex > prevNextLeafIndex) {
+                logger_1.logger.warn('Skipping settlement detection because local tree recovery failed', {
+                    numSettled: currentNextLeafIndex - prevNextLeafIndex,
+                    prevNextLeafIndex,
+                    currentNextLeafIndex,
+                });
+            }
+            // Update pending state ONLY with current on-chain buffer.
+            // Keep the old nextLeafIndex if recovery failed so we retry next sync.
             this.pendingState.pendingCommitments = currentPending;
-            this.pendingState.nextLeafIndex = currentNextLeafIndex;
+            const newNextLeafIndex = recoveryFailed ? prevNextLeafIndex : currentNextLeafIndex;
+            this.pendingState.nextLeafIndex = newNextLeafIndex;
             (0, state_store_1.savePendingState)({
                 pendingCommitments: currentPending.map(c => c.toString()),
-                nextLeafIndex: currentNextLeafIndex,
+                nextLeafIndex: newNextLeafIndex,
                 lastSyncedAt: Date.now(),
             });
             logger_1.logger.info('Merkle tree synced from chain', {
@@ -1674,6 +1818,107 @@ class RelayerApiExtensions {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
+    }
+    // ============================================================================
+    // BATCH SETTLEMENT (ZK-BASED)
+    // ============================================================================
+    /**
+     * Generate a Groth16 proof for batch Merkle update.
+     */
+    async generateBatchProof(oldRoot, newRoot, startIndex, batchSize, commitments, paths) {
+        if (!this.batchUpdateWasm || !this.batchUpdateZkey) {
+            throw new Error('Batch update circuit artifacts not loaded');
+        }
+        const commitmentsHash = computeCommitmentsHash(commitments, batchSize);
+        const paddedCommitments = [...commitments];
+        const paddedPaths = [...paths];
+        while (paddedCommitments.length < MAX_BATCH_SIZE) {
+            paddedCommitments.push(0n);
+            paddedPaths.push(new Array(this.config.treeDepth).fill(0n));
+        }
+        const circuitInput = {
+            oldRoot: oldRoot.toString(),
+            newRoot: newRoot.toString(),
+            startIndex: startIndex.toString(),
+            batchSize: batchSize.toString(),
+            commitmentsHash: commitmentsHash.toString(),
+            commitments: paddedCommitments.map(c => c.toString()),
+            pathElements: paddedPaths.map(p => p.map(e => e.toString())),
+        };
+        logger_1.logger.info('Generating batch settlement ZK proof', { batchSize, startIndex });
+        const startTime = Date.now();
+        const { proof, publicSignals } = await snarkjs.groth16.fullProve(circuitInput, this.batchUpdateWasm, this.batchUpdateZkey);
+        logger_1.logger.info('Batch proof generated', { durationMs: Date.now() - startTime });
+        // Optional: local verification
+        if (this.batchUpdateVk) {
+            const valid = await snarkjs.groth16.verify(this.batchUpdateVk, publicSignals, proof);
+            if (!valid) {
+                throw new Error('Batch proof local verification failed');
+            }
+            logger_1.logger.info('Batch proof locally verified');
+        }
+        const proofBytes = serializeGroth16Proof(proof);
+        return { proofBytes, publicSignals: publicSignals.map((s) => BigInt(s)) };
+    }
+    /**
+     * Prepare a ZK batch settlement for the current pending deposits.
+     * Returns proof data ready for on-chain submission, or null if nothing to settle.
+     */
+    async settlePendingDeposits() {
+        // Ensure tree is synced before generating proof
+        await this.syncMerkleTree();
+        const [merkleTreePda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const [pendingBufferPda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('pending'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const [vkPda] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from('vk_merkle_batch'), this.config.poolConfig.toBuffer()], this.config.programId);
+        const merkleInfo = await this.getAccountInfoCached(merkleTreePda, 0);
+        const pendingInfo = await this.getAccountInfoCached(pendingBufferPda, 0);
+        if (!merkleInfo || !pendingInfo) {
+            logger_1.logger.info('Batch settlement: merkle tree or pending buffer not found');
+            return null;
+        }
+        const merkleAccount = parseMerkleTreeAccount(merkleInfo.data);
+        const pendingAccount = parsePendingBufferAccount(pendingInfo.data);
+        const onChainRoot = merkleAccount.currentRoot;
+        const onChainIndex = merkleAccount.nextLeafIndex;
+        const pendingCount = pendingAccount.deposits.length;
+        if (pendingCount === 0) {
+            return null;
+        }
+        const batchSize = Math.min(pendingCount, MAX_BATCH_SIZE);
+        const startIndex = onChainIndex;
+        // Verify local tree matches on-chain
+        const localRoot = this.merkleTree.getRoot();
+        if (localRoot !== onChainRoot) {
+            logger_1.logger.warn('Batch settlement: local tree root mismatch', {
+                localRoot: localRoot.toString(16).slice(0, 16),
+                onChainRoot: onChainRoot.toString(16).slice(0, 16),
+            });
+            // Attempt to rebuild from events one more time
+            await this.recoverMerkleTreeFromEvents(onChainIndex, onChainRoot);
+            const rebuiltRoot = this.merkleTree.getRoot();
+            if (rebuiltRoot !== onChainRoot) {
+                throw new Error('Local tree root mismatch after recovery — cannot generate proof');
+            }
+        }
+        const commitments = pendingAccount.deposits.slice(0, batchSize).map(d => d.commitment);
+        const { paths, newRoot } = this.merkleTree.simulateBatchInsert(commitments, startIndex);
+        logger_1.logger.info('Batch settlement: generating proof', {
+            batchSize,
+            startIndex,
+            pendingCount,
+            oldRoot: onChainRoot.toString(16).slice(0, 16),
+            newRoot: newRoot.toString(16).slice(0, 16),
+        });
+        const { proofBytes } = await this.generateBatchProof(onChainRoot, newRoot, startIndex, batchSize, commitments, paths);
+        const newRootBytes = feToBytes32BE(newRoot);
+        return {
+            proofBytes,
+            newRootBytes,
+            batchSize,
+            merkleTreePda,
+            pendingBufferPda,
+            vkPda,
+        };
     }
     /**
      * Get the Express router

@@ -57,6 +57,7 @@ COPY --chown=node:node --from=builder /app/src ./src
 
 # Copy ZK circuit artifacts required at runtime
 COPY --chown=node:node ./relayer/circuits ./circuits
+COPY --chown=node:node ./circuits/merkle_batch_update/build ./circuits/build/merkle_batch_update
 
 # Create persistent state directory
 RUN mkdir -p /app/data

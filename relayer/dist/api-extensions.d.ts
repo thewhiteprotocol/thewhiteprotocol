@@ -40,6 +40,9 @@ export declare class RelayerApiExtensions {
     private withdrawV2Wasm;
     private withdrawV2Zkey;
     private withdrawV2Vk;
+    private batchUpdateWasm;
+    private batchUpdateZkey;
+    private batchUpdateVk;
     private rpcCache;
     private pendingState;
     private syncIntervalId;
@@ -71,6 +74,22 @@ export declare class RelayerApiExtensions {
     private recoverMerkleTreeFromEvents;
     private syncMerkleTree;
     private setupRoutes;
+    /**
+     * Generate a Groth16 proof for batch Merkle update.
+     */
+    private generateBatchProof;
+    /**
+     * Prepare a ZK batch settlement for the current pending deposits.
+     * Returns proof data ready for on-chain submission, or null if nothing to settle.
+     */
+    settlePendingDeposits(): Promise<{
+        proofBytes: Uint8Array;
+        newRootBytes: Uint8Array;
+        batchSize: number;
+        merkleTreePda: PublicKey;
+        pendingBufferPda: PublicKey;
+        vkPda: PublicKey;
+    } | null>;
     /**
      * Get the Express router
      */

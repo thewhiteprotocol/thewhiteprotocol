@@ -104,6 +104,8 @@ class RelayerService {
     startTime = Date.now();
     /** Base chain adapter */
     baseAdapter;
+    /** API extensions (merkle tree, proof generation) */
+    apiExtensions;
     constructor(config) {
         this.config = config;
         this.connection = new web3_js_1.Connection(config.rpcEndpoint, 'confirmed');
@@ -1137,6 +1139,70 @@ class RelayerService {
             this.supportedAssets.has(mint.toLowerCase()));
     }
     /**
+     * Run Solana sequencer loop — auto-settles pending deposits via settle_deposits_batch.
+     * Uses off-chain ZK proof generation + on-chain Groth16 verification (~300K CU).
+     */
+    runSolanaSequencer() {
+        const loop = async () => {
+            // Small startup delay so the relayer is fully initialized before first poll
+            await sleep(10000);
+            while (true) {
+                try {
+                    if (!this.apiExtensions) {
+                        logger_1.logger.warn('Solana sequencer waiting for API extensions...');
+                        await sleep(30000);
+                        continue;
+                    }
+                    const settlement = await this.apiExtensions.settlePendingDeposits();
+                    if (!settlement) {
+                        await sleep(60000);
+                        continue;
+                    }
+                    const { proofBytes, newRootBytes, batchSize, merkleTreePda, pendingBufferPda, vkPda } = settlement;
+                    logger_1.logger.info('Solana settlement: submitting ZK proof', { batchSize });
+                    const authority = this.config.authorityKeypair || this.config.walletKeypair;
+                    const ix = await this.program.methods
+                        .settleDepositsBatch({
+                        proof: Array.from(proofBytes),
+                        newRoot: Array.from(newRootBytes),
+                        batchSize,
+                    })
+                        .accounts({
+                        authority: authority.publicKey,
+                        poolConfig: this.config.poolConfig,
+                        merkleTree: merkleTreePda,
+                        pendingBuffer: pendingBufferPda,
+                        verificationKey: vkPda,
+                    })
+                        .instruction();
+                    const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }), web3_js_1.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }), ix);
+                    const signature = await (0, web3_js_1.sendAndConfirmTransaction)(this.connection, tx, [authority], { commitment: 'confirmed', maxRetries: 3 });
+                    logger_1.logger.info('Solana batch settled via ZK proof', { signature, batchSize });
+                }
+                catch (err) {
+                    const msg = err?.message || '';
+                    if (msg.includes('BatchNotReady') || msg.includes('batch not ready')) {
+                        logger_1.logger.info('Solana batch cooldown active, waiting...');
+                    }
+                    else if (msg.includes('already been processed') || msg.includes('already processed')) {
+                        logger_1.logger.info('Solana settlement tx already processed, skipping');
+                    }
+                    else if (msg.includes('No pending deposits') || msg.includes('not enough pending')) {
+                        logger_1.logger.info('No pending deposits to settle');
+                    }
+                    else if (msg.includes('root mismatch') || msg.includes('stale proof')) {
+                        logger_1.logger.warn('Local tree out of sync, will retry on next sync', { error: msg });
+                    }
+                    else {
+                        logger_1.logger.error('Solana settlement failed', { error: msg });
+                    }
+                }
+                await sleep(60000); // 60 seconds between attempts (matches program cooldown)
+            }
+        };
+        loop();
+    }
+    /**
      * Run Base sequencer loop
      */
     runBaseSequencer() {
@@ -1168,7 +1234,7 @@ class RelayerService {
         this.program = new anchor_1.Program(idl, this.provider);
         logger_1.logger.info('Anchor program initialized', { programId: this.config.programId.toBase58() });
         // Initialize API extensions for proof generation
-        const apiExtensions = await (0, api_extensions_1.createApiExtensions)({
+        this.apiExtensions = await (0, api_extensions_1.createApiExtensions)({
             circuitsPath: this.config.circuitsPath,
             rpcEndpoint: this.config.rpcEndpoint,
             poolConfig: this.config.poolConfig,
@@ -1176,9 +1242,9 @@ class RelayerService {
             treeDepth: this.config.treeDepth,
         });
         // Mount API extensions
-        this.app.use("/api", apiExtensions.getRouter());
+        this.app.use("/api", this.apiExtensions.getRouter());
         // Start background tree sync
-        apiExtensions.startSyncLoop(30000);
+        this.apiExtensions.startSyncLoop(30000);
         this.app.listen(this.config.port, () => {
             logger_1.logger.info('The White Protocol Relayer Service Started', {
                 port: this.config.port,
@@ -1187,6 +1253,14 @@ class RelayerService {
                 apiExtensions: true,
             });
         });
+        // Start background Solana settlement sequencer
+        const authPk = this.config.authorityKeypair?.publicKey.toBase58();
+        logger_1.logger.info('Solana sequencer config', {
+            authorityLoaded: !!this.config.authorityKeypair,
+            authorityPublicKey: authPk || 'FALLBACK_TO_RELAYER',
+            relayerPublicKey: this.config.walletKeypair.publicKey.toBase58(),
+        });
+        this.runSolanaSequencer();
         if (this.baseAdapter) {
             this.runBaseSequencer();
         }
@@ -1359,6 +1433,20 @@ function parseRelayerKeypair() {
         throw new Error(`Invalid RELAYER_KEYPAIR: ${err?.message}. Ensure it is a valid JSON array of 64 numbers with no line breaks or extra quotes.`);
     }
 }
+function parseAuthorityKeypair() {
+    const raw = process.env.AUTHORITY_KEYPAIR || '[]';
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            throw new Error(`AUTHORITY_KEYPAIR parsed as non-array: ${typeof parsed}`);
+        }
+        return Uint8Array.from(parsed);
+    }
+    catch (err) {
+        logger_1.logger.error('Failed to parse AUTHORITY_KEYPAIR', { rawLength: raw.length, rawPreview: raw.slice(0, 200), error: err?.message });
+        throw new Error(`Invalid AUTHORITY_KEYPAIR: ${err?.message}. Ensure it is a valid JSON array of 64 numbers with no line breaks or extra quotes.`);
+    }
+}
 async function main() {
     // Load configuration from environment
     const config = {
@@ -1377,6 +1465,9 @@ async function main() {
         baseRpcUrl: process.env.BASE_RPC_URL || 'https://sepolia.base.org',
         baseProtocolAddress: process.env.BASE_PROTOCOL_ADDRESS || '0xCE959493cf6F15314b4B9eEbb28369716341e7FE',
         baseDeployerPrivateKey: process.env.BASE_DEPLOYER_PRIVATE_KEY,
+        authorityKeypair: process.env.AUTHORITY_KEYPAIR
+            ? web3_js_1.Keypair.fromSecretKey(parseAuthorityKeypair())
+            : undefined,
     };
     const relayer = createRelayer(config);
     // Add supported assets if configured

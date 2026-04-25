@@ -251,6 +251,34 @@ class ServerMerkleTree {
       }
     }
   }
+
+  /**
+   * Simulate inserting a batch of commitments without mutating the tree.
+   * Returns the Merkle paths for each insertion and the new root.
+   * Used for off-chain ZK proof generation.
+   */
+  simulateBatchInsert(commitments: bigint[], startIndex: number): { paths: bigint[][]; newRoot: bigint } {
+    const savedLeaves = [...this.leaves];
+    const savedNodes = new Map(this.nodes);
+
+    while (this.leaves.length < startIndex) {
+      this.leaves.push(0n);
+    }
+
+    const paths: bigint[][] = [];
+    for (const commitment of commitments) {
+      const index = this.leaves.length;
+      const { pathElements } = this.getMerklePath(index);
+      paths.push(pathElements);
+      this.insert(commitment);
+    }
+
+    const newRoot = this.getRoot();
+    this.leaves = savedLeaves;
+    this.nodes = savedNodes;
+
+    return { paths, newRoot };
+  }
 }
 
 // =============================================================================
@@ -297,6 +325,25 @@ function serializeGroth16Proof(proof: any): Uint8Array {
   proofBytes.set(feToBytes32BE(BigInt(proof.pi_c[1])), 224);
   
   return proofBytes;
+}
+
+/** Maximum batch size — must match circuit compilation */
+const MAX_BATCH_SIZE = 1;
+
+/**
+ * Compute SHA-256 hash of padded commitments, masked to 253 bits.
+ * Matches on-chain commitmentsHash computation.
+ */
+function computeCommitmentsHash(commitments: bigint[], batchSize: number): bigint {
+  const buffer = Buffer.alloc(MAX_BATCH_SIZE * 32);
+  for (let i = 0; i < batchSize; i++) {
+    const bytes = feToBytes32BE(commitments[i]);
+    buffer.set(bytes, i * 32);
+  }
+  const hash = crypto.createHash('sha256').update(buffer).digest();
+  const hashBigint = bytesToBigIntBE(hash);
+  const mask = (1n << 253n) - 1n;
+  return hashBigint & mask;
 }
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -569,6 +616,9 @@ export class RelayerApiExtensions {
   private withdrawV2Wasm: Uint8Array | null = null;
   private withdrawV2Zkey: Uint8Array | null = null;
   private withdrawV2Vk: any = null;
+  private batchUpdateWasm: Uint8Array | null = null;
+  private batchUpdateZkey: Uint8Array | null = null;
+  private batchUpdateVk: any = null;
   
   // RPC response cache (5s TTL default)
   private rpcCache = new TtlCache<any>(5000);
@@ -742,6 +792,24 @@ export class RelayerApiExtensions {
     if (fs.existsSync(withdrawV2VkPath)) {
       this.withdrawV2Vk = JSON.parse(fs.readFileSync(withdrawV2VkPath, 'utf8'));
       logger.info('Loaded withdraw_v2_vk.json');
+    }
+    
+    // Load merkle_batch_update circuit for settlement
+    const batchUpdateWasmPath = path.join(circuitsPath, 'merkle_batch_update', 'merkle_batch_update_js', 'merkle_batch_update.wasm');
+    const batchUpdateZkeyPath = path.join(circuitsPath, 'merkle_batch_update', 'merkle_batch_update_final.zkey');
+    const batchUpdateVkPath = path.join(circuitsPath, 'merkle_batch_update', 'verification_key.json');
+    
+    if (fs.existsSync(batchUpdateWasmPath)) {
+      this.batchUpdateWasm = new Uint8Array(fs.readFileSync(batchUpdateWasmPath));
+      logger.info('Loaded merkle_batch_update.wasm');
+    }
+    if (fs.existsSync(batchUpdateZkeyPath)) {
+      this.batchUpdateZkey = new Uint8Array(fs.readFileSync(batchUpdateZkeyPath));
+      logger.info('Loaded merkle_batch_update_final.zkey');
+    }
+    if (fs.existsSync(batchUpdateVkPath)) {
+      this.batchUpdateVk = JSON.parse(fs.readFileSync(batchUpdateVkPath, 'utf8'));
+      logger.info('Loaded merkle_batch_update verification_key.json');
     }
   }
   
@@ -2091,6 +2159,163 @@ export class RelayerApiExtensions {
     });
   
   }
+  // ============================================================================
+  // BATCH SETTLEMENT (ZK-BASED)
+  // ============================================================================
+
+  /**
+   * Generate a Groth16 proof for batch Merkle update.
+   */
+  private async generateBatchProof(
+    oldRoot: bigint,
+    newRoot: bigint,
+    startIndex: number,
+    batchSize: number,
+    commitments: bigint[],
+    paths: bigint[][]
+  ): Promise<{ proofBytes: Uint8Array; publicSignals: bigint[] }> {
+    if (!this.batchUpdateWasm || !this.batchUpdateZkey) {
+      throw new Error('Batch update circuit artifacts not loaded');
+    }
+
+    const commitmentsHash = computeCommitmentsHash(commitments, batchSize);
+
+    const paddedCommitments = [...commitments];
+    const paddedPaths = [...paths];
+    while (paddedCommitments.length < MAX_BATCH_SIZE) {
+      paddedCommitments.push(0n);
+      paddedPaths.push(new Array(this.config.treeDepth).fill(0n));
+    }
+
+    const circuitInput = {
+      oldRoot: oldRoot.toString(),
+      newRoot: newRoot.toString(),
+      startIndex: startIndex.toString(),
+      batchSize: batchSize.toString(),
+      commitmentsHash: commitmentsHash.toString(),
+      commitments: paddedCommitments.map(c => c.toString()),
+      pathElements: paddedPaths.map(p => p.map(e => e.toString())),
+    };
+
+    logger.info('Generating batch settlement ZK proof', { batchSize, startIndex });
+    const startTime = Date.now();
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      circuitInput,
+      this.batchUpdateWasm,
+      this.batchUpdateZkey
+    );
+    logger.info('Batch proof generated', { durationMs: Date.now() - startTime });
+
+    // Optional: local verification
+    if (this.batchUpdateVk) {
+      const valid = await snarkjs.groth16.verify(this.batchUpdateVk, publicSignals, proof);
+      if (!valid) {
+        throw new Error('Batch proof local verification failed');
+      }
+      logger.info('Batch proof locally verified');
+    }
+
+    const proofBytes = serializeGroth16Proof(proof);
+    return { proofBytes, publicSignals: publicSignals.map((s: string) => BigInt(s)) };
+  }
+
+  /**
+   * Prepare a ZK batch settlement for the current pending deposits.
+   * Returns proof data ready for on-chain submission, or null if nothing to settle.
+   */
+  async settlePendingDeposits(): Promise<{
+    proofBytes: Uint8Array;
+    newRootBytes: Uint8Array;
+    batchSize: number;
+    merkleTreePda: PublicKey;
+    pendingBufferPda: PublicKey;
+    vkPda: PublicKey;
+  } | null> {
+    // Ensure tree is synced before generating proof
+    await this.syncMerkleTree();
+
+    const [merkleTreePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
+      this.config.programId
+    );
+    const [pendingBufferPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
+      this.config.programId
+    );
+    const [vkPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vk_merkle_batch'), this.config.poolConfig.toBuffer()],
+      this.config.programId
+    );
+
+    const merkleInfo = await this.getAccountInfoCached(merkleTreePda, 0);
+    const pendingInfo = await this.getAccountInfoCached(pendingBufferPda, 0);
+
+    if (!merkleInfo || !pendingInfo) {
+      logger.info('Batch settlement: merkle tree or pending buffer not found');
+      return null;
+    }
+
+    const merkleAccount = parseMerkleTreeAccount(merkleInfo.data);
+    const pendingAccount = parsePendingBufferAccount(pendingInfo.data);
+
+    const onChainRoot = merkleAccount.currentRoot;
+    const onChainIndex = merkleAccount.nextLeafIndex;
+    const pendingCount = pendingAccount.deposits.length;
+
+    if (pendingCount === 0) {
+      return null;
+    }
+
+    const batchSize = Math.min(pendingCount, MAX_BATCH_SIZE);
+    const startIndex = onChainIndex;
+
+    // Verify local tree matches on-chain
+    const localRoot = this.merkleTree.getRoot();
+    if (localRoot !== onChainRoot) {
+      logger.warn('Batch settlement: local tree root mismatch', {
+        localRoot: localRoot.toString(16).slice(0, 16),
+        onChainRoot: onChainRoot.toString(16).slice(0, 16),
+      });
+      // Attempt to rebuild from events one more time
+      await this.recoverMerkleTreeFromEvents(onChainIndex, onChainRoot);
+      const rebuiltRoot = this.merkleTree.getRoot();
+      if (rebuiltRoot !== onChainRoot) {
+        throw new Error('Local tree root mismatch after recovery — cannot generate proof');
+      }
+    }
+
+    const commitments = pendingAccount.deposits.slice(0, batchSize).map(d => d.commitment);
+    const { paths, newRoot } = this.merkleTree.simulateBatchInsert(commitments, startIndex);
+
+    logger.info('Batch settlement: generating proof', {
+      batchSize,
+      startIndex,
+      pendingCount,
+      oldRoot: onChainRoot.toString(16).slice(0, 16),
+      newRoot: newRoot.toString(16).slice(0, 16),
+    });
+
+    const { proofBytes } = await this.generateBatchProof(
+      onChainRoot,
+      newRoot,
+      startIndex,
+      batchSize,
+      commitments,
+      paths
+    );
+
+    const newRootBytes = feToBytes32BE(newRoot);
+
+    return {
+      proofBytes,
+      newRootBytes,
+      batchSize,
+      merkleTreePda,
+      pendingBufferPda,
+      vkPda,
+    };
+  }
+
   /**
    * Get the Express router
    */

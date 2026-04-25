@@ -15,6 +15,8 @@ interface RelayerConfig {
     rpcEndpoint: string;
     /** Relayer wallet keypair */
     walletKeypair: Keypair;
+    /** Pool authority keypair (used for settlement; defaults to walletKeypair if unset) */
+    authorityKeypair?: Keypair;
     /** The White Protocol program ID */
     programId: PublicKey;
     /** Pool configuration account */
@@ -110,6 +112,8 @@ export declare class RelayerService {
     private startTime;
     /** Base chain adapter */
     private baseAdapter?;
+    /** API extensions (merkle tree, proof generation) */
+    private apiExtensions?;
     constructor(config: RelayerConfig);
     /**
      * Load persisted relayer state
@@ -205,6 +209,11 @@ export declare class RelayerService {
      */
     removeSupportedAsset(assetId: string): void;
     private isSupportedAsset;
+    /**
+     * Run Solana sequencer loop — auto-settles pending deposits via settle_deposits_batch.
+     * Uses off-chain ZK proof generation + on-chain Groth16 verification (~300K CU).
+     */
+    private runSolanaSequencer;
     /**
      * Run Base sequencer loop
      */
