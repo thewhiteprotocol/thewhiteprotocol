@@ -2222,11 +2222,10 @@ export class RelayerApiExtensions {
 
     logger.info('Generating batch settlement ZK proof', { batchSize, startIndex });
     const startTime = Date.now();
-    const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-      circuitInput,
-      this.batchUpdateWasm,
-      this.batchUpdateZkey
-    );
+    const { proof, publicSignals } = await Promise.race([
+      snarkjs.groth16.fullProve(circuitInput, this.batchUpdateWasm, this.batchUpdateZkey),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Proof generation timeout')), 120000))
+    ]);
     logger.info('Batch proof generated', { durationMs: Date.now() - startTime });
 
     // Optional: local verification

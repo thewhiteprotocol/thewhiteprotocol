@@ -14,6 +14,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createApiExtensions, RelayerApiExtensions } from './api-extensions';
+import { Sequencer } from './sequencer';
 import * as fs from 'fs';
 import * as snarkjs from 'snarkjs';
 import { logger } from './logger';
@@ -215,6 +216,9 @@ export class RelayerService {
   
   /** API extensions (merkle tree, proof generation) */
   private apiExtensions?: RelayerApiExtensions;
+
+  /** Solana settlement sequencer */
+  private sequencer?: Sequencer;
   
   constructor(config: RelayerConfig) {
     this.config = config;
@@ -418,6 +422,7 @@ export class RelayerService {
         proofVerificationEnabled: !!this.withdrawVk,
         pendingNullifiers: this.pendingNullifiers.size,
         circuitBreaker: this.withdrawalBreaker.getStatus(),
+        sequencer: this.sequencer?.getStatus() || { running: false, settleCount: 0, lastSettleAt: null, lastError: null },
         memoryMb: {
           rss: Math.round(mem.rss / 1024 / 1024),
           heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
@@ -1571,82 +1576,6 @@ export class RelayerService {
   }
   
   /**
-   * Run Solana sequencer loop — auto-settles pending deposits via settle_deposits_batch.
-   * Uses off-chain ZK proof generation + on-chain Groth16 verification (~300K CU).
-   */
-  private runSolanaSequencer(): void {
-    const loop = async () => {
-      // Small startup delay so the relayer is fully initialized before first poll
-      await sleep(10000);
-      while (true) {
-        try {
-          if (!this.apiExtensions) {
-            logger.warn('Solana sequencer waiting for API extensions...');
-            await sleep(30000);
-            continue;
-          }
-
-          const settlement = await this.apiExtensions.settlePendingDeposits();
-          if (!settlement) {
-            await sleep(60000);
-            continue;
-          }
-
-          const { proofBytes, newRootBytes, batchSize, merkleTreePda, pendingBufferPda, vkPda } = settlement;
-          logger.info('Solana settlement: submitting ZK proof', { batchSize });
-
-          const authority = this.config.authorityKeypair || this.config.walletKeypair;
-
-          const ix = await (this.program.methods as any)
-            .settleDepositsBatch({
-              proof: Array.from(proofBytes),
-              newRoot: Array.from(newRootBytes),
-              batchSize,
-            })
-            .accounts({
-              authority: authority.publicKey,
-              poolConfig: this.config.poolConfig,
-              merkleTree: merkleTreePda,
-              pendingBuffer: pendingBufferPda,
-              verificationKey: vkPda,
-            })
-            .instruction();
-
-          const tx = new Transaction().add(
-            ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
-            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
-            ix
-          );
-
-          const signature = await sendAndConfirmTransaction(
-            this.connection,
-            tx,
-            [authority],
-            { commitment: 'confirmed', maxRetries: 3 }
-          );
-
-          logger.info('Solana batch settled via ZK proof', { signature, batchSize });
-        } catch (err: any) {
-          const msg = err?.message || '';
-          if (msg.includes('BatchNotReady') || msg.includes('batch not ready')) {
-            logger.info('Solana batch cooldown active, waiting...');
-          } else if (msg.includes('already been processed') || msg.includes('already processed')) {
-            logger.info('Solana settlement tx already processed, skipping');
-          } else if (msg.includes('No pending deposits') || msg.includes('not enough pending')) {
-            logger.info('No pending deposits to settle');
-          } else if (msg.includes('root mismatch') || msg.includes('stale proof')) {
-            logger.warn('Local tree out of sync, will retry on next sync', { error: msg });
-          } else {
-            logger.error('Solana settlement failed', { error: msg });
-          }
-        }
-        await sleep(60000); // 60 seconds between attempts (matches program cooldown)
-      }
-    };
-    loop();
-  }
-
-  /**
    * Run Base sequencer loop
    */
   private runBaseSequencer(): void {
@@ -1704,12 +1633,39 @@ export class RelayerService {
     
     // Start background Solana settlement sequencer
     const authPk = this.config.authorityKeypair?.publicKey.toBase58();
+    const wallet = this.config.authorityKeypair || this.config.walletKeypair;
     logger.info('Solana sequencer config', {
       authorityLoaded: !!this.config.authorityKeypair,
       authorityPublicKey: authPk || 'FALLBACK_TO_RELAYER',
       relayerPublicKey: this.config.walletKeypair.publicKey.toBase58(),
     });
-    this.runSolanaSequencer();
+
+    const [merkleTreePda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
+      this.config.programId
+    );
+    const [pendingBufferPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
+      this.config.programId
+    );
+    const [vkPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vk_merkle_batch'), this.config.poolConfig.toBuffer()],
+      this.config.programId
+    );
+
+    this.sequencer = new Sequencer({
+      connection: this.connection,
+      wallet,
+      program: this.program,
+      apiExtensions: this.apiExtensions,
+      poolConfig: this.config.poolConfig,
+      merkleTree: merkleTreePda,
+      pendingBuffer: pendingBufferPda,
+      vkPda,
+      pollIntervalMs: 30000,
+      logger,
+    });
+    this.sequencer.start().catch((err) => logger.error('Sequencer crashed', { err: String(err) }));
 
     if (this.baseAdapter) {
       this.runBaseSequencer();
