@@ -31,6 +31,9 @@ export class IncrementalMerkleTree {
   depth: number;
   private leaves: bigint[] = [];
   private initialized = false;
+  private cachedRoot: bigint | null = null;
+  private cachedLevels: bigint[][] | null = null;
+  private cachedPaths = new Map<number, { pathElements: bigint[]; pathIndices: number[] }>();
 
   constructor(depth: number = 20) {
     this.depth = depth;
@@ -48,27 +51,47 @@ export class IncrementalMerkleTree {
       throw new Error("Tree not initialized. Call init() first.");
     }
     this.leaves.push(leaf);
+    this.invalidateCache();
+  }
+
+  private invalidateCache() {
+    this.cachedRoot = null;
+    this.cachedLevels = null;
+    this.cachedPaths.clear();
+  }
+
+  private computeLevels(): bigint[][] {
+    if (this.cachedLevels) {
+      return this.cachedLevels;
+    }
+    const levels: bigint[][] = [[...this.leaves]];
+    for (let i = 0; i < this.depth; i++) {
+      const nextLevel: bigint[] = [];
+      for (let j = 0; j < levels[i].length; j += 2) {
+        const left = levels[i][j];
+        const right = j + 1 < levels[i].length ? levels[i][j + 1] : ZERO_VALUES[i];
+        nextLevel.push(poseidonHash2(left, right));
+      }
+      levels.push(nextLevel);
+    }
+    this.cachedLevels = levels;
+    return levels;
   }
 
   getRoot(): bigint {
     if (!this.initialized) {
       throw new Error("Tree not initialized. Call init() first.");
     }
+    if (this.cachedRoot !== null) {
+      return this.cachedRoot;
+    }
     if (this.leaves.length === 0) {
-      return ZERO_VALUES[this.depth];
+      this.cachedRoot = ZERO_VALUES[this.depth];
+      return this.cachedRoot;
     }
-    // Compute full tree
-    let level: bigint[] = [...this.leaves];
-    for (let i = 0; i < this.depth; i++) {
-      const nextLevel: bigint[] = [];
-      for (let j = 0; j < level.length; j += 2) {
-        const left = level[j];
-        const right = j + 1 < level.length ? level[j + 1] : ZERO_VALUES[i];
-        nextLevel.push(poseidonHash2(left, right));
-      }
-      level = nextLevel;
-    }
-    return level[0];
+    const levels = this.computeLevels();
+    this.cachedRoot = levels[this.depth][0];
+    return this.cachedRoot;
   }
 
   getPath(leafIndex: number): { pathElements: bigint[]; pathIndices: number[] } {
@@ -78,11 +101,14 @@ export class IncrementalMerkleTree {
     if (leafIndex < 0 || leafIndex >= this.leaves.length) {
       throw new Error(`Leaf index ${leafIndex} out of bounds`);
     }
+    if (this.cachedPaths.has(leafIndex)) {
+      return this.cachedPaths.get(leafIndex)!;
+    }
 
     const pathElements: bigint[] = [];
     const pathIndices: number[] = [];
 
-    let level: bigint[] = [...this.leaves];
+    const levels = this.computeLevels();
     let currentIndex = leafIndex;
 
     for (let i = 0; i < this.depth; i++) {
@@ -90,21 +116,15 @@ export class IncrementalMerkleTree {
       pathIndices.push(isRight ? 1 : 0);
 
       const siblingIndex = isRight ? currentIndex - 1 : currentIndex + 1;
-      const sibling = siblingIndex < level.length ? level[siblingIndex] : ZERO_VALUES[i];
+      const sibling = siblingIndex < levels[i].length ? levels[i][siblingIndex] : ZERO_VALUES[i];
       pathElements.push(sibling);
 
-      const nextLevel: bigint[] = [];
-      for (let j = 0; j < level.length; j += 2) {
-        const left = level[j];
-        const right = j + 1 < level.length ? level[j + 1] : ZERO_VALUES[i];
-        nextLevel.push(poseidonHash2(left, right));
-      }
-
-      level = nextLevel;
       currentIndex = Math.floor(currentIndex / 2);
     }
 
-    return { pathElements, pathIndices };
+    const result = { pathElements, pathIndices };
+    this.cachedPaths.set(leafIndex, result);
+    return result;
   }
 
   getLeafCount(): number {

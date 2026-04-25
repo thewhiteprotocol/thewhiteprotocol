@@ -50,25 +50,36 @@ export function poseidonHash(inputs: bigint[]): bigint {
 
 /**
  * Compute asset ID from token address using Keccak256
- * Returns 32-byte hash matching on-chain computation
+ * Matches on-chain formula: 0x00 || keccak256("white:asset_id:v1" || mint)[0..31]
  */
 export function computeAssetId(tokenAddress: string | Uint8Array): Uint8Array {
-  let input: Uint8Array;
-  
+  let mintBytes: Uint8Array;
+
   if (typeof tokenAddress === 'string') {
-    // Handle hex string or base58
     if (tokenAddress.startsWith('0x')) {
-      input = Uint8Array.from(Buffer.from(tokenAddress.slice(2), 'hex'));
+      // Base / EVM hex address
+      mintBytes = Uint8Array.from(Buffer.from(tokenAddress.slice(2), 'hex'));
+    } else if (tokenAddress.length >= 32 && tokenAddress.length <= 44) {
+      // Solana base58 address
+      mintBytes = bs58.decode(tokenAddress);
     } else {
-      // Assume base58 (Solana) - decode properly
-      // For now, treat as hex if no 0x prefix for EVM addresses
-      input = Uint8Array.from(Buffer.from(tokenAddress, 'hex'));
+      // Fallback: treat as hex
+      mintBytes = Uint8Array.from(Buffer.from(tokenAddress, 'hex'));
     }
   } else {
-    input = tokenAddress;
+    mintBytes = tokenAddress;
   }
-  
-  return keccak_256(input);
+
+  const prefix = new TextEncoder().encode('white:asset_id:v1');
+  const input = new Uint8Array(prefix.length + mintBytes.length);
+  input.set(prefix, 0);
+  input.set(mintBytes, prefix.length);
+
+  const hash = keccak_256(input);
+  const out = new Uint8Array(32);
+  out[0] = 0;
+  out.set(hash.slice(0, 31), 1);
+  return out;
 }
 
 /**

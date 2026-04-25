@@ -961,8 +961,8 @@ export class RelayerService {
    */
   private async verifyWithdrawV2ProofLocally(proofData: Uint8Array, publicSignals: string[]): Promise<boolean> {
     if (!this.withdrawV2Vk) {
-      logger.warn('Withdraw V2 verification key not loaded, skipping local verification');
-      return true; // allow through if VK not available
+      logger.error('Withdraw V2 verification key not loaded — rejecting proof');
+      return false;
     }
     
     if (proofData.length !== 256) {

@@ -172,15 +172,13 @@ function DepositTab({
   async function handleDeposit() {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
-
-    if (!asset || !amount) {
-      isSubmittingRef.current = false;
-      return;
-    }
     setBusy(true);
     setError(null);
     setStep("Initializing...");
     try {
+      if (!asset || !amount) {
+        throw new Error("Please select an asset and enter an amount");
+      }
       await initializePoseidon();
       const rawAmount = parseTokenAmount(amount, asset.decimals);
 
@@ -303,8 +301,13 @@ function DepositTab({
       showToast("Deposit submitted successfully", "success");
       showToast("Note file auto-downloaded. Keep it safe — it's your only recovery backup!", "info");
     } catch (err: any) {
-      setError(err?.message || "Deposit failed");
-      showToast(err?.message || "Deposit failed", "error");
+      const msg = err?.message || "Deposit failed";
+      if (msg.toLowerCase().includes("already been processed") || msg.toLowerCase().includes("already processed")) {
+        showToast("Transaction already processed", "success");
+      } else {
+        setError(msg);
+        showToast(msg, "error");
+      }
     } finally {
       setBusy(false);
       setStep("");
@@ -620,11 +623,15 @@ function WithdrawTab({
   }
 
   async function handleWithdraw() {
-    if (!selectedNote || !recipient) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     setError(null);
     setShowFallback(false);
     try {
+      if (!selectedNote || !recipient) {
+        throw new Error("Please select a note and enter a recipient");
+      }
       const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof(true);
 
       setStep("Submitting to relayer...");
@@ -646,31 +653,47 @@ function WithdrawTab({
         throw new Error(res.error || "Relayer rejected withdrawal");
       }
     } catch (err: any) {
-      setError(err?.message || "Relayer failed. Try direct withdrawal?");
-      setShowFallback(true);
-      showToast(err?.message || "Relayer failed", "error");
+      const msg = err?.message || "Relayer failed. Try direct withdrawal?";
+      if (msg.toLowerCase().includes("already been processed") || msg.toLowerCase().includes("already processed")) {
+        showToast("Transaction already processed", "success");
+      } else {
+        setError(msg);
+        setShowFallback(true);
+        showToast(msg, "error");
+      }
     } finally {
       setBusy(false);
       setStep("");
+      isSubmittingRef.current = false;
     }
   }
 
   async function handleDirectWithdraw() {
-    if (!selectedNote || !recipient) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setBusy(true);
     setError(null);
     setShowFallback(false);
     try {
+      if (!selectedNote || !recipient) {
+        throw new Error("Please select a note and enter a recipient");
+      }
       const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof(false);
       setStep("Sending transaction...");
       const txHash = await submitDirectWithdrawal(proofBytes, nullifierHash, merkleRoot, amount, assetId);
       await finalizeWithdrawal(txHash, false);
     } catch (err: any) {
-      setError(err?.message || "Withdrawal failed");
-      showToast(err?.message || "Withdrawal failed", "error");
+      const msg = err?.message || "Withdrawal failed";
+      if (msg.toLowerCase().includes("already been processed") || msg.toLowerCase().includes("already processed")) {
+        showToast("Transaction already processed", "success");
+      } else {
+        setError(msg);
+        showToast(msg, "error");
+      }
     } finally {
       setBusy(false);
       setStep("");
+      isSubmittingRef.current = false;
     }
   }
 

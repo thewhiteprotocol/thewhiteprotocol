@@ -209,7 +209,7 @@ async function generateBatchProof() {
     console.log("  batchSize:", input.batchSize);
     console.log("  commitmentsHash:", input.commitmentsHash);
     
-    const circuitDir = path.join(__dirname, '../circuits/build/merkle_batch_update');
+    const circuitDir = path.join(__dirname, '../../../circuits/merkle_batch_update/build');
     const wasmPath = path.join(circuitDir, 'merkle_batch_update_js/merkle_batch_update.wasm');
     const zkeyPath = path.join(circuitDir, 'merkle_batch_update.zkey');
     const vkeyPath = path.join(circuitDir, 'verification_key.json');
