@@ -1255,8 +1255,10 @@ export class RelayerService {
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: new PublicKey("11111111111111111111111111111111"),
     };
-    if (relayerNodeAccount) {
-      withdrawAccounts.relayerNode = relayerNodeAccount;
+    // Only pass relayerNode if it's a valid program-owned account.
+    // Passing a system-owned PDA (uninitialized) causes AccountOwnedByWrongProgram.
+    if (relayerNodeInfo && relayerNodeInfo.owner.equals(this.config.programId)) {
+      withdrawAccounts.relayerNode = relayerNode;
     }
 
     if (params.ephemeralPubkey && params.ephemeralPubkey.length === 32) {
@@ -1481,8 +1483,9 @@ export class RelayerService {
     if (nullifierPda1) {
       withdrawV2Accounts.spentNullifier1 = nullifierPda1;
     }
-    if (relayerNodeAccount) {
-      withdrawV2Accounts.relayerNode = relayerNodeAccount;
+    // Only pass relayerNode if it's a valid program-owned account
+    if (relayerNodeInfo && relayerNodeInfo.owner.equals(this.config.programId)) {
+      withdrawV2Accounts.relayerNode = relayerNode;
     }
 
     const ix = await this.program.methods
