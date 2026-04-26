@@ -25,6 +25,7 @@ export interface DepositProofInput {
 export interface WithdrawProofInput {
   secret: bigint;
   nullifier: bigint;
+  nullifierHash: bigint;
   amount: bigint;
   assetId: bigint;
   leafIndex: bigint;
@@ -69,6 +70,7 @@ export async function generateWithdrawProof(
     asset_id: input.assetId.toString(),
     leaf_index: input.leafIndex.toString(),
     merkle_root: input.merkleRoot.toString(),
+    nullifier_hash: input.nullifierHash.toString(),
     merkle_path: input.pathElements.map((e) => e.toString()),
     merkle_path_indices: input.pathIndices,
     recipient: input.recipient.toString(),
