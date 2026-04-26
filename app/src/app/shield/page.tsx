@@ -90,6 +90,45 @@ export default function ShieldPage() {
     [notes, activeChain]
   );
 
+  // Background polling: re-check status of pending notes (handles page refreshes)
+  useEffect(() => {
+    if (!isConnected) return;
+    let mounted = true;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const checkPending = async () => {
+      const allNotes = await getNotes();
+      const pending = allNotes.filter((n) => n.status === "pending" && n.chain === activeChain);
+      if (pending.length === 0) {
+        timeoutId = setTimeout(checkPending, 15000);
+        return;
+      }
+      let anyUpdated = false;
+      for (const note of pending) {
+        try {
+          const status = await checkNoteStatus(note.commitment);
+          if (status.status === "settled" && status.leafIndex !== undefined) {
+            await updateNote(note.commitment, { status: "settled", leafIndex: status.leafIndex });
+            anyUpdated = true;
+          }
+        } catch {
+          // ignore individual check failures
+        }
+      }
+      if (anyUpdated && mounted) {
+        const updated = await getNotes();
+        if (mounted) setNotes(updated);
+      }
+      timeoutId = setTimeout(checkPending, 10000);
+    };
+
+    checkPending();
+    return () => {
+      mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [isConnected, activeChain]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -125,7 +164,7 @@ export default function ShieldPage() {
             activeChain={activeChain}
             solanaWallet={solanaWallet}
             evmWalletClient={evmWalletClient}
-            notes={settledNotes}
+            notes={notes.filter((n) => n.chain === activeChain)}
             loadingNotes={loadingNotes}
             onWithdraw={() => refreshNotes().catch(() => {})}
           />
@@ -1201,20 +1240,27 @@ function WithdrawTab({
               </div>
             ) : notes.length === 0 ? (
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
-                <p className="text-base text-zinc-300 font-medium">No settled notes</p>
+                <p className="text-base text-zinc-300 font-medium">No notes</p>
                 <p className="text-sm text-zinc-500 mt-1">
-                  No settled notes available for withdrawal on {activeChain}.
+                  No notes available for withdrawal on {activeChain}.
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
                 {notes.map((note) => {
                   const asset = SUPPORTED_ASSETS.find((a) => a.symbol === note.asset);
+                  const isSettled = note.status === "settled";
                   return (
                     <button
                       key={note.commitment}
-                      onClick={() => setSelectedNote(note)}
-                      className="w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:bg-white/[0.05] hover:border-white/15"
+                      onClick={() => isSettled && setSelectedNote(note)}
+                      disabled={!isSettled}
+                      className={cn(
+                        "w-full rounded-xl border p-4 text-left transition-colors",
+                        isSettled
+                          ? "border-white/10 bg-white/[0.03] hover:bg-white/[0.05] hover:border-white/15 cursor-pointer"
+                          : "border-white/5 bg-white/[0.02] opacity-60 cursor-not-allowed"
+                      )}
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -1225,9 +1271,15 @@ function WithdrawTab({
                             {new Date(note.timestamp).toLocaleDateString()} · Leaf #{note.leafIndex ?? "?"}
                           </p>
                         </div>
-                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
-                          Settled
-                        </Badge>
+                        {isSettled ? (
+                          <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                            Settled
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-amber-500/30 text-amber-400 bg-amber-500/10">
+                            Pending
+                          </Badge>
+                        )}
                       </div>
                     </button>
                   );
