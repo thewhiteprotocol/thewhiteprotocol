@@ -1,4 +1,4 @@
-import { Building2, FileText, Receipt, Download, Users, ArrowRight } from "lucide-react";
+import { FileText, Receipt, Download, Users, ArrowRight, Shield } from "lucide-react";
 
 const features = [
   {
@@ -9,7 +9,7 @@ const features = [
   {
     icon: Receipt,
     title: "Auto-Receipts",
-    description: "Every deposit, withdrawal, and payment automatically generates a PDF receipt with your company branding.",
+    description: "Every deposit, withdrawal, and payment automatically generates a PDF receipt for your records.",
   },
   {
     icon: Download,
@@ -17,9 +17,9 @@ const features = [
     description: "Export CSVs formatted for QuickBooks, Xero, and your accountant. Save hours at tax time.",
   },
   {
-    icon: Users,
-    title: "Team Management",
-    description: "Coming soon: invite team members, assign roles, and manage permissions for your business account.",
+    icon: Shield,
+    title: "Shielded Transactions",
+    description: "Deposit, withdraw, and transfer with zero-knowledge proofs. Your balances stay private.",
   },
 ];
 
@@ -29,14 +29,14 @@ export function ForBusiness() {
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-zinc-300 text-xs font-semibold uppercase tracking-wider mb-4">
-            <Building2 className="w-3.5 h-3.5" />
-            For Business
+            <Users className="w-3.5 h-3.5" />
+            For Teams
           </div>
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">
-            Privacy-First Business Tools
+            All Features. Free. No Tiers.
           </h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            Accept private payments, generate compliant receipts, and export accounting data — all without compromising client confidentiality.
+            Invoicing, receipts, exports, and shielded transactions — every tool is available to everyone. No upgrade required.
           </p>
         </div>
 

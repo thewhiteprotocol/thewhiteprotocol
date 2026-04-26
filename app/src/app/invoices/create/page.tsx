@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { createInvoice, type InvoiceLineItem } from "@/lib/invoiceService";
 import { generateInvoicePDF } from "@/lib/pdfGenerator";
-import { getTierConfig, type BusinessProfile } from "@/lib/userTier";
+
 import { useChain } from "@/providers/ChainContext";
 import { Loader2, Plus, Trash2, FileText, Copy, Download, Check } from "lucide-react";
 
@@ -56,15 +56,9 @@ export default function CreateInvoicePage() {
     if (!clientName.trim() || !walletAddress) return;
     setCreating(true);
     try {
-      const tierConfig = await getTierConfig();
-      const profile = tierConfig.businessProfile || { companyName: "My Business" };
       const invoice = await createInvoice({
         from: {
-          companyName: profile.companyName,
-          logo: profile.logo,
-          email: profile.email,
-          address: profile.address,
-          taxId: profile.taxId,
+          companyName: "My Business",
           walletAddress,
         },
         to: { name: clientName, email: clientEmail || undefined },

@@ -5,7 +5,7 @@ import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { useSignMessage as useWagmiSignMessage } from "wagmi";
 import { useChain } from "@/providers/ChainContext";
 import { initNoteStore, isStoreInitialized, hasSessionKey } from "@/lib/noteStore";
-import { initTierStore } from "@/lib/userTier";
+
 import { initializePoseidon } from "@/lib/crypto";
 import {
   Dialog,
@@ -59,7 +59,6 @@ export function UnlockModal() {
       }
       await initializePoseidon();
       await initNoteStore(walletAddress, signature, activeChain);
-      await initTierStore();
       window.dispatchEvent(new Event("white-protocol-notes-unlocked"));
       setOpen(false);
     } catch (err: any) {
@@ -77,8 +76,7 @@ export function UnlockModal() {
     if (typeof window !== "undefined") {
       const storageKey = `${STORAGE_PREFIX}_${walletAddress.toLowerCase()}`;
       localStorage.removeItem(storageKey);
-      // Also clear any tier store data tied to this wallet
-      localStorage.removeItem(`white_protocol_tier_v1_${walletAddress.toLowerCase()}`);
+
     }
     setHasStaleData(false);
     setError(null);

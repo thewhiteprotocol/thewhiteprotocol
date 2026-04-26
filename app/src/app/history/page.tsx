@@ -14,7 +14,7 @@ import { CHAINS } from "@/config/chains";
 import { SUPPORTED_ASSETS } from "@/config/constants";
 import { formatTokenAmount } from "@/lib/balanceService";
 import { exportCSV, exportQuickBooksCSV, exportXeroCSV, exportPDFStatement } from "@/lib/exportService";
-import { getTierConfig, isBusinessUser } from "@/lib/userTier";
+
 
 function truncate(str: string, len = 8) {
   if (str.length <= len * 2 + 4) return str;
@@ -90,8 +90,7 @@ export default function HistoryPage() {
   }
 
   async function handleExportPDF() {
-    const tierConfig = await getTierConfig();
-    await exportPDFStatement(filtered, tierConfig.businessProfile);
+    await exportPDFStatement(filtered);
   }
 
   if (!isConnected) {

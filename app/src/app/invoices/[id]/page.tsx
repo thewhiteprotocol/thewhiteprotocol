@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { getInvoice, updateInvoiceStatus, type Invoice } from "@/lib/invoiceService";
 import { createReceipt } from "@/lib/receiptService";
 import { generateInvoicePDF } from "@/lib/pdfGenerator";
-import { getTierConfig } from "@/lib/userTier";
 import { useChain } from "@/providers/ChainContext";
 import { baseChainService, solanaChainService } from "@/lib/chainService";
 import { QRCodeSVG } from "qrcode.react";

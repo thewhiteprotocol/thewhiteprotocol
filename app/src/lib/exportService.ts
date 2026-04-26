@@ -4,7 +4,7 @@ import { StoredNote } from "./types";
 import { formatTokenAmount } from "./balanceService";
 import { SUPPORTED_ASSETS } from "@/config/constants";
 import type { Receipt } from "./receiptService";
-import type { BusinessProfile } from "./userTier";
+
 
 export function exportCSV(notes: StoredNote[]): string {
   const headers = ["Date", "Type", "Asset", "Chain", "Amount", "Status", "Commitment", "TxHash"];
@@ -51,17 +51,13 @@ export function exportXeroCSV(notes: StoredNote[]): string {
   return [headers.join(","), ...rows.map((r) => r.map(escapeCsv).join(","))].join("\n");
 }
 
-export async function exportPDFStatement(notes: StoredNote[], profile?: BusinessProfile): Promise<Blob> {
-  const html = renderStatementHTML(notes, profile);
+export async function exportPDFStatement(notes: StoredNote[]): Promise<Blob> {
+  const html = renderStatementHTML(notes);
   return printToPDF("statement", html);
 }
 
-function renderStatementHTML(notes: StoredNote[], profile?: BusinessProfile): string {
-  const logoHtml = profile?.logo
-    ? `<img src="${profile.logo}" style="height:48px;object-fit:contain" />`
-    : profile?.companyName
-    ? `<div style="font-size:24px;font-weight:700;color:#10b981">${profile.companyName}</div>`
-    : `<div style="font-size:24px;font-weight:700;color:#10b981">The White Protocol</div>`;
+function renderStatementHTML(notes: StoredNote[]): string {
+  const logoHtml = `<div style="font-size:24px;font-weight:700;color:#10b981">The White Protocol</div>`;
 
   const rowsHtml = notes
     .map((n) => {

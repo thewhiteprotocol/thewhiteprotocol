@@ -1,20 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useChain } from "@/providers/ChainContext";
-import { getTierConfig, type UserTier } from "@/lib/userTier";
 import {
   LayoutDashboard,
   ArrowUpRight,
   ArrowDownLeft,
   Shield,
-  Clock,
-  Settings,
-  FileText,
-  Receipt,
   MoreHorizontal,
 } from "lucide-react";
 
@@ -27,21 +21,12 @@ const mainNavItems = [
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { walletAddress, isConnected } = useChain();
-  const [tier, setTier] = useState<UserTier>("personal");
-
-  useEffect(() => {
-    if (!isConnected || !walletAddress) return;
-    getTierConfig().then((config) => setTier(config.tier)).catch(() => setTier("personal"));
-  }, [isConnected, walletAddress]);
 
   const isMoreActive =
     pathname === "/history" ||
     pathname === "/settings" ||
     pathname === "/invoices" ||
-    pathname === "/receipts" ||
-    pathname === "/business-settings" ||
-    pathname === "/upgrade";
+    pathname === "/receipts";
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-black/80 backdrop-blur-xl lg:hidden">
@@ -63,7 +48,7 @@ export function MobileNav() {
           );
         })}
         <Link
-          href={tier === "business" ? "/invoices" : "/history"}
+          href="/history"
           className={cn(
             "flex flex-col items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-medium transition-all",
             isMoreActive ? "text-emerald-400" : "text-zinc-400 hover:text-zinc-200"
