@@ -22,7 +22,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { keccak_256 } from '@noble/hashes/sha3';
 import { logger } from './logger';
-import { loadMerkleTreeState, saveMerkleTreeState, loadPendingState, savePendingState } from './state-store';
+import { loadMerkleTreeState, saveMerkleTreeState, loadPendingState, savePendingState, loadSettledCommitments } from './state-store';
 import { withRetry } from './retry';
 import { TtlCache } from './cache/ttl-cache';
 import * as crypto from 'crypto';
@@ -688,12 +688,25 @@ export class RelayerApiExtensions {
     
     // Reinitialize merkle tree now that poseidon is ready
     this.merkleTree = new ServerMerkleTree(this.config.treeDepth);
-    
-    // Restore persisted merkle tree state if available
-    const persistedMerkle = loadMerkleTreeState();
-    if (persistedMerkle && persistedMerkle.leaves.length > 0) {
-      this.merkleTree.setLeaves(persistedMerkle.leaves.map(l => BigInt(l)));
-      logger.info('Restored merkle tree from disk', { leafCount: persistedMerkle.leaves.length });
+
+    // Primary recovery: rebuild from settled-commitments.json (authoritative)
+    const settledState = loadSettledCommitments();
+    if (settledState && settledState.commitments.length > 0) {
+      logger.info('Rebuilding merkle tree from settled commitments', { count: settledState.commitments.length });
+      for (const entry of settledState.commitments) {
+        this.merkleTree.insertAt(entry.leafIndex, BigInt(entry.commitment));
+      }
+      logger.info('Restored merkle tree from settled commitments', {
+        leafCount: this.merkleTree.getLeafCount(),
+        root: this.merkleTree.getRoot().toString().slice(0, 20) + '...',
+      });
+    } else {
+      // Fallback: restore from legacy merkle-tree-state.json
+      const persistedMerkle = loadMerkleTreeState();
+      if (persistedMerkle && persistedMerkle.leaves.length > 0) {
+        this.merkleTree.setLeaves(persistedMerkle.leaves.map(l => BigInt(l)));
+        logger.info('Restored merkle tree from disk', { leafCount: persistedMerkle.leaves.length });
+      }
     }
     
     // Restore pending state
@@ -2249,6 +2262,8 @@ export class RelayerApiExtensions {
     proofBytes: Uint8Array;
     newRootBytes: Uint8Array;
     batchSize: number;
+    startIndex: number;
+    commitments: bigint[];
     merkleTreePda: PublicKey;
     pendingBufferPda: PublicKey;
     vkPda: PublicKey;
@@ -2332,6 +2347,8 @@ export class RelayerApiExtensions {
       proofBytes,
       newRootBytes,
       batchSize,
+      startIndex,
+      commitments,
       merkleTreePda,
       pendingBufferPda,
       vkPda,

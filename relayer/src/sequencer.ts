@@ -18,6 +18,7 @@ import {
 } from '@solana/web3.js';
 import { Program } from '@coral-xyz/anchor';
 import { RelayerApiExtensions } from './api-extensions';
+import { appendSettledCommitment } from './state-store';
 
 export interface SequencerConfig {
   connection: Connection;
@@ -89,10 +90,18 @@ export class Sequencer {
       return;
     }
 
-    const { proofBytes, newRootBytes, batchSize, merkleTreePda, pendingBufferPda, vkPda } =
-      settlement;
+    const {
+      proofBytes,
+      newRootBytes,
+      batchSize,
+      startIndex,
+      commitments,
+      merkleTreePda,
+      pendingBufferPda,
+      vkPda,
+    } = settlement;
 
-    this.config.logger.info('Sequencer: submitting ZK proof', { batchSize });
+    this.config.logger.info('Sequencer: submitting ZK proof', { batchSize, startIndex });
 
     const authority = this.config.wallet;
 
@@ -124,6 +133,24 @@ export class Sequencer {
       { commitment: 'confirmed', maxRetries: 3 }
     );
 
+    // Persist settled commitments so restarts never lose tree state
+    try {
+      for (let i = 0; i < batchSize; i++) {
+        appendSettledCommitment({
+          commitment: commitments[i].toString(),
+          leafIndex: startIndex + i,
+          settledAt: Date.now(),
+          signature,
+        });
+      }
+      this.config.logger.info('Sequencer: persisted settled commitments', {
+        count: batchSize,
+        startIndex,
+      });
+    } catch (persistErr) {
+      this.config.logger.warn('Failed to persist settled commitments', { error: String(persistErr) });
+    }
+
     this.settleCount++;
     this.lastSettleAt = Date.now();
     this.lastError = null;
@@ -131,6 +158,7 @@ export class Sequencer {
     this.config.logger.info('Sequencer: batch settled', {
       signature,
       batchSize,
+      startIndex,
       settleCount: this.settleCount,
     });
   }

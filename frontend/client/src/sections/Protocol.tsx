@@ -263,12 +263,25 @@ export function Protocol() {
       }
     };
 
-    // Initial check
-    checkNoteStatus();
+    // Backoff polling with setTimeout
+    let pollCount = 0;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
-    // Poll every 10 seconds
-    const interval = setInterval(checkNoteStatus, 10000);
-    return () => clearInterval(interval);
+    const schedule = () => {
+      const delay = pollCount < 10 ? 10000 : pollCount < 20 ? 30000 : 60000;
+      timeoutId = setTimeout(async () => {
+        pollCount += 1;
+        await checkNoteStatus();
+        // Only reschedule if there are still pending notes
+        const stillPending = notes.filter(n => n.leafIndex === undefined).length > 0;
+        if (stillPending) schedule();
+      }, delay);
+    };
+
+    checkNoteStatus(); // immediate first check
+    schedule();
+
+    return () => clearTimeout(timeoutId);
   }, [notes.length, publicKey]); // Only re-run when note count changes
 
   // ==========================================================================

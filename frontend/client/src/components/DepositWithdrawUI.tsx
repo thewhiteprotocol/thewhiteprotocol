@@ -131,7 +131,7 @@ export default function DepositWithdrawUI() {
     setNotes(updatedNotes);
   }, [publicKey]);
 
-  // Poll for note settlement
+  // Poll for note settlement (with backoff)
   useEffect(() => {
     if (!RELAYER_API_URL) return;
     const checkNoteStatus = async () => {
@@ -170,9 +170,24 @@ export default function DepositWithdrawUI() {
         }
       } catch (error) { console.error('[Poll] Error:', error); }
     };
-    checkNoteStatus();
-    const interval = setInterval(checkNoteStatus, 10000);
-    return () => clearInterval(interval);
+
+    let pollCount = 0;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const schedule = () => {
+      const delay = pollCount < 10 ? 10000 : pollCount < 20 ? 30000 : 60000;
+      timeoutId = setTimeout(async () => {
+        pollCount += 1;
+        await checkNoteStatus();
+        const stillPending = notes.filter(n => n.leafIndex === undefined).length > 0;
+        if (stillPending) schedule();
+      }, delay);
+    };
+
+    checkNoteStatus(); // immediate first check
+    schedule();
+
+    return () => clearTimeout(timeoutId);
   }, [notes.length, publicKey, toast]);
 
   // Fetch balance

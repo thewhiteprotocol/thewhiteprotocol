@@ -157,12 +157,11 @@ function DepositTab({
 
   // Synchronous guard to prevent double-click / overlapping submissions
   const isSubmittingRef = useRef(false);
-  // Track polling intervals for cleanup
-  const pollRefs = useRef<{ interval?: ReturnType<typeof setInterval>; timeout?: ReturnType<typeof setTimeout> }>({});
+  // Track polling timeouts for cleanup
+  const pollRefs = useRef<{ timeout?: ReturnType<typeof setTimeout> }>({});
 
   useEffect(() => {
     return () => {
-      if (pollRefs.current.interval) clearInterval(pollRefs.current.interval);
       if (pollRefs.current.timeout) clearTimeout(pollRefs.current.timeout);
     };
   }, []);
@@ -259,30 +258,39 @@ function DepositTab({
       });
 
       // Clear any previous polling
-      if (pollRefs.current.interval) clearInterval(pollRefs.current.interval);
       if (pollRefs.current.timeout) clearTimeout(pollRefs.current.timeout);
 
-      // Poll relayer for note status until settled
-      const pollInterval = setInterval(async () => {
-        try {
-          const status = await checkNoteStatus(note.commitment);
-          if (status.status === "settled" && status.leafIndex !== undefined) {
-            await updateNote(note.commitment, { status: "settled", leafIndex: status.leafIndex });
-            clearInterval(pollInterval);
-            pollRefs.current.interval = undefined;
-            // Refresh notes list
-            onNoteUpdated?.();
+      // Poll relayer for note status until settled (with backoff)
+      const pollCountRef = { count: 0 };
+      const startPolling = (commitment: string) => {
+        const run = async () => {
+          try {
+            const status = await checkNoteStatus(commitment);
+            if (status.status === "settled" && status.leafIndex !== undefined) {
+              await updateNote(commitment, { status: "settled", leafIndex: status.leafIndex });
+              pollRefs.current.timeout = undefined;
+              onNoteUpdated?.();
+              return; // stop
+            }
+          } catch {
+            // Silently ignore polling errors
           }
-        } catch {
-          // Silently ignore polling errors
-        }
-      }, 10000);
-      pollRefs.current.interval = pollInterval;
+
+          pollCountRef.count += 1;
+          const count = pollCountRef.count;
+          const nextDelay = count < 10 ? 10000 : count < 20 ? 30000 : 60000;
+          pollRefs.current.timeout = setTimeout(run, nextDelay);
+        };
+
+        run(); // kick off
+      };
+
+      startPolling(note.commitment);
 
       // Stop polling after 10 minutes
       const pollTimeout = setTimeout(() => {
-        clearInterval(pollInterval);
-        pollRefs.current.interval = undefined;
+        if (pollRefs.current.timeout) clearTimeout(pollRefs.current.timeout);
+        pollRefs.current.timeout = undefined;
       }, 600000);
       pollRefs.current.timeout = pollTimeout;
       

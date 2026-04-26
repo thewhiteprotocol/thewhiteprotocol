@@ -25,10 +25,22 @@ export interface PendingState {
   lastSyncedAt: number;
 }
 
+export interface SettledCommitment {
+  commitment: string;
+  leafIndex: number;
+  settledAt: number;
+  signature: string;
+}
+
+export interface SettledCommitmentsState {
+  commitments: SettledCommitment[];
+}
+
 const STATE_DIR = process.env.STATE_DIR || path.join(process.cwd(), 'data');
 const RELAYER_STATE_PATH = path.join(STATE_DIR, 'relayer-state.json');
 const MERKLE_STATE_PATH = path.join(STATE_DIR, 'merkle-tree-state.json');
 const PENDING_STATE_PATH = path.join(STATE_DIR, 'pending-state.json');
+const SETTLED_COMMITMENTS_PATH = path.join(STATE_DIR, 'settled-commitments.json');
 
 function ensureDir(): void {
   if (!fs.existsSync(STATE_DIR)) {
@@ -91,4 +103,28 @@ export function savePendingState(state: PendingState): void {
   const tmp = PENDING_STATE_PATH + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
   fs.renameSync(tmp, PENDING_STATE_PATH);
+}
+
+export function loadSettledCommitments(): SettledCommitmentsState | null {
+  try {
+    if (!fs.existsSync(SETTLED_COMMITMENTS_PATH)) return null;
+    const raw = fs.readFileSync(SETTLED_COMMITMENTS_PATH, 'utf8');
+    return JSON.parse(raw) as SettledCommitmentsState;
+  } catch (err) {
+    console.error('[StateStore] Failed to load settled commitments:', err);
+    return null;
+  }
+}
+
+export function saveSettledCommitments(state: SettledCommitmentsState): void {
+  ensureDir();
+  const tmp = SETTLED_COMMITMENTS_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, SETTLED_COMMITMENTS_PATH);
+}
+
+export function appendSettledCommitment(entry: SettledCommitment): void {
+  const state = loadSettledCommitments() || { commitments: [] };
+  state.commitments.push(entry);
+  saveSettledCommitments(state);
 }
