@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { ArrowDownLeft, ArrowUpRight, Loader2, CheckCircle2, Wallet, ShieldCheck, AlertCircle } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Loader2, CheckCircle2, Wallet, ShieldCheck, AlertCircle, Copy, Download, QrCode, Upload, FileText, RotateCcw } from "lucide-react";
 import { useChain } from "@/providers/ChainContext";
 import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { useWalletClient } from "wagmi";
 import { PublicKey } from "@solana/web3.js";
 import { useToast } from "@/providers/ToastContext";
+import { cn } from "@/lib/utils";
 import { getAssetsForChain, AssetConfig, SUPPORTED_ASSETS } from "@/config/constants";
 import { CHAINS } from "@/config/chains";
 import { initializePoseidon, computeCommitment, computeNullifierHash, computeAssetIdBigInt, randomFieldElement, formatProofForOnChain, MERKLE_TREE_DEPTH, pubkeyToScalar } from "@/lib/crypto";
@@ -21,6 +22,8 @@ import { solanaChainService, baseChainService } from "@/lib/chainService";
 import { getNotes, addNote, updateNote, markSpent } from "@/lib/noteStore";
 import { maybeCreateReceipt } from "@/lib/autoReceipt";
 import { StoredNote } from "@/lib/types";
+import { encodeNote, decodeNote, downloadNoteFile, type DecodedNote } from "@/lib/noteFormat";
+import { QRCodeSVG } from "qrcode.react";
 import { formatTokenAmount, parseTokenAmount } from "@/lib/balanceService";
 import { getRelayerQuote, submitRelayedWithdrawal, checkNoteStatus, getMerkleProof, trackDeposit, RelayerQuote } from "@/lib/relayerClient";
 
@@ -152,7 +155,7 @@ function DepositTab({
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState("");
-  const [result, setResult] = useState<{ txHash?: string; commitment: string } | null>(null);
+  const [result, setResult] = useState<{ txHash?: string; commitment: string; note?: DecodedNote } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Synchronous guard to prevent double-click / overlapping submissions
@@ -295,7 +298,7 @@ function DepositTab({
       pollRefs.current.timeout = pollTimeout;
       
       onDeposit(note);
-      setResult({ txHash, commitment: commitment.toString() });
+      setResult({ txHash, commitment: commitment.toString(), note: { secret: secret.toString(), nullifier: nullifier.toString(), amount: amount.toString(), asset: asset.symbol, chain: activeChain, commitment: commitment.toString(), assetId: assetId.toString() } });
       setAmount("");
       await maybeCreateReceipt({
         type: "payment_sent",
@@ -410,7 +413,7 @@ function DepositTab({
       </Card>
 
       <Dialog open={!!result} onOpenChange={() => setResult(null)}>
-        <DialogContent className="border-white/10 bg-zinc-950 text-white">
+        <DialogContent className="border-white/10 bg-zinc-950 text-white max-w-lg">
           <DialogHeader className="space-y-3">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10">
               <CheckCircle2 className="h-6 w-6 text-emerald-500" />
@@ -420,6 +423,53 @@ function DepositTab({
               Your funds are being shielded. The deposit will be settled in the next batch.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Prominent Note Save Section */}
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-amber-400">
+              <ShieldCheck className="h-5 w-5" />
+              <span className="font-semibold text-sm">Save Your Note — Required to Withdraw</span>
+            </div>
+            <p className="text-xs text-amber-200/80">
+              If you lose this note, you cannot recover your funds. Back it up now.
+            </p>
+            {result?.note && (
+              <>
+                <div className="rounded-lg border border-white/10 bg-black/40 p-2">
+                  <p className="font-mono text-[11px] text-zinc-300 break-all leading-relaxed">
+                    {encodeNote(result.note)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                    onClick={() => {
+                      navigator.clipboard.writeText(encodeNote(result.note!));
+                      showToast("Note copied to clipboard", "success");
+                    }}
+                  >
+                    <Copy className="mr-1.5 h-3.5 w-3.5" />
+                    Copy Note
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                    onClick={() => downloadNoteFile(result.note!)}
+                  >
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    Download JSON
+                  </Button>
+                  <div className="rounded-lg border border-white/10 bg-white p-2">
+                    <QRCodeSVG value={encodeNote(result.note!)} size={80} level="M" />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           <div className="space-y-3 py-2">
             <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
               <p className="text-xs text-zinc-500">Commitment</p>
@@ -477,6 +527,15 @@ function WithdrawTab({
   const [showFallback, setShowFallback] = useState(false);
   const [relayerQuote, setRelayerQuote] = useState<RelayerQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
+
+  // Withdraw mode: mynotes | recover
+  const [withdrawMode, setWithdrawMode] = useState<"mynotes" | "recover">("mynotes");
+
+  // Recovery state
+  const [recoverNoteString, setRecoverNoteString] = useState("");
+  const [recoveredNote, setRecoveredNote] = useState<StoredNote | null>(null);
+  const [recoverError, setRecoverError] = useState<string | null>(null);
+  const [recoverStatus, setRecoverStatus] = useState<"idle" | "checking" | "ready" | "spent" | "notfound">("idle");
 
   // Synchronous guard to prevent double-click / overlapping submissions
   const isSubmittingRef = useRef(false);
@@ -708,6 +767,76 @@ function WithdrawTab({
     }
   }
 
+  async function handleRecoverNote() {
+    setRecoverError(null);
+    setRecoveredNote(null);
+    setRecoverStatus("checking");
+    const decoded = decodeNote(recoverNoteString);
+    if (!decoded) {
+      setRecoverError("Invalid note format. Paste a white://note/v1/... URI or raw JSON.");
+      setRecoverStatus("idle");
+      return;
+    }
+    if (!decoded.secret || !decoded.nullifier || !decoded.amount || !decoded.asset || !decoded.chain) {
+      setRecoverError("Note is missing required fields (secret, nullifier, amount, asset, chain).");
+      setRecoverStatus("idle");
+      return;
+    }
+    try {
+      const note: StoredNote = {
+        secret: decoded.secret,
+        nullifier: decoded.nullifier,
+        amount: decoded.amount,
+        asset: decoded.asset,
+        chain: decoded.chain as "solana" | "base",
+        assetId: decoded.assetId || "",
+        commitment: decoded.commitment || "",
+        leafIndex: decoded.leafIndex,
+        timestamp: Date.now(),
+        status: "settled",
+      };
+
+      // Check if nullifier already spent via relayer
+      const nullifierHash = await initializePoseidon().then(() => {
+        return computeNullifierHash(BigInt(note.nullifier), BigInt(note.secret), note.leafIndex ?? 0);
+      });
+
+      // Try to fetch Merkle proof to verify note exists in tree
+      if (note.leafIndex !== undefined) {
+        const proofRes = await getMerkleProof(note.leafIndex);
+        if (!proofRes.success) {
+          setRecoverError("Note not found in Merkle tree. It may be pending or invalid.");
+          setRecoverStatus("notfound");
+          return;
+        }
+      } else {
+        setRecoverError("Note has no leaf index. Cannot verify tree membership.");
+        setRecoverStatus("notfound");
+        return;
+      }
+
+      // If we got here, the note is in the tree and ready
+      setRecoveredNote(note);
+      setRecoverStatus("ready");
+      setSelectedNote(note);
+      showToast("Note verified — ready to withdraw", "success");
+    } catch (err: any) {
+      setRecoverError(err.message || "Failed to verify note");
+      setRecoverStatus("idle");
+    }
+  }
+
+  function handleRecoverFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = String(ev.target?.result || "");
+      setRecoverNoteString(text);
+    };
+    reader.readAsText(file);
+  }
+
   if (selectedNote) {
     const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote.asset);
     return (
@@ -725,10 +854,39 @@ function WithdrawTab({
         </CardHeader>
         <CardContent className="flex-1 space-y-5">
           <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm text-zinc-400">Amount</p>
+            <p className="text-sm text-zinc-400">Available</p>
             <p className="text-2xl font-semibold text-white">
               {formatTokenAmount(BigInt(selectedNote.amount), asset?.decimals || 9)} {selectedNote.asset}
             </p>
+          </div>
+
+          {/* Partial withdrawal UI — coming soon */}
+          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 space-y-3">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-200">Withdraw amount</label>
+              <Input
+                value={formatTokenAmount(BigInt(selectedNote.amount), asset?.decimals || 9)}
+                disabled
+                className="border-white/10 bg-white/[0.03] text-white opacity-60 py-5"
+              />
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-400">Change (stays in pool)</span>
+              <span className="text-zinc-500">0 {selectedNote.asset}</span>
+            </div>
+            <div className="flex gap-4 text-sm">
+              <label className="flex items-center gap-2 text-zinc-200">
+                <input type="radio" checked readOnly className="accent-emerald-500" />
+                Full withdrawal
+              </label>
+              <label className="flex items-center gap-2 text-zinc-500 cursor-not-allowed">
+                <input type="radio" disabled className="accent-zinc-600" />
+                Partial withdrawal
+              </label>
+            </div>
+            <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-2 text-xs text-amber-300">
+              Partial withdrawals are coming soon. Currently you must withdraw the full amount.
+            </div>
           </div>
 
           {quoteLoading ? (
@@ -815,45 +973,156 @@ function WithdrawTab({
             <CardDescription className="text-zinc-400">Withdraw from the shielded pool</CardDescription>
           </div>
         </div>
+        {/* Tabs */}
+        <div className="mt-3 flex gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1">
+          <button
+            onClick={() => setWithdrawMode("mynotes")}
+            className={cn(
+              "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+              withdrawMode === "mynotes"
+                ? "bg-white/[0.08] text-white"
+                : "text-zinc-400 hover:text-zinc-200"
+            )}
+          >
+            My Notes
+          </button>
+          <button
+            onClick={() => setWithdrawMode("recover")}
+            className={cn(
+              "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+              withdrawMode === "recover"
+                ? "bg-white/[0.08] text-white"
+                : "text-zinc-400 hover:text-zinc-200"
+            )}
+          >
+            Recover with Note
+          </button>
+        </div>
       </CardHeader>
-      <CardContent className="flex-1 space-y-4">
-        {loadingNotes ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
-          </div>
-        ) : notes.length === 0 ? (
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
-            <p className="text-base text-zinc-300 font-medium">No settled notes</p>
-            <p className="text-sm text-zinc-500 mt-1">
-              No settled notes available for withdrawal on {activeChain}.
-            </p>
-          </div>
+      <CardContent className="flex-1 space-y-4 overflow-auto">
+        {withdrawMode === "mynotes" ? (
+          <>
+            {loadingNotes ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+              </div>
+            ) : notes.length === 0 ? (
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
+                <p className="text-base text-zinc-300 font-medium">No settled notes</p>
+                <p className="text-sm text-zinc-500 mt-1">
+                  No settled notes available for withdrawal on {activeChain}.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {notes.map((note) => {
+                  const asset = SUPPORTED_ASSETS.find((a) => a.symbol === note.asset);
+                  return (
+                    <button
+                      key={note.commitment}
+                      onClick={() => setSelectedNote(note)}
+                      className="w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:bg-white/[0.05] hover:border-white/15"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-base font-medium text-white">
+                            {formatTokenAmount(BigInt(note.amount), asset?.decimals || 9)} {note.asset}
+                          </p>
+                          <p className="text-sm text-zinc-500">
+                            {new Date(note.timestamp).toLocaleDateString()} · Leaf #{note.leafIndex ?? "?"}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                          Settled
+                        </Badge>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
         ) : (
-          <div className="space-y-3">
-            {notes.map((note) => {
-              const asset = SUPPORTED_ASSETS.find((a) => a.symbol === note.asset);
-              return (
-                <button
-                  key={note.commitment}
-                  onClick={() => setSelectedNote(note)}
-                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:bg-white/[0.05] hover:border-white/15"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-base font-medium text-white">
-                        {formatTokenAmount(BigInt(note.amount), asset?.decimals || 9)} {note.asset}
-                      </p>
-                      <p className="text-sm text-zinc-500">
-                        {new Date(note.timestamp).toLocaleDateString()} · Leaf #{note.leafIndex ?? "?"}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
-                      Settled
-                    </Badge>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-white">Recover Funds with Note</h3>
+              <p className="text-xs text-zinc-400">
+                Paste your deposit note below or upload a backup file to recover your funds.
+              </p>
+              <textarea
+                value={recoverNoteString}
+                onChange={(e) => setRecoverNoteString(e.target.value)}
+                placeholder="white://note/v1/eyJzZWNyZXQiOiIxMjM0NS..."
+                className="w-full rounded-lg border border-white/10 bg-black/40 p-3 text-xs font-mono text-zinc-200 placeholder:text-zinc-600 outline-none focus:border-emerald-500/40 min-h-[80px] resize-y"
+              />
+              <div className="flex items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/[0.05]">
+                  <Upload className="h-3.5 w-3.5" />
+                  Upload Note File
+                  <input type="file" accept=".json,.txt" className="hidden" onChange={handleRecoverFileUpload} />
+                </label>
+                {recoverNoteString && (
+                  <button
+                    onClick={() => { setRecoverNoteString(""); setRecoverError(null); setRecoveredNote(null); setRecoverStatus("idle"); }}
+                    className="text-xs text-zinc-500 hover:text-zinc-300"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700 h-10"
+                disabled={!recoverNoteString || recoverStatus === "checking"}
+                onClick={handleRecoverNote}
+              >
+                {recoverStatus === "checking" ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  "Verify Note"
+                )}
+              </Button>
+            </div>
+
+            {recoverError && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">
+                <AlertCircle className="h-4 w-4" />
+                {recoverError}
+              </div>
+            )}
+
+            {recoverStatus === "ready" && recoveredNote && (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <CheckCircle2 className="h-5 w-5" />
+                  <span className="font-semibold text-sm">Note Valid — Ready to Withdraw</span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Amount</span>
+                    <span className="text-white font-medium">
+                      {formatTokenAmount(BigInt(recoveredNote.amount), SUPPORTED_ASSETS.find((a) => a.symbol === recoveredNote.asset)?.decimals || 9)} {recoveredNote.asset}
+                    </span>
                   </div>
-                </button>
-              );
-            })}
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Chain</span>
+                    <span className="text-white capitalize">{recoveredNote.chain}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Status</span>
+                    <span className="text-emerald-400">Settled</span>
+                  </div>
+                </div>
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 h-10"
+                  onClick={() => setSelectedNote(recoveredNote)}
+                >
+                  Continue to Withdraw
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

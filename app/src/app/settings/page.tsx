@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShieldAlert, Trash2, Download, Upload, Key, Server, Wallet, Loader2, Check, X, Copy } from "lucide-react";
 import { useChain } from "@/providers/ChainContext";
 import { exportNotes, importNotes, getNotes } from "@/lib/noteStore";
+import { downloadAllNotesFile } from "@/lib/noteFormat";
 import { CHAINS } from "@/config/chains";
 import { StoredNote } from "@/lib/types";
 import { getRelayerHealth } from "@/lib/relayerClient";
@@ -176,10 +177,32 @@ function BackupCard() {
         <p className="text-sm text-zinc-400">
           Export your encrypted notes to a file. Keep this safe — if you lose your notes, your shielded funds cannot be recovered.
         </p>
-        <Button onClick={handleExport} disabled={busy} className="bg-emerald-600 hover:bg-emerald-700">
-          {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-          Export Encrypted Notes
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={handleExport} disabled={busy} className="bg-emerald-600 hover:bg-emerald-700">
+            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Export Encrypted Notes
+          </Button>
+          <Button
+            onClick={async () => {
+              const notes = await getNotes();
+              downloadAllNotesFile(notes.map((n) => ({
+                secret: n.secret,
+                nullifier: n.nullifier,
+                amount: n.amount,
+                asset: n.asset,
+                chain: n.chain,
+                leafIndex: n.leafIndex,
+                commitment: n.commitment,
+                assetId: n.assetId,
+              })));
+            }}
+            variant="outline"
+            className="border-white/10 hover:bg-white/[0.03]"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download All Notes (Plaintext)
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
