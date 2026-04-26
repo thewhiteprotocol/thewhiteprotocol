@@ -521,6 +521,7 @@ function WithdrawTab({
   const [selectedNote, setSelectedNote] = useState<StoredNote | null>(null);
   const [recipient, setRecipient] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [amountDisplay, setAmountDisplay] = useState("");
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState("");
   const [result, setResult] = useState<{ txHash?: string; relayer?: boolean } | null>(null);
@@ -547,11 +548,14 @@ function WithdrawTab({
       setShowFallback(false);
       setError(null);
       setWithdrawAmount("");
+      setAmountDisplay("");
       return;
     }
+    const decimals = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote.asset)?.decimals || 9;
     // Default to full amount when note is selected
     if (!withdrawAmount) {
       setWithdrawAmount(selectedNote.amount);
+      setAmountDisplay(formatTokenAmount(BigInt(selectedNote.amount), decimals));
     }
     let mounted = true;
     setQuoteLoading(true);
@@ -580,7 +584,7 @@ function WithdrawTab({
     const secret = BigInt(selectedNote.secret);
     const nullifier = BigInt(selectedNote.nullifier);
     const noteAmount = BigInt(selectedNote.amount);
-    const amount = BigInt(amountToWithdraw);
+    const amount = BigInt(selectedNote.amount); // withdraw.circom only supports full withdrawals
     const assetId = BigInt(selectedNote.assetId);
     const nullifierHash = computeNullifierHash(nullifier, secret, selectedNote.leafIndex);
 
@@ -605,7 +609,9 @@ function WithdrawTab({
     let relayerAddress: string | null | undefined;
     if (viaRelayer) {
       setStep("Fetching relayer quote...");
-      const quote = await getRelayerQuote(amountToWithdraw);
+      // Quote uses the displayed amount for fee exploration, but proof always uses full note amount
+      const quoteAmount = amountToWithdraw || selectedNote.amount;
+      const quote = await getRelayerQuote(quoteAmount);
       relayerFee = BigInt(quote.fee);
       relayerAddress = activeChain === "solana" ? quote.relayer.solana : quote.relayer.base;
     } else if (activeChain === "solana") {
@@ -711,8 +717,8 @@ function WithdrawTab({
       if (!selectedNote || !recipient || !withdrawAmount) {
         throw new Error("Please select a note, enter an amount, and enter a recipient");
       }
-      if (BigInt(withdrawAmount) > BigInt(selectedNote.amount)) {
-        throw new Error("Withdraw amount exceeds note amount");
+      if (BigInt(withdrawAmount) !== BigInt(selectedNote.amount)) {
+        throw new Error("Partial withdrawals are not supported yet. Please withdraw the full amount.");
       }
       if (BigInt(withdrawAmount) <= 0n) {
         throw new Error("Withdraw amount must be greater than 0");
@@ -727,7 +733,7 @@ function WithdrawTab({
         merkleRoot: merkleRoot.toString(16).padStart(64, "0"),
         nullifierHash: nullifierHash.toString(16).padStart(64, "0"),
         recipient,
-        amount: withdrawAmount,
+        amount: selectedNote.amount,
         assetId: assetId.toString(16).padStart(64, "0"),
         mint: asset?.address || (activeChain === "solana" ? "So11111111111111111111111111111111111111112" : "0x0000000000000000000000000000000000000000"),
       });
@@ -763,8 +769,8 @@ function WithdrawTab({
       if (!selectedNote || !recipient || !withdrawAmount) {
         throw new Error("Please select a note, enter an amount, and enter a recipient");
       }
-      if (BigInt(withdrawAmount) > BigInt(selectedNote.amount)) {
-        throw new Error("Withdraw amount exceeds note amount");
+      if (BigInt(withdrawAmount) !== BigInt(selectedNote.amount)) {
+        throw new Error("Partial withdrawals are not supported yet. Please withdraw the full amount.");
       }
       if (BigInt(withdrawAmount) <= 0n) {
         throw new Error("Withdraw amount must be greater than 0");
@@ -887,27 +893,36 @@ function WithdrawTab({
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-zinc-200">Withdraw amount</label>
                 <button
-                  onClick={() => setWithdrawAmount(selectedNote.amount)}
+                  onClick={() => {
+                    setWithdrawAmount(selectedNote.amount);
+                    setAmountDisplay(formatTokenAmount(BigInt(selectedNote.amount), asset?.decimals || 9));
+                  }}
                   className="text-xs text-emerald-400 hover:text-emerald-300 font-medium"
                 >
                   MAX
                 </button>
               </div>
               <Input
-                value={withdrawAmount ? formatTokenAmount(BigInt(withdrawAmount), asset?.decimals || 9) : ""}
+                value={amountDisplay}
                 onChange={(e) => {
-                  const raw = e.target.value.replace(/[^0-9.]/g, "");
-                  if (!raw) {
-                    setWithdrawAmount("");
-                    return;
+                  let val = e.target.value;
+                  // Allow only digits and at most one decimal point
+                  val = val.replace(/[^0-9.]/g, "");
+                  const parts = val.split(".");
+                  if (parts.length > 2) {
+                    val = parts[0] + "." + parts.slice(1).join("");
                   }
-                  const parts = raw.split(".");
-                  if (parts.length > 2) return; // ignore multiple dots
-                  const whole = parts[0] || "0";
-                  const fraction = parts[1] !== undefined ? parts[1].slice(0, asset?.decimals || 9) : "";
-                  const decimals = asset?.decimals || 9;
-                  const baseUnits = BigInt(whole) * BigInt(10 ** decimals) + BigInt(fraction.padEnd(decimals, "0").slice(0, decimals));
-                  setWithdrawAmount(baseUnits.toString());
+                  if (parts.length === 2) {
+                    val = parts[0] + "." + parts[1].slice(0, asset?.decimals || 9);
+                  }
+                  setAmountDisplay(val);
+                  try {
+                    const parseVal = val.startsWith(".") ? "0" + val : val;
+                    const base = parseTokenAmount(parseVal || "0", asset?.decimals || 9);
+                    setWithdrawAmount(base.toString());
+                  } catch {
+                    setWithdrawAmount("");
+                  }
                 }}
                 placeholder="0.00"
                 className="border-white/10 bg-white/[0.03] text-white placeholder:text-zinc-500 py-5"
@@ -919,7 +934,7 @@ function WithdrawTab({
             </div>
             {withdrawAmount && BigInt(withdrawAmount) !== BigInt(selectedNote.amount) && (
               <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-2 text-xs text-amber-300">
-                Partial withdrawals are coming soon. Please withdraw the full amount.
+                Partial withdrawals are not supported yet. The full note amount will be withdrawn.
               </div>
             )}
           </div>
@@ -978,7 +993,7 @@ function WithdrawTab({
             </Button>
             <Button
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 h-11"
-              disabled={busy || !recipient || !withdrawAmount || BigInt(withdrawAmount) <= 0n || BigInt(withdrawAmount) > BigInt(selectedNote.amount)}
+              disabled={busy || !recipient || !withdrawAmount || BigInt(withdrawAmount) <= 0n || BigInt(withdrawAmount) !== BigInt(selectedNote.amount)}
               onClick={handleWithdraw}
             >
               {busy ? (
