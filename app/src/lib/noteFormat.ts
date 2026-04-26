@@ -13,17 +13,33 @@ export interface DecodedNote {
 
 const NOTE_PREFIX = "white://note/v1/";
 
+/** Browser-safe base64url encoding (no Buffer dependency) */
+function encodeBase64Url(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  const base64 = btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(""));
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+/** Browser-safe base64url decoding (no Buffer dependency) */
+function decodeBase64Url(base64url: string): string {
+  let base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = base64.length % 4;
+  if (pad === 2) base64 += "==";
+  else if (pad === 3) base64 += "=";
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 export function encodeNote(note: DecodedNote): string {
-  const data = Buffer.from(JSON.stringify(note)).toString("base64url");
-  return `${NOTE_PREFIX}${data}`;
+  return `${NOTE_PREFIX}${encodeBase64Url(JSON.stringify(note))}`;
 }
 
 export function decodeNote(noteString: string): DecodedNote | null {
   try {
     const trimmed = noteString.trim();
     if (trimmed.startsWith(NOTE_PREFIX)) {
-      const data = trimmed.replace(NOTE_PREFIX, "");
-      return JSON.parse(Buffer.from(data, "base64url").toString());
+      const data = trimmed.slice(NOTE_PREFIX.length);
+      return JSON.parse(decodeBase64Url(data));
     }
     // Try raw JSON
     return JSON.parse(trimmed);
