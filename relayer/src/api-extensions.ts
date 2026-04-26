@@ -22,7 +22,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { keccak_256 } from '@noble/hashes/sha3';
 import { logger } from './logger';
-import { loadMerkleTreeState, saveMerkleTreeState, loadPendingState, savePendingState, loadSettledCommitments } from './state-store';
+import { loadMerkleTreeState, saveMerkleTreeState, loadPendingState, savePendingState, loadSettledCommitments, saveSettledCommitments } from './state-store';
 import { withRetry } from './retry';
 import { TtlCache } from './cache/ttl-cache';
 import * as crypto from 'crypto';
@@ -1018,6 +1018,19 @@ export class RelayerApiExtensions {
       const localLeafCount = this.merkleTree.getLeafCount();
       if (localLeafCount < currentNextLeafIndex) {
         await this.recoverMerkleTreeFromEvents(currentNextLeafIndex, merkleAccount.currentRoot);
+      } else if (localLeafCount > currentNextLeafIndex) {
+        // On-chain reset detected: local tree has more leaves than on-chain.
+        // Clear local state to match on-chain empty/fresh tree.
+        logger.warn('On-chain reset detected: local tree ahead of on-chain state. Clearing local state.', {
+          localLeafCount,
+          currentNextLeafIndex,
+        });
+        this.merkleTree = new ServerMerkleTree(this.config.treeDepth);
+        this.pendingState = { pendingCommitments: [], nextLeafIndex: 0 };
+        savePendingState({ pendingCommitments: [], nextLeafIndex: 0, lastSyncedAt: Date.now() });
+        saveSettledCommitments({ commitments: [] });
+        // Save empty merkle tree state
+        this.persistMerkleTree();
       }
       
       // After recovery, check if we successfully backfilled
