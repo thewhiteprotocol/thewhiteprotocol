@@ -478,6 +478,9 @@ function WithdrawTab({
   const [relayerQuote, setRelayerQuote] = useState<RelayerQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
+  // Synchronous guard to prevent double-click / overlapping submissions
+  const isSubmittingRef = useRef(false);
+
   useEffect(() => {
     if (!selectedNote) {
       setRelayerQuote(null);
