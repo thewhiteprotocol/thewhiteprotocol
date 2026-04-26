@@ -1241,6 +1241,24 @@ export class RelayerService {
 
     // Build instruction - use withdrawMaspStealth if ephemeral pubkey provided
     let ix;
+    const withdrawAccounts: any = {
+      relayer: this.config.walletKeypair.publicKey,
+      poolConfig: this.config.poolConfig,
+      merkleTree,
+      vkAccount,
+      assetVault,
+      vaultTokenAccount,
+      recipientTokenAccount,
+      relayerTokenAccount,
+      spentNullifier: nullifierPda,
+      relayerRegistry,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: new PublicKey("11111111111111111111111111111111"),
+    };
+    if (relayerNodeAccount) {
+      withdrawAccounts.relayerNode = relayerNodeAccount;
+    }
+
     if (params.ephemeralPubkey && params.ephemeralPubkey.length === 32) {
       ix = await this.program.methods
         .withdrawMaspStealth(
@@ -1253,22 +1271,7 @@ export class RelayerService {
           new BN(params.fee.toString()),
           Array.from(params.ephemeralPubkey)
         )
-        .accountsStrict({
-          relayer: this.config.walletKeypair.publicKey,
-          poolConfig: this.config.poolConfig,
-          merkleTree,
-          vkAccount,
-          assetVault,
-          vaultTokenAccount,
-          recipientTokenAccount,
-          relayerTokenAccount,
-          spentNullifier: nullifierPda,
-          relayerRegistry,
-          relayerNode: relayerNodeAccount as any,
-          yieldRegistry: null as any,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: new PublicKey("11111111111111111111111111111111"),
-        })
+        .accounts(withdrawAccounts)
         .instruction();
     } else {
       ix = await this.program.methods
@@ -1281,22 +1284,7 @@ export class RelayerService {
           Array.from(params.assetId),
           new BN(params.fee.toString())
         )
-        .accountsStrict({
-          relayer: this.config.walletKeypair.publicKey,
-          poolConfig: this.config.poolConfig,
-          merkleTree,
-          vkAccount,
-          assetVault,
-          vaultTokenAccount,
-          recipientTokenAccount,
-          relayerTokenAccount,
-          spentNullifier: nullifierPda,
-          relayerRegistry,
-          relayerNode: relayerNodeAccount as any,
-          yieldRegistry: null as any,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: new PublicKey("11111111111111111111111111111111"),
-        })
+        .accounts(withdrawAccounts)
         .instruction();
     }
 
@@ -1475,6 +1463,28 @@ export class RelayerService {
       : null;
     
     // Build instruction via Anchor
+    const withdrawV2Accounts: any = {
+      relayer: this.config.walletKeypair.publicKey,
+      poolConfig: this.config.poolConfig,
+      merkleTree,
+      vkAccount,
+      assetVault,
+      vaultTokenAccount,
+      recipientTokenAccount,
+      relayerTokenAccount,
+      spentNullifier0: nullifierPda0,
+      pendingBuffer: pendingBuffer,
+      relayerRegistry,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: new PublicKey("11111111111111111111111111111111"),
+    };
+    if (nullifierPda1) {
+      withdrawV2Accounts.spentNullifier1 = nullifierPda1;
+    }
+    if (relayerNodeAccount) {
+      withdrawV2Accounts.relayerNode = relayerNodeAccount;
+    }
+
     const ix = await this.program.methods
       .withdrawV2(
         Buffer.from(params.proofData),
@@ -1487,24 +1497,7 @@ export class RelayerService {
         new BN(params.amount.toString()),
         new BN(params.fee.toString())
       )
-      .accountsStrict({
-        relayer: this.config.walletKeypair.publicKey,
-        poolConfig: this.config.poolConfig,
-        merkleTree,
-        vkAccount,
-        assetVault,
-        vaultTokenAccount,
-        recipientTokenAccount,
-        relayerTokenAccount,
-        spentNullifier0: nullifierPda0,
-        spentNullifier1: nullifierPda1 as any,
-        pendingBuffer: pendingBuffer,
-        relayerRegistry,
-        relayerNode: relayerNodeAccount as any,
-        yieldRegistry: null as any,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: new PublicKey("11111111111111111111111111111111"),
-      })
+      .accounts(withdrawV2Accounts)
       .instruction();
     
     // Build and send transaction

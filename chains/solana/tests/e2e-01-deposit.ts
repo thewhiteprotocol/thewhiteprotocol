@@ -125,6 +125,8 @@ async function main() {
     const program = new anchor.Program(idl as any, provider);
     
     // Derive all PDAs for new deployment
+    const commitmentBytes = bigintToBytes32(commitment);
+
     const [assetVault] = PublicKey.findProgramAddressSync(
       [Buffer.from('vault'), POOL_CONFIG.toBuffer(), assetIdBytes],
       PROGRAM_ID
@@ -142,7 +144,7 @@ async function main() {
       PROGRAM_ID
     );
     const [commitmentIndex] = PublicKey.findProgramAddressSync(
-      [Buffer.from('commitment'), POOL_CONFIG.toBuffer(), commitmentBytes],
+      [Buffer.from('commitment'), POOL_CONFIG.toBuffer(), Buffer.from(commitmentBytes)],
       PROGRAM_ID
     );
     // Get the vault token account from the asset vault account data
@@ -178,7 +180,6 @@ async function main() {
     
     // Execute deposit
     console.log('\n🚀 Submitting deposit transaction...');
-    const commitmentBytes = bigintToBytes32(commitment);
     
     const tx = await (program.methods as any)
       .depositMasp(
