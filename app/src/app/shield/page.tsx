@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { getAssetsForChain, AssetConfig, SUPPORTED_ASSETS } from "@/config/constants";
 import { CHAINS } from "@/config/chains";
 import { initializePoseidon, computeCommitment, computeNullifierHash, computeAssetIdBigInt, randomFieldElement, formatProofForOnChain, MERKLE_TREE_DEPTH, pubkeyToScalar } from "@/lib/crypto";
-import { generateDepositProof, generateWithdrawProof } from "@/lib/proofService";
+import { generateDepositProof, generateWithdrawProof, generateWithdrawV2Proof } from "@/lib/proofService";
 import { solanaChainService, baseChainService } from "@/lib/chainService";
 import { getNotes, addNote, updateNote, markSpent } from "@/lib/noteStore";
 import { maybeCreateReceipt } from "@/lib/autoReceipt";
@@ -25,7 +25,7 @@ import { StoredNote } from "@/lib/types";
 import { encodeNote, decodeNote, downloadNoteFile, type DecodedNote } from "@/lib/noteFormat";
 import { QRCodeSVG } from "qrcode.react";
 import { formatTokenAmount, parseTokenAmount } from "@/lib/balanceService";
-import { getRelayerQuote, submitRelayedWithdrawal, checkNoteStatus, getMerkleProof, trackDeposit, RelayerQuote } from "@/lib/relayerClient";
+import { getRelayerQuote, submitRelayedWithdrawal, submitRelayedWithdrawalV2, checkNoteStatus, getMerkleProof, trackDeposit, RelayerQuote } from "@/lib/relayerClient";
 
 function truncate(str: string, len = 8) {
   if (str.length <= len * 2 + 4) return str;
@@ -647,6 +647,90 @@ function WithdrawTab({
     return { secret, nullifier, amount, noteAmount, assetId, nullifierHash, merkleRoot, proofBytes };
   }
 
+  async function buildWithdrawalV2Proof(viaRelayer: boolean, amountToWithdraw: string) {
+    if (!selectedNote) throw new Error("No note selected");
+    if (selectedNote.leafIndex === undefined) {
+      throw new Error("Note has not been settled yet. leafIndex is missing.");
+    }
+    await initializePoseidon();
+    const secret = BigInt(selectedNote.secret);
+    const nullifier = BigInt(selectedNote.nullifier);
+    const noteAmount = BigInt(selectedNote.amount);
+    const withdrawAmount = BigInt(amountToWithdraw);
+    const assetId = BigInt(selectedNote.assetId);
+
+    if (withdrawAmount >= noteAmount) {
+      throw new Error("V2 requires partial withdrawal (withdrawAmount < noteAmount)");
+    }
+
+    const nullifierHash = computeNullifierHash(nullifier, secret, selectedNote.leafIndex);
+
+    // Generate change note
+    const changeSecret = randomFieldElement();
+    const changeNullifier = randomFieldElement();
+    const changeAmount = noteAmount - withdrawAmount;
+    const changeCommitment = computeCommitment(changeSecret, changeNullifier, changeAmount, assetId);
+
+    setStep("Fetching Merkle proof...");
+    const proofRes = await getMerkleProof(selectedNote.leafIndex);
+    if (!proofRes.success) {
+      throw new Error(proofRes.error || "Failed to fetch Merkle proof from relayer");
+    }
+    const merkleRoot = BigInt(proofRes.merkleRoot);
+    const pathElements = proofRes.pathElements.map((p) => BigInt(p));
+    const pathIndices = proofRes.pathIndices;
+
+    const recipientScalar = activeChain === "solana"
+      ? pubkeyToScalar(recipient)
+      : BigInt(recipient);
+
+    let relayerFee = 0n;
+    let relayerAddress: string | null | undefined;
+    if (viaRelayer) {
+      setStep("Fetching relayer quote...");
+      const quote = await getRelayerQuote(amountToWithdraw);
+      relayerFee = BigInt(quote.fee);
+      relayerAddress = activeChain === "solana" ? quote.relayer.solana : quote.relayer.base;
+    } else if (activeChain === "solana") {
+      relayerAddress = solanaWallet.publicKey?.toBase58();
+    } else {
+      relayerAddress = "0";
+    }
+
+    if (!relayerAddress) {
+      throw new Error("Relayer address not available for this chain");
+    }
+    const relayerScalar = activeChain === "solana"
+      ? pubkeyToScalar(relayerAddress)
+      : BigInt(relayerAddress);
+
+    setStep("Generating ZK proof...");
+    const { proof } = await generateWithdrawV2Proof({
+      secret,
+      nullifier,
+      inputAmount: noteAmount,
+      assetId,
+      leafIndex: BigInt(selectedNote.leafIndex),
+      merkleRoot,
+      pathElements,
+      pathIndices,
+      withdrawAmount,
+      recipient: recipientScalar,
+      relayer: relayerScalar,
+      relayerFee,
+      changeSecret,
+      changeNullifier,
+      changeAmount,
+    });
+    const proofBytes = formatProofForOnChain(proof, activeChain === "solana" ? "solana" : "base");
+
+    return {
+      secret, nullifier, amount: withdrawAmount, noteAmount, assetId,
+      nullifierHash, merkleRoot, proofBytes,
+      changeSecret, changeNullifier, changeAmount, changeCommitment,
+    };
+  }
+
   async function submitDirectWithdrawal(
     proofBytes: Uint8Array,
     nullifierHash: bigint,
@@ -717,31 +801,82 @@ function WithdrawTab({
       if (!selectedNote || !recipient || !withdrawAmount) {
         throw new Error("Please select a note, enter an amount, and enter a recipient");
       }
-      if (BigInt(withdrawAmount) !== BigInt(selectedNote.amount)) {
-        throw new Error("Partial withdrawals are not supported yet. Please withdraw the full amount.");
-      }
       if (BigInt(withdrawAmount) <= 0n) {
         throw new Error("Withdraw amount must be greater than 0");
       }
-      const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof(true, withdrawAmount);
+      if (BigInt(withdrawAmount) > BigInt(selectedNote.amount)) {
+        throw new Error("Withdraw amount exceeds note amount");
+      }
 
-      setStep("Submitting to relayer...");
+      const isPartial = BigInt(withdrawAmount) !== BigInt(selectedNote.amount);
       const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote.asset);
-      const res = await submitRelayedWithdrawal({
-        chain: activeChain,
-        proofData: bytesToHex(proofBytes),
-        merkleRoot: merkleRoot.toString(16).padStart(64, "0"),
-        nullifierHash: nullifierHash.toString(16).padStart(64, "0"),
-        recipient,
-        amount: selectedNote.amount,
-        assetId: assetId.toString(16).padStart(64, "0"),
-        mint: asset?.address || (activeChain === "solana" ? "So11111111111111111111111111111111111111112" : "0x0000000000000000000000000000000000000000"),
-      });
 
-      if (res.success && res.signature) {
-        await finalizeWithdrawal(res.signature, true);
+      if (isPartial) {
+        // Partial withdrawal via withdraw_v2
+        setStep("Building partial withdrawal proof...");
+        const {
+          nullifierHash, merkleRoot, assetId, proofBytes,
+          changeSecret, changeNullifier, changeAmount, changeCommitment,
+        } = await buildWithdrawalV2Proof(true, withdrawAmount);
+
+        setStep("Submitting to relayer...");
+        const res = await submitRelayedWithdrawalV2({
+          chain: activeChain,
+          proofData: bytesToHex(proofBytes),
+          merkleRoot: merkleRoot.toString(16).padStart(64, "0"),
+          nullifierHash: nullifierHash.toString(16).padStart(64, "0"),
+          changeCommitment: changeCommitment.toString(16).padStart(64, "0"),
+          recipient,
+          amount: withdrawAmount,
+          assetId: assetId.toString(16).padStart(64, "0"),
+          mint: asset?.address || (activeChain === "solana" ? "So11111111111111111111111111111111111111112" : "0x0000000000000000000000000000000000000000"),
+        });
+
+        if (res.success && res.signature) {
+          // Save change note for future withdrawal
+          await addNote({
+            secret: changeSecret.toString(),
+            nullifier: changeNullifier.toString(),
+            commitment: changeCommitment.toString(),
+            amount: changeAmount.toString(),
+            asset: selectedNote.asset,
+            chain: selectedNote.chain,
+            assetId: assetId.toString(),
+            status: "pending",
+            timestamp: Date.now(),
+            txHash: res.signature,
+          });
+          await markSpent(selectedNote.nullifier, res.signature);
+          onWithdraw();
+          setResult({ txHash: res.signature, relayer: true });
+          setSelectedNote(null);
+          setRecipient("");
+          setShowFallback(false);
+          showToast(`Partial withdrawal successful! Change note for ${formatTokenAmount(changeAmount, asset?.decimals || 9)} ${selectedNote.asset} saved.`, "success");
+        } else {
+          throw new Error(res.error || "Relayer rejected partial withdrawal");
+        }
       } else {
-        throw new Error(res.error || "Relayer rejected withdrawal");
+        // Full withdrawal via v1
+        const { nullifierHash, merkleRoot, amount, assetId, proofBytes } = await buildWithdrawalProof(true, withdrawAmount);
+
+        setStep("Submitting to relayer...");
+        const res = await submitRelayedWithdrawal({
+          chain: activeChain,
+          proofData: bytesToHex(proofBytes),
+          merkleRoot: merkleRoot.toString(16).padStart(64, "0"),
+          nullifierHash: nullifierHash.toString(16).padStart(64, "0"),
+          recipient,
+          amount: selectedNote.amount,
+          assetId: assetId.toString(16).padStart(64, "0"),
+          mint: asset?.address || (activeChain === "solana" ? "So11111111111111111111111111111111111111112" : "0x0000000000000000000000000000000000000000"),
+        });
+
+        if (res.success && res.signature) {
+          await finalizeWithdrawal(res.signature, true);
+        } else {
+          throw new Error(res.error || "Relayer rejected withdrawal");
+        }
       }
     } catch (err: any) {
       const msg = err?.message || "Relayer failed. Try direct withdrawal?";
@@ -770,7 +905,7 @@ function WithdrawTab({
         throw new Error("Please select a note, enter an amount, and enter a recipient");
       }
       if (BigInt(withdrawAmount) !== BigInt(selectedNote.amount)) {
-        throw new Error("Partial withdrawals are not supported yet. Please withdraw the full amount.");
+        throw new Error("Partial withdrawals require relayer. Please use relayer withdrawal or withdraw the full amount.");
       }
       if (BigInt(withdrawAmount) <= 0n) {
         throw new Error("Withdraw amount must be greater than 0");
@@ -933,9 +1068,17 @@ function WithdrawTab({
               <span className="text-zinc-300">{formatTokenAmount(BigInt(selectedNote.amount), asset?.decimals || 9)} {selectedNote.asset}</span>
             </div>
             {withdrawAmount && BigInt(withdrawAmount) !== BigInt(selectedNote.amount) && (
-              <div className="rounded-md border border-amber-500/20 bg-amber-500/10 p-2 text-xs text-amber-300">
-                Partial withdrawals are not supported yet. The full note amount will be withdrawn.
-              </div>
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-zinc-400">Change (stays in pool)</span>
+                  <span className="text-zinc-300">
+                    {formatTokenAmount(BigInt(selectedNote.amount) - BigInt(withdrawAmount), asset?.decimals || 9)} {selectedNote.asset}
+                  </span>
+                </div>
+                <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-2 text-xs text-emerald-300">
+                  A new note for the change amount will be created after withdrawal.
+                </div>
+              </>
             )}
           </div>
 
@@ -993,7 +1136,7 @@ function WithdrawTab({
             </Button>
             <Button
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 h-11"
-              disabled={busy || !recipient || !withdrawAmount || BigInt(withdrawAmount) <= 0n || BigInt(withdrawAmount) !== BigInt(selectedNote.amount)}
+              disabled={busy || !recipient || !withdrawAmount || BigInt(withdrawAmount) <= 0n || BigInt(withdrawAmount) > BigInt(selectedNote.amount)}
               onClick={handleWithdraw}
             >
               {busy ? (

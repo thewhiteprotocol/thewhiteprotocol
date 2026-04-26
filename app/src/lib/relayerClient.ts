@@ -47,11 +47,37 @@ export interface RelayedWithdrawalParams {
   mint: string; // token address / mint address
 }
 
+export interface RelayedWithdrawalV2Params {
+  chain: "solana" | "base";
+  proofData: string; // hex string, 512 chars = 256 bytes
+  merkleRoot: string; // hex string, 64 chars = 32 bytes
+  nullifierHash: string; // hex string, 64 chars = 32 bytes
+  nullifierHash1?: string; // hex string, 64 chars = 32 bytes (unused, defaults to zeros)
+  changeCommitment: string; // hex string, 64 chars = 32 bytes
+  recipient: string;
+  amount: string;
+  assetId: string; // hex string, 64 chars = 32 bytes
+  mint: string; // token address / mint address
+}
+
 export async function submitRelayedWithdrawal(params: RelayedWithdrawalParams): Promise<{ success: boolean; signature?: string; error?: string }> {
   const res = await fetch(`${getRelayerUrl()}/withdraw`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
+export async function submitRelayedWithdrawalV2(params: RelayedWithdrawalV2Params): Promise<{ success: boolean; signature?: string; error?: string }> {
+  const res = await fetch(`${getRelayerUrl()}/withdraw`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...params,
+      version: "v2",
+      nullifierHash1: params.nullifierHash1 || "0".repeat(64),
+    }),
   });
   return res.json();
 }

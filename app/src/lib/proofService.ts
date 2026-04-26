@@ -37,6 +37,27 @@ export interface WithdrawProofInput {
   relayerFee: bigint;
 }
 
+export interface WithdrawV2ProofInput {
+  // Input note (being spent)
+  secret: bigint;
+  nullifier: bigint;
+  inputAmount: bigint; // full note amount
+  assetId: bigint;
+  leafIndex: bigint;
+  merkleRoot: bigint;
+  pathElements: bigint[];
+  pathIndices: number[];
+  // Withdrawal output
+  withdrawAmount: bigint;
+  recipient: bigint;
+  relayer: bigint;
+  relayerFee: bigint;
+  // Change output (stays in pool)
+  changeSecret: bigint;
+  changeNullifier: bigint;
+  changeAmount: bigint;
+}
+
 export async function generateDepositProof(
   input: DepositProofInput
 ): Promise<{ proof: any; publicSignals: bigint[] }> {
@@ -77,6 +98,46 @@ export async function generateWithdrawProof(
     relayer: input.relayer.toString(),
     relayer_fee: input.relayerFee.toString(),
     public_data_hash: "0",
+  };
+
+  const { proof, publicSignals } = await groth16.fullProve(witness, wasmPath, zkeyPath);
+  return { proof, publicSignals: publicSignals.map((s) => BigInt(s)) };
+}
+
+export async function generateWithdrawV2Proof(
+  input: WithdrawV2ProofInput
+): Promise<{ proof: any; publicSignals: bigint[] }> {
+  await initializePoseidon();
+  const wasmPath = `${CIRCUIT_BASE}/withdraw_v2/withdraw_v2.wasm`;
+  const zkeyPath = `${CIRCUIT_BASE}/withdraw_v2/withdraw_v2.zkey`;
+
+  const nullifierHash0 = computeNullifierHash(input.nullifier, input.secret, Number(input.leafIndex));
+  const changeCommitment = computeCommitment(input.changeSecret, input.changeNullifier, input.changeAmount, input.assetId);
+
+  const witness = {
+    // Public inputs
+    schema_version: "2",
+    merkle_root: input.merkleRoot.toString(),
+    asset_id: input.assetId.toString(),
+    nullifier_hash_0: nullifierHash0.toString(),
+    nullifier_hash_1: "0",
+    change_commitment: changeCommitment.toString(),
+    recipient: input.recipient.toString(),
+    amount: input.withdrawAmount.toString(),
+    relayer: input.relayer.toString(),
+    relayer_fee: input.relayerFee.toString(),
+    public_data_hash: "0",
+    reserved_0: "0",
+    // Private inputs
+    input_secret: input.secret.toString(),
+    input_nullifier: input.nullifier.toString(),
+    input_amount: input.inputAmount.toString(),
+    leaf_index: input.leafIndex.toString(),
+    merkle_path: input.pathElements.map((e) => e.toString()),
+    merkle_path_indices: input.pathIndices,
+    change_secret: input.changeSecret.toString(),
+    change_nullifier: input.changeNullifier.toString(),
+    change_amount: input.changeAmount.toString(),
   };
 
   const { proof, publicSignals } = await groth16.fullProve(witness, wasmPath, zkeyPath);
