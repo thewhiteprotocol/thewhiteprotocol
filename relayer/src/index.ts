@@ -1199,6 +1199,11 @@ export class RelayerService {
       this.config.programId
     );
     
+    const [yieldRegistry] = PublicKey.findProgramAddressSync(
+      [Buffer.from('yield_registry'), this.config.poolConfig.toBuffer()],
+      this.config.programId
+    );
+    
     const [relayerNode] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('relayer'),
@@ -1208,7 +1213,9 @@ export class RelayerService {
       this.config.programId
     );
     const relayerNodeInfo = await this.connection.getAccountInfo(relayerNode);
-    const relayerNodeAccount = relayerNodeInfo ? relayerNode : null;
+    const relayerNodeAccount = (relayerNodeInfo && relayerNodeInfo.owner.equals(this.config.programId))
+      ? relayerNode
+      : null;
     
     // Get token accounts
     const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
@@ -1254,12 +1261,9 @@ export class RelayerService {
       relayerRegistry,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: new PublicKey("11111111111111111111111111111111"),
+      relayerNode: relayerNodeAccount,
+      yieldRegistry,
     };
-    // Only pass relayerNode if it's a valid program-owned account.
-    // Passing a system-owned PDA (uninitialized) causes AccountOwnedByWrongProgram.
-    if (relayerNodeInfo && relayerNodeInfo.owner.equals(this.config.programId)) {
-      withdrawAccounts.relayerNode = relayerNode;
-    }
 
     if (params.ephemeralPubkey && params.ephemeralPubkey.length === 32) {
       ix = await this.program.methods
@@ -1405,6 +1409,11 @@ export class RelayerService {
       this.config.programId
     );
     
+    const [yieldRegistry] = PublicKey.findProgramAddressSync(
+      [Buffer.from('yield_registry'), this.config.poolConfig.toBuffer()],
+      this.config.programId
+    );
+    
     const [relayerNode] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('relayer'),
@@ -1414,7 +1423,9 @@ export class RelayerService {
       this.config.programId
     );
     const relayerNodeInfo = await this.connection.getAccountInfo(relayerNode);
-    const relayerNodeAccount = relayerNodeInfo ? relayerNode : null;
+    const relayerNodeAccount = (relayerNodeInfo && relayerNodeInfo.owner.equals(this.config.programId))
+      ? relayerNode
+      : null;
     
     const [pendingBuffer] = PublicKey.findProgramAddressSync(
       [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
@@ -1475,18 +1486,14 @@ export class RelayerService {
       recipientTokenAccount,
       relayerTokenAccount,
       spentNullifier0: nullifierPda0,
+      spentNullifier1: nullifierPda1,
       pendingBuffer: pendingBuffer,
       relayerRegistry,
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: new PublicKey("11111111111111111111111111111111"),
+      relayerNode: relayerNodeAccount,
+      yieldRegistry,
     };
-    if (nullifierPda1) {
-      withdrawV2Accounts.spentNullifier1 = nullifierPda1;
-    }
-    // Only pass relayerNode if it's a valid program-owned account
-    if (relayerNodeInfo && relayerNodeInfo.owner.equals(this.config.programId)) {
-      withdrawV2Accounts.relayerNode = relayerNode;
-    }
 
     const ix = await this.program.methods
       .withdrawV2(
