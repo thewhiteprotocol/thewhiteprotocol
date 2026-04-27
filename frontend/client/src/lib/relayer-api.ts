@@ -1062,12 +1062,11 @@ export async function prepareWithdrawal(
 export async function buildDepositTx(params: {
   amount: string;
   commitment: string;
-  assetIdHex: string;
+  assetId: string;
   proofData: string;
   depositorPubkey: string;
   mint: string;
   relayerFee?: string;
-  assetId?: string;
   changeCommitment?: string;
 }): Promise<{
   transaction: string;

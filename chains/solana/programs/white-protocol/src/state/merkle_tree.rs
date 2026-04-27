@@ -264,6 +264,47 @@ impl MerkleTree {
         Ok(leaf_index)
     }
 
+    /// Replay incremental insertions to update filled_subtrees without touching
+    /// other state (root, counters, history). Used by settle_deposits_batch to
+    /// keep the tree consistent after ZK-verified batch settlement.
+    ///
+    /// # Arguments
+    /// * `commitments` - Slice of commitments to insert
+    /// * `start_index` - Starting leaf index for the first commitment
+    ///
+    /// # Returns
+    /// Computed root hash after all insertions
+    ///
+    /// # Errors
+    /// - `CryptographyError` if Poseidon hash fails
+    pub fn replay_insertions(&mut self, commitments: &[[u8; 32]], start_index: u32) -> Result<[u8; 32]> {
+        let mut computed_root = [0u8; 32];
+        for (i, commitment) in commitments.iter().enumerate() {
+            let leaf_index = start_index + i as u32;
+            let mut current_hash = *commitment;
+            let mut current_index = leaf_index;
+
+            for level in 0..self.depth {
+                let level_usize = level as usize;
+                let is_right_child = (current_index & 1) == 1;
+                current_index >>= 1;
+
+                if is_right_child {
+                    let left_sibling = self.filled_subtrees[level_usize];
+                    current_hash = crate::crypto::hash_two_to_one(&left_sibling, &current_hash)?;
+                } else {
+                    self.filled_subtrees[level_usize] = current_hash;
+                    current_hash = crate::crypto::hash_two_to_one(
+                        &current_hash,
+                        &self.zeros[level_usize],
+                    )?;
+                }
+            }
+            computed_root = current_hash;
+        }
+        Ok(computed_root)
+    }
+
     /// Check if a root exists in recent history
     ///
     /// This allows users to generate proofs against slightly stale roots,

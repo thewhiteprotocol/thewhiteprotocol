@@ -104,15 +104,17 @@ export async function ensureAtaAndWrapIfNeeded(params: {
   } catch (sendErr: any) {
     const msg = sendErr?.message || '';
     if (msg.toLowerCase().includes('already been processed') || msg.toLowerCase().includes('already processed')) {
-      // ATA creation/wrap tx likely landed; continue
-      sig = '';
+      // Transaction already landed; verify ATA exists and return success
+      const ataInfo = await connection.getAccountInfo(ata);
+      if (ataInfo) {
+        return { ata, didSendTx: true, signature: '' };
+      }
+      throw sendErr;
     } else {
       throw sendErr;
     }
   }
-  if (sig) {
-    await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
-  }
+  await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
 
   return { ata, didSendTx: true, signature: sig };
 }

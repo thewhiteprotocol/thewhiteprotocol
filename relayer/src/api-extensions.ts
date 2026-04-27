@@ -290,6 +290,10 @@ function bigIntToHex(value: bigint): string {
 }
 
 function hexToBytes32(hex: string): Uint8Array {
+  if (hex.startsWith('0x') || hex.startsWith('0X')) {
+    hex = hex.slice(2);
+  }
+  if (hex.length !== 64) throw new Error(`Invalid hex32 length: expected 64, got ${hex.length}`);
   const bytes = new Uint8Array(32);
   for (let i = 0; i < 32; i++) {
     bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
@@ -500,9 +504,15 @@ function parsePendingBufferAccount(data: Buffer): ParsedPendingBufferAccount {
 }
 
 function hexToBytes(hex: string): Uint8Array {
+  if (hex.startsWith('0x') || hex.startsWith('0X')) {
+    hex = hex.slice(2);
+  }
+  if (hex.length % 2 !== 0) throw new Error('Invalid hex: odd length');
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    const byte = parseInt(hex.substr(i * 2, 2), 16);
+    if (Number.isNaN(byte)) throw new Error(`Invalid hex character at position ${i * 2}`);
+    bytes[i] = byte;
   }
   return bytes;
 }
@@ -897,63 +907,70 @@ export class RelayerApiExtensions {
 
     const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
     const parser = new EventParser(this.config.programId, new BorshCoder(idl));
-    const signatureLimit = Math.max(
-      targetLeafCount * 10,
-      parseInt(process.env.MERKLE_RECOVERY_SIGNATURE_LIMIT || '50', 10)
-    );
-    const signatures = await withRetry(
-      () => this.connection.getSignaturesForAddress(
-        this.config.programId,
-        { limit: Math.min(signatureLimit, 1000) },
-        'confirmed'
-      ),
-      { maxAttempts: 3, baseDelayMs: 500 }
-    );
+    const pageSize = 1000;
+    const maxPages = parseInt(process.env.MERKLE_RECOVERY_MAX_PAGES || '10', 10);
     const commitmentsByIndex = new Map<number, bigint>();
+    let beforeSig: string | undefined;
 
-    for (const signatureInfo of signatures) {
+    for (let page = 0; page < maxPages; page++) {
       if (commitmentsByIndex.size >= targetLeafCount) break;
 
-      // Small delay to avoid RPC rate limits (public RPCs are strict)
-      await sleep(150);
+      const signatures = await withRetry(
+        () => this.connection.getSignaturesForAddress(
+          this.config.programId,
+          { limit: pageSize, before: beforeSig },
+          'confirmed'
+        ),
+        { maxAttempts: 3, baseDelayMs: 500 }
+      );
 
-      let tx;
-      try {
-        tx = await withRetry(
-          () => this.connection.getTransaction(signatureInfo.signature, {
-            commitment: 'confirmed',
-            maxSupportedTransactionVersion: 0,
-          }),
-          { maxAttempts: 2, baseDelayMs: 1000 }
-        );
-      } catch (err) {
-        logger.warn('Skipping transaction during merkle recovery', {
-          signature: signatureInfo.signature,
-          error: String(err),
-        });
-        continue;
-      }
-      const logs = tx?.meta?.logMessages;
-      if (!logs) continue;
+      if (signatures.length === 0) break;
+      beforeSig = signatures[signatures.length - 1].signature;
 
-      for (const event of parser.parseLogs(logs)) {
-        if (event.name !== 'CommitmentInsertedEvent') continue;
+      for (const signatureInfo of signatures) {
+        if (commitmentsByIndex.size >= targetLeafCount) break;
 
-        const data = event.data as any;
-        const pool = data.pool?.toBase58?.() ?? String(data.pool);
-        if (pool !== this.config.poolConfig.toBase58()) continue;
+        // Small delay to avoid RPC rate limits (public RPCs are strict)
+        await sleep(100);
 
-        const leafIndexRaw = data.leaf_index ?? data.leafIndex;
-        const leafIndex = Number(leafIndexRaw);
-        if (!Number.isInteger(leafIndex) || leafIndex < 0 || leafIndex >= targetLeafCount) {
+        let tx;
+        try {
+          tx = await withRetry(
+            () => this.connection.getTransaction(signatureInfo.signature, {
+              commitment: 'confirmed',
+              maxSupportedTransactionVersion: 0,
+            }),
+            { maxAttempts: 2, baseDelayMs: 1000 }
+          );
+        } catch (err) {
+          logger.warn('Skipping transaction during merkle recovery', {
+            signature: signatureInfo.signature,
+            error: String(err),
+          });
           continue;
         }
+        const logs = tx?.meta?.logMessages;
+        if (!logs) continue;
 
-        const commitment = this.eventBytes32ToBigInt(data.commitment);
-        if (commitment === null) continue;
+        for (const event of parser.parseLogs(logs)) {
+          if (event.name !== 'CommitmentInsertedEvent') continue;
 
-        if (!commitmentsByIndex.has(leafIndex)) {
-          commitmentsByIndex.set(leafIndex, commitment);
+          const data = event.data as any;
+          const pool = data.pool?.toBase58?.() ?? String(data.pool);
+          if (pool !== this.config.poolConfig.toBase58()) continue;
+
+          const leafIndexRaw = data.leaf_index ?? data.leafIndex;
+          const leafIndex = Number(leafIndexRaw);
+          if (!Number.isInteger(leafIndex) || leafIndex < 0 || leafIndex >= targetLeafCount) {
+            continue;
+          }
+
+          const commitment = this.eventBytes32ToBigInt(data.commitment);
+          if (commitment === null) continue;
+
+          if (!commitmentsByIndex.has(leafIndex)) {
+            commitmentsByIndex.set(leafIndex, commitment);
+          }
         }
       }
     }
@@ -966,6 +983,7 @@ export class RelayerApiExtensions {
       return;
     }
 
+    // Insert recovered commitments in order, even if incomplete
     for (const [leafIndex, commitment] of [...commitmentsByIndex.entries()].sort((a, b) => a[0] - b[0])) {
       this.merkleTree.insertAt(leafIndex, commitment);
     }

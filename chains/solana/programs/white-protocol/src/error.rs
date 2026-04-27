@@ -332,6 +332,9 @@ pub enum WhiteProtocolError {
     InvalidFeatureFlag,
     #[msg("Cannot disable core feature")]
     CannotDisableCoreFeature,
+
+    #[msg("Commitment already exists in pending buffer or Merkle tree")]
+    CommitmentAlreadyExists,
 }
 
 impl WhiteProtocolError {

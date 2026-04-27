@@ -319,6 +319,7 @@ export function Protocol() {
         description: "Relayer API URL is not configured",
         variant: "destructive",
       });
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -424,7 +425,7 @@ export function Protocol() {
       const txData = await buildDepositTx({
         amount: amountLamports,
         commitment: note.commitment,
-        assetIdHex: note.assetIdHex,
+        assetId: note.assetIdHex,
         proofData: proofHex,
         depositorPubkey: publicKey.toBase58(),
         mint: WRAPPED_SOL_MINT.toBase58(),
@@ -557,6 +558,7 @@ export function Protocol() {
       });
     } finally {
       setDepositLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 

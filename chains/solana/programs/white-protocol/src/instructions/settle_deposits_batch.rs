@@ -235,14 +235,23 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     require!(is_valid, WhiteProtocolError::InvalidProof);
 
     // =========================================================================
+    // 5b. REPLAY INCREMENTAL INSERTIONS TO UPDATE filled_subtrees
+    // =========================================================================
+    // The proof verified the root transition off-chain, but the on-chain tree
+    // account must still keep filled_subtrees consistent so that future
+    // batch_process_deposits and get_merkle_path calls remain correct.
+    // For MAX_BATCH_SIZE=1 this is ~depth Poseidon hashes (~60k CU).
+    let computed_root = merkle_tree.replay_insertions(&commitments, start_index)?;
+
+    // Defense-in-depth: on-chain recomputation must agree with the proof
+    require!(
+        computed_root == args.new_root,
+        WhiteProtocolError::InvalidProof
+    );
+
+    // =========================================================================
     // 6. UPDATE MERKLE TREE STATE
     // =========================================================================
-    // The Groth16 proof already attests to the full tree transition
-    // `(old_root, start_index) -> new_root` for this batch. Recomputing the
-    // incremental insertion on-chain defeats the purpose of off-chain
-    // settlement and exceeds Solana CU limits. The sequencer maintains the
-    // full tree off-chain; the program only needs canonical root history and
-    // counters for withdrawal verification.
     merkle_tree.current_root = args.new_root;
     merkle_tree.next_leaf_index = start_index + batch_size as u32;
     merkle_tree.total_leaves = merkle_tree

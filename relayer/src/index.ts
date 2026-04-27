@@ -15,11 +15,12 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createApiExtensions, RelayerApiExtensions } from './api-extensions';
 import { Sequencer } from './sequencer';
-import { BaseSequencer } from './base-sequencer';
+import { MultiChainSequencer } from './sequencer/multi-chain';
 import * as fs from 'fs';
 import * as snarkjs from 'snarkjs';
 import { logger } from './logger';
-import { BaseAdapter } from './chains/base';
+import { EvmAdapter } from './chains/evm';
+import { getEvmChainContexts } from './config';
 import { loadRelayerState, saveRelayerState } from './state-store';
 import * as path from 'path';
 import { CircuitBreaker } from './circuit-breaker';
@@ -115,7 +116,7 @@ interface WithdrawRequest {
   /** Token mint (base58 for Solana, address for Base) */
   mint: string;
   /** Target chain */
-  chain?: 'solana' | 'base';
+  chain?: 'solana' | string;
   /** Optional ephemeral pubkey for stealth withdrawals (64 hex chars = 32 bytes) */
   ephemeralPubkey?: string;
   /** Withdrawal version: v1 = standard, v2 = partial with change output */
@@ -212,8 +213,8 @@ export class RelayerService {
   /** Service start timestamp for uptime calculation */
   private startTime = Date.now();
   
-  /** Base chain adapter */
-  private baseAdapter?: BaseAdapter;
+  /** EVM chain adapters keyed by network name */
+  private evmAdapters = new Map<string, EvmAdapter>();
   
   /** API extensions (merkle tree, proof generation) */
   private apiExtensions?: RelayerApiExtensions;
@@ -221,8 +222,8 @@ export class RelayerService {
   /** Solana settlement sequencer */
   private sequencer?: Sequencer;
   
-  /** Base settlement sequencer */
-  private baseSequencer?: BaseSequencer;
+  /** Multi-chain EVM settlement sequencer */
+  private evmSequencer?: MultiChainSequencer;
   
   constructor(config: RelayerConfig) {
     this.config = config;
@@ -256,13 +257,27 @@ export class RelayerService {
     // Note: IDL is loaded in start() after all dependencies are ready
     this.program = null as any; // Will be initialized in start()
     
-    // Setup Base adapter if configured
+    // Setup EVM adapters for all live networks if deployer key is configured
     if (config.baseDeployerPrivateKey) {
-      this.baseAdapter = new BaseAdapter({
-        rpcEndpoint: config.baseRpcUrl || 'https://sepolia.base.org',
-        contractAddress: (config.baseProtocolAddress || '0xCE959493cf6F15314b4B9eEbb28369716341e7FE') as `0x${string}`,
-        privateKey: config.baseDeployerPrivateKey as `0x${string}`,
-      });
+      try {
+        const contexts = getEvmChainContexts();
+        for (const ctx of contexts) {
+          const adapter = new EvmAdapter(ctx.name, {
+            chainId: ctx.config.chainId,
+            rpcEndpoint: ctx.rpcUrl,
+            contractAddress: ctx.deployment.contracts.WhiteProtocol as `0x${string}`,
+            privateKey: config.baseDeployerPrivateKey as `0x${string}`,
+          });
+          this.evmAdapters.set(ctx.name, adapter);
+          logger.info('EVM adapter initialized', {
+            network: ctx.name,
+            chainId: ctx.config.chainId,
+            address: adapter.getAddress(),
+          });
+        }
+      } catch (err: any) {
+        logger.warn('Failed to initialize some EVM adapters', { error: err.message });
+      }
     }
     
     // Setup Express app
@@ -427,7 +442,7 @@ export class RelayerService {
         pendingNullifiers: this.pendingNullifiers.size,
         circuitBreaker: this.withdrawalBreaker.getStatus(),
         sequencer: this.sequencer?.getStatus() || { running: false, settleCount: 0, lastSettleAt: null, lastError: null },
-        baseSequencer: this.baseSequencer?.getStatus() || { running: false, settleCount: 0, lastSettleAt: null, lastError: null },
+        evmSequencers: this.evmSequencer?.getStatus() || {},
         memoryMb: {
           rss: Math.round(mem.rss / 1024 / 1024),
           heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
@@ -461,7 +476,9 @@ export class RelayerService {
         netAmount: (amount - fee).toString(),
         relayer: {
           solana: this.config.walletKeypair.publicKey.toBase58(),
-          base: this.baseAdapter?.getAddress() || null,
+          evm: Object.fromEntries(
+            Array.from(this.evmAdapters.entries()).map(([name, adapter]) => [name, adapter.getAddress()])
+          ),
         },
       });
     });
@@ -524,8 +541,9 @@ export class RelayerService {
     // 1. Validate request format
     this.validateWithdrawRequest(request);
     
-    if (request.chain === 'base') {
-      return this.processBaseWithdrawal(request);
+    if (request.chain !== 'solana') {
+      const network = request.chain === 'base' ? 'base-sepolia' : (request.chain || 'base-sepolia');
+      return this.processBaseWithdrawal(request, network);
     }
     return this.processSolanaWithdrawal(request);
   }
@@ -776,9 +794,10 @@ export class RelayerService {
   /**
    * Process a Base withdrawal request
    */
-  private async processBaseWithdrawal(request: WithdrawRequest): Promise<WithdrawResponse> {
-    if (!this.baseAdapter) {
-      throw new Error('Base adapter not initialized');
+  private async processBaseWithdrawal(request: WithdrawRequest, network: string): Promise<WithdrawResponse> {
+    const adapter = this.evmAdapters.get(network);
+    if (!adapter) {
+      throw new Error(`EVM adapter not initialized for network: ${network}`);
     }
     
     const startTime = Date.now();
@@ -815,7 +834,7 @@ export class RelayerService {
       assetId,
       recipient,
       amount,
-      relayer: this.baseAdapter.getAddress(),
+      relayer: adapter.getAddress(),
       relayerFee: fee,
       publicDataHash: undefined,
     });
@@ -838,7 +857,7 @@ export class RelayerService {
     try {
       // Check nullifier hasn't been spent (with timeout)
       const isSpent = await withTimeout(
-        this.baseAdapter.isSpent(`0x${bytesToHex(nullifierHash)}`),
+        adapter.isSpent(`0x${bytesToHex(nullifierHash)}`),
         15000,
         'Nullifier check timed out'
       );
@@ -848,7 +867,7 @@ export class RelayerService {
       
       // Submit transaction (with timeout)
       const signature = await withTimeout(
-        this.baseAdapter.submitWithdrawal(
+        adapter.submitWithdrawal(
           `0x${request.proofData}` as `0x${string}`,
           `0x${request.nullifierHash}` as `0x${string}`,
           `0x${request.merkleRoot}` as `0x${string}`,
@@ -866,7 +885,7 @@ export class RelayerService {
       this.totalTransactions++;
       this.totalFeesEarned += fee;
       this.persistState();
-      metrics.recordWithdrawal(true);
+      metrics.recordWithdrawal(true, network);
       
       const totalTime = Date.now() - startTime;
       logger.info('Base withdrawal processed successfully', {
@@ -1584,24 +1603,29 @@ export class RelayerService {
   }
   
   /**
-   * Initialize and start Base sequencer loop
+   * Initialize and start multi-chain EVM sequencer loop
    */
-  private async startBaseSequencer(): Promise<void> {
-    if (!this.baseAdapter || !this.apiExtensions) {
-      logger.warn('Base sequencer not started: adapter or api extensions missing');
+  private async startEvmSequencers(): Promise<void> {
+    if (this.evmAdapters.size === 0 || !this.apiExtensions) {
+      logger.warn('EVM sequencers not started: no adapters or api extensions missing');
       return;
     }
 
-    this.baseSequencer = new BaseSequencer({
-      baseAdapter: this.baseAdapter,
+    const deploymentBlocks = new Map<string, bigint>();
+    for (const [name, adapter] of this.evmAdapters) {
+      deploymentBlocks.set(name, 0n);
+    }
+
+    this.evmSequencer = new MultiChainSequencer({
+      adapters: this.evmAdapters,
+      deploymentBlocks,
       apiExtensions: this.apiExtensions,
       treeDepth: this.config.treeDepth,
-      pollIntervalMs: 30000,
       logger,
     });
 
-    this.baseSequencer.start().catch((err) => {
-      logger.error('Base sequencer crashed', { err: String(err) });
+    this.evmSequencer.start().catch((err) => {
+      logger.error('Multi-chain EVM sequencer crashed', { err: String(err) });
     });
   }
   
@@ -1675,8 +1699,8 @@ export class RelayerService {
     });
     this.sequencer.start().catch((err) => logger.error('Sequencer crashed', { err: String(err) }));
 
-    if (this.baseAdapter) {
-      await this.startBaseSequencer();
+    if (this.evmAdapters.size > 0) {
+      await this.startEvmSequencers();
     }
     
     // Graceful shutdown: persist state before exit
@@ -1718,6 +1742,9 @@ function normalizeSupportedAssetKey(value: string): string {
  * Convert hex string to Uint8Array
  */
 function hexToBytes(hex: string): Uint8Array {
+  if (hex.startsWith('0x') || hex.startsWith('0X')) {
+    hex = hex.slice(2);
+  }
   if (hex.length % 2 !== 0) throw new Error('Invalid hex: odd length');
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i++) {

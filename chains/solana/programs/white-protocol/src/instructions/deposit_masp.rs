@@ -218,6 +218,14 @@ pub fn handler(
     let pending = pending_buffer.size();
     require!(available > pending, WhiteProtocolError::MerkleTreeFull);
 
+    // SECURITY: Explicit duplicate check in handler (defense-in-depth beyond CommitmentIndex PDA)
+    for deposit in &pending_buffer.deposits {
+        require!(
+            deposit.commitment != commitment,
+            WhiteProtocolError::CommitmentAlreadyExists
+        );
+    }
+
     cu("deposit: before pending_buffer.add_pending");
     let pending_index = pending_buffer.add_pending(commitment, timestamp)?;
     cu("deposit: after pending_buffer.add_pending");

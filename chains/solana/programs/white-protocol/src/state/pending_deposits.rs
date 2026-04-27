@@ -133,6 +133,14 @@ impl PendingDepositsBuffer {
             WhiteProtocolError::InvalidCommitment
         );
 
+        // SECURITY: Reject duplicates inside the buffer
+        for deposit in &self.deposits {
+            require!(
+                deposit.commitment != commitment,
+                WhiteProtocolError::CommitmentAlreadyExists
+            );
+        }
+
         // Create pending deposit entry
         let pending = PendingDeposit::new(commitment, timestamp);
 

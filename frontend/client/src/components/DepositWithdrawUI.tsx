@@ -264,7 +264,7 @@ export default function DepositWithdrawUI() {
       proofHex = bytesToHex(proofBytes);
 
       const txData = await buildDepositTx({
-        amount: amountBaseUnits, commitment: note.commitment, assetIdHex: note.assetIdHex,
+        amount: amountBaseUnits, commitment: note.commitment, assetId: note.assetIdHex,
         proofData: proofHex, depositorPubkey: publicKey.toBase58(), mint: asset.mint,
       });
 

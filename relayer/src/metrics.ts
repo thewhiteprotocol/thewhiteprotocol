@@ -1,5 +1,6 @@
 /**
  * Simple in-memory metrics collector for the relayer.
+ * Supports per-chain labels for multi-chain deployments.
  */
 
 export interface MetricsSnapshot {
@@ -8,9 +9,16 @@ export interface MetricsSnapshot {
   withdrawalsTotal: number;
   withdrawalsSuccess: number;
   withdrawalsFailure: number;
+  withdrawalsByChain: Record<string, { total: number; success: number; failure: number }>;
   averageResponseTimeMs: number;
   maxResponseTimeMs: number;
   memoryUsageMb: number;
+}
+
+interface ChainCounters {
+  total: number;
+  success: number;
+  failure: number;
 }
 
 class MetricsCollector {
@@ -19,6 +27,7 @@ class MetricsCollector {
   private withdrawalsTotal = 0;
   private withdrawalsSuccess = 0;
   private withdrawalsFailure = 0;
+  private withdrawalsByChain: Record<string, ChainCounters> = {};
   private responseTimeSum = 0;
   private responseTimeCount = 0;
   private maxResponseTimeMs = 0;
@@ -36,12 +45,19 @@ class MetricsCollector {
     }
   }
 
-  recordWithdrawal(success: boolean): void {
+  recordWithdrawal(success: boolean, chain?: string): void {
     this.withdrawalsTotal++;
     if (success) {
       this.withdrawalsSuccess++;
     } else {
       this.withdrawalsFailure++;
+    }
+    if (chain) {
+      const c = this.withdrawalsByChain[chain] || { total: 0, success: 0, failure: 0 };
+      c.total++;
+      if (success) c.success++;
+      else c.failure++;
+      this.withdrawalsByChain[chain] = c;
     }
   }
 
@@ -53,6 +69,7 @@ class MetricsCollector {
       withdrawalsTotal: this.withdrawalsTotal,
       withdrawalsSuccess: this.withdrawalsSuccess,
       withdrawalsFailure: this.withdrawalsFailure,
+      withdrawalsByChain: { ...this.withdrawalsByChain },
       averageResponseTimeMs:
         this.responseTimeCount > 0 ? Math.round(this.responseTimeSum / this.responseTimeCount) : 0,
       maxResponseTimeMs: this.maxResponseTimeMs,

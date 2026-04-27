@@ -204,3 +204,83 @@ export function appendBaseSettledCommitment(entry: SettledCommitment): void {
   state.commitments.push(entry);
   saveBaseSettledCommitments(state);
 }
+
+// ─── Per-Chain EVM state persistence ───
+
+function getEvmMerkleStatePath(chainName: string): string {
+  return path.join(STATE_DIR, `${chainName}-merkle-state.json`);
+}
+
+function getEvmPendingStatePath(chainName: string): string {
+  return path.join(STATE_DIR, `${chainName}-pending-state.json`);
+}
+
+function getEvmSettledPath(chainName: string): string {
+  return path.join(STATE_DIR, `${chainName}-settled-commitments.json`);
+}
+
+export function loadEvmMerkleState(chainName: string): BaseMerkleTreeState | null {
+  const filePath = getEvmMerkleStatePath(chainName);
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw) as BaseMerkleTreeState;
+  } catch (err) {
+    console.error(`[StateStore] Failed to load ${chainName} merkle state:`, err);
+    return null;
+  }
+}
+
+export function saveEvmMerkleState(chainName: string, state: BaseMerkleTreeState): void {
+  ensureDir();
+  const filePath = getEvmMerkleStatePath(chainName);
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, filePath);
+}
+
+export function loadEvmPendingState(chainName: string): BasePendingState | null {
+  const filePath = getEvmPendingStatePath(chainName);
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw) as BasePendingState;
+  } catch (err) {
+    console.error(`[StateStore] Failed to load ${chainName} pending state:`, err);
+    return null;
+  }
+}
+
+export function saveEvmPendingState(chainName: string, state: BasePendingState): void {
+  ensureDir();
+  const filePath = getEvmPendingStatePath(chainName);
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, filePath);
+}
+
+export function loadEvmSettledCommitments(chainName: string): SettledCommitmentsState | null {
+  const filePath = getEvmSettledPath(chainName);
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(raw) as SettledCommitmentsState;
+  } catch (err) {
+    console.error(`[StateStore] Failed to load ${chainName} settled commitments:`, err);
+    return null;
+  }
+}
+
+export function saveEvmSettledCommitments(chainName: string, state: SettledCommitmentsState): void {
+  ensureDir();
+  const filePath = getEvmSettledPath(chainName);
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, filePath);
+}
+
+export function appendEvmSettledCommitment(chainName: string, entry: SettledCommitment): void {
+  const state = loadEvmSettledCommitments(chainName) || { commitments: [] };
+  state.commitments.push(entry);
+  saveEvmSettledCommitments(chainName, state);
+}
