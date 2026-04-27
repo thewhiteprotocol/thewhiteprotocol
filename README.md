@@ -19,7 +19,7 @@ The protocol supports shielded pools for multiple token mints (SPL on Solana, ER
 |-----------|-------------|
 | `circuits/` | Shared Circom circuits and compiled artifacts for ZK proof generation |
 | `chains/solana/` | Anchor/Rust programs for pool state, deposit settlement, withdrawals, and yield management |
-| `chains/base/` | Solidity/Foundry contracts for the EVM port |
+| `chains/evm/` | Solidity/Foundry contracts for the EVM port |
 | `packages/core/` | Shared TypeScript crypto primitives, types, and proof helpers |
 | `relayer/` | Off-chain sequencer and relayer service for batching, proof generation, and client endpoints |
 | `frontend/` | Vite marketing landing site |
@@ -302,7 +302,7 @@ cd chains/solana && cargo test -p white-protocol
 
 **Base:**
 ```bash
-cd chains/base && forge test
+cd chains/evm && forge test
 ```
 
 ## Live Demo

@@ -1,7 +1,7 @@
 {
-  "name": "@thewhiteprotocol/base",
+  "name": "@thewhiteprotocol/evm",
   "version": "2.0.0",
-  "description": "The White Protocol - Base chain (EVM) implementation",
+  "description": "The White Protocol - EVM chain implementations (Base, Ethereum, Polygon, Polygon zkEVM)",
   "scripts": {
     "build": "forge build",
     "test": "forge test -vvv",
