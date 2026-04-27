@@ -9,12 +9,16 @@ import { baseSepolia } from 'viem/chains';
 const abi = parseAbi([
   'function withdraw(bytes memory proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer) external',
   'function withdrawStealth(bytes memory proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer, bytes32 ephemeralPubkey) external',
+  'function settleBatch(bytes memory proof, uint256 oldRoot, uint256 newRoot, uint256 startIndex, uint256 batchSize, uint256 commitmentsHash) external',
   'function getLastRoot() external view returns (uint256)',
   'function roots(uint256 index) external view returns (uint256)',
   'function currentRootIndex() external view returns (uint256)',
+  'function nextLeafIndex() external view returns (uint256)',
   'function commitmentToPendingIndex(uint256 commitment) external view returns (uint256)',
   'function isSpent(uint256 nullifierHash) external view returns (bool)',
   'function LEVELS() external view returns (uint256)',
+  'function getPendingDepositsCount() external view returns (uint256)',
+  'function getPendingDeposit(uint256 index) external view returns (uint256)',
   'event Deposit(uint256 indexed commitment, uint256 amount, address indexed asset, uint256 leafIndex)',
   'event BatchSettlement(uint256 indexed startIndex, uint256 batchSize, uint256 newRoot)',
   'event StealthWithdrawal(bytes32 indexed ephemeralPubkey, address indexed destination, uint256 blockNumber)',
@@ -118,8 +122,8 @@ export class BaseAdapter {
     }) as Promise<bigint>;
   }
 
-  async getPoolState(): Promise<{ currentRoot: bigint; currentRootIndex: bigint; levels: bigint }> {
-    const [currentRoot, currentRootIndex, levels] = await Promise.all([
+  async getPoolState(): Promise<{ currentRoot: bigint; currentRootIndex: bigint; levels: bigint; nextLeafIndex: bigint }> {
+    const [currentRoot, currentRootIndex, levels, nextLeafIndex] = await Promise.all([
       this.publicClient.readContract({
         address: this.contractAddress,
         abi,
@@ -135,13 +139,56 @@ export class BaseAdapter {
         abi,
         functionName: 'LEVELS',
       }),
+      this.publicClient.readContract({
+        address: this.contractAddress,
+        abi,
+        functionName: 'nextLeafIndex',
+      }),
     ]);
-    return { currentRoot, currentRootIndex, levels };
+    return { currentRoot, currentRootIndex, levels, nextLeafIndex };
   }
 
-  getPendingCount(): number {
-    // Placeholder: the contract does not expose a direct pending count
-    return 0;
+  async getPendingCount(): Promise<number> {
+    const count = await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi,
+      functionName: 'getPendingDepositsCount',
+    });
+    return Number(count);
+  }
+
+  async getPendingDeposits(): Promise<bigint[]> {
+    const count = await this.getPendingCount();
+    if (count === 0) return [];
+    const promises: Promise<bigint>[] = [];
+    for (let i = 0; i < count; i++) {
+      promises.push(
+        this.publicClient.readContract({
+          address: this.contractAddress,
+          abi,
+          functionName: 'getPendingDeposit',
+          args: [BigInt(i)],
+        }) as Promise<bigint>
+      );
+    }
+    return Promise.all(promises);
+  }
+
+  async submitSettlement(
+    proofDataHex: `0x${string}`,
+    oldRoot: bigint,
+    newRoot: bigint,
+    startIndex: number,
+    batchSize: number,
+    commitmentsHash: bigint
+  ): Promise<`0x${string}`> {
+    const hash = await this.walletClient.writeContract({
+      address: this.contractAddress,
+      abi,
+      functionName: 'settleBatch',
+      args: [proofDataHex, oldRoot, newRoot, BigInt(startIndex), BigInt(batchSize), commitmentsHash],
+    });
+    return hash;
   }
 
   async getDepositEvents(fromBlock?: bigint, toBlock?: bigint): Promise<
@@ -151,6 +198,7 @@ export class BaseAdapter {
       asset: `0x${string}`;
       leafIndex: bigint;
       blockNumber: bigint;
+      logIndex: number;
     }>
   > {
     const logs = await this.publicClient.getContractEvents({
@@ -166,6 +214,7 @@ export class BaseAdapter {
       asset: log.args.asset as `0x${string}`,
       leafIndex: log.args.leafIndex as bigint,
       blockNumber: log.blockNumber as bigint,
+      logIndex: Number(log.logIndex),
     }));
   }
 
@@ -175,6 +224,7 @@ export class BaseAdapter {
       batchSize: bigint;
       newRoot: bigint;
       blockNumber: bigint;
+      logIndex: number;
     }>
   > {
     const logs = await this.publicClient.getContractEvents({
@@ -189,6 +239,7 @@ export class BaseAdapter {
       batchSize: log.args.batchSize as bigint,
       newRoot: log.args.newRoot as bigint,
       blockNumber: log.blockNumber as bigint,
+      logIndex: Number(log.logIndex),
     }));
   }
 }

@@ -41,6 +41,9 @@ const RELAYER_STATE_PATH = path.join(STATE_DIR, 'relayer-state.json');
 const MERKLE_STATE_PATH = path.join(STATE_DIR, 'merkle-tree-state.json');
 const PENDING_STATE_PATH = path.join(STATE_DIR, 'pending-state.json');
 const SETTLED_COMMITMENTS_PATH = path.join(STATE_DIR, 'settled-commitments.json');
+const BASE_MERKLE_STATE_PATH = path.join(STATE_DIR, 'base-merkle-state.json');
+const BASE_PENDING_STATE_PATH = path.join(STATE_DIR, 'base-pending-state.json');
+const BASE_SETTLED_PATH = path.join(STATE_DIR, 'base-settled-commitments.json');
 
 function ensureDir(): void {
   if (!fs.existsSync(STATE_DIR)) {
@@ -127,4 +130,77 @@ export function appendSettledCommitment(entry: SettledCommitment): void {
   const state = loadSettledCommitments() || { commitments: [] };
   state.commitments.push(entry);
   saveSettledCommitments(state);
+}
+
+// ─── Base (EVM) state persistence ───
+
+export interface BaseMerkleTreeState {
+  leaves: string[];
+}
+
+export interface BasePendingState {
+  pendingCommitments: string[];
+  nextLeafIndex: number;
+  lastScannedBlock: string;
+  lastSyncedAt: number;
+}
+
+export function loadBaseMerkleState(): BaseMerkleTreeState | null {
+  try {
+    if (!fs.existsSync(BASE_MERKLE_STATE_PATH)) return null;
+    const raw = fs.readFileSync(BASE_MERKLE_STATE_PATH, 'utf8');
+    return JSON.parse(raw) as BaseMerkleTreeState;
+  } catch (err) {
+    console.error('[StateStore] Failed to load Base merkle state:', err);
+    return null;
+  }
+}
+
+export function saveBaseMerkleState(state: BaseMerkleTreeState): void {
+  ensureDir();
+  const tmp = BASE_MERKLE_STATE_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, BASE_MERKLE_STATE_PATH);
+}
+
+export function loadBasePendingState(): BasePendingState | null {
+  try {
+    if (!fs.existsSync(BASE_PENDING_STATE_PATH)) return null;
+    const raw = fs.readFileSync(BASE_PENDING_STATE_PATH, 'utf8');
+    return JSON.parse(raw) as BasePendingState;
+  } catch (err) {
+    console.error('[StateStore] Failed to load Base pending state:', err);
+    return null;
+  }
+}
+
+export function saveBasePendingState(state: BasePendingState): void {
+  ensureDir();
+  const tmp = BASE_PENDING_STATE_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, BASE_PENDING_STATE_PATH);
+}
+
+export function loadBaseSettledCommitments(): SettledCommitmentsState | null {
+  try {
+    if (!fs.existsSync(BASE_SETTLED_PATH)) return null;
+    const raw = fs.readFileSync(BASE_SETTLED_PATH, 'utf8');
+    return JSON.parse(raw) as SettledCommitmentsState;
+  } catch (err) {
+    console.error('[StateStore] Failed to load Base settled commitments:', err);
+    return null;
+  }
+}
+
+export function saveBaseSettledCommitments(state: SettledCommitmentsState): void {
+  ensureDir();
+  const tmp = BASE_SETTLED_PATH + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.renameSync(tmp, BASE_SETTLED_PATH);
+}
+
+export function appendBaseSettledCommitment(entry: SettledCommitment): void {
+  const state = loadBaseSettledCommitments() || { commitments: [] };
+  state.commitments.push(entry);
+  saveBaseSettledCommitments(state);
 }

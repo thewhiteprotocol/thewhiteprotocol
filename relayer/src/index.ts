@@ -15,6 +15,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { createApiExtensions, RelayerApiExtensions } from './api-extensions';
 import { Sequencer } from './sequencer';
+import { BaseSequencer } from './base-sequencer';
 import * as fs from 'fs';
 import * as snarkjs from 'snarkjs';
 import { logger } from './logger';
@@ -220,6 +221,9 @@ export class RelayerService {
   /** Solana settlement sequencer */
   private sequencer?: Sequencer;
   
+  /** Base settlement sequencer */
+  private baseSequencer?: BaseSequencer;
+  
   constructor(config: RelayerConfig) {
     this.config = config;
     this.connection = new Connection(config.rpcEndpoint, 'confirmed');
@@ -423,6 +427,7 @@ export class RelayerService {
         pendingNullifiers: this.pendingNullifiers.size,
         circuitBreaker: this.withdrawalBreaker.getStatus(),
         sequencer: this.sequencer?.getStatus() || { running: false, settleCount: 0, lastSettleAt: null, lastError: null },
+        baseSequencer: this.baseSequencer?.getStatus() || { running: false, settleCount: 0, lastSettleAt: null, lastError: null },
         memoryMb: {
           rss: Math.round(mem.rss / 1024 / 1024),
           heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
@@ -1579,25 +1584,25 @@ export class RelayerService {
   }
   
   /**
-   * Run Base sequencer loop
+   * Initialize and start Base sequencer loop
    */
-  private runBaseSequencer(): void {
-    const loop = async () => {
-      while (true) {
-        try {
-          if (this.baseAdapter) {
-            const pending = this.baseAdapter.getPendingCount();
-            if (pending > 0) {
-              logger.info('Base settlement needed', { pendingDeposits: pending });
-            }
-          }
-        } catch (err) {
-          logger.error('Base sequencer error', { error: String(err) });
-        }
-        await sleep(60000);
-      }
-    };
-    loop();
+  private async startBaseSequencer(): Promise<void> {
+    if (!this.baseAdapter || !this.apiExtensions) {
+      logger.warn('Base sequencer not started: adapter or api extensions missing');
+      return;
+    }
+
+    this.baseSequencer = new BaseSequencer({
+      baseAdapter: this.baseAdapter,
+      apiExtensions: this.apiExtensions,
+      treeDepth: this.config.treeDepth,
+      pollIntervalMs: 30000,
+      logger,
+    });
+
+    this.baseSequencer.start().catch((err) => {
+      logger.error('Base sequencer crashed', { err: String(err) });
+    });
   }
   
   /**
@@ -1671,7 +1676,7 @@ export class RelayerService {
     this.sequencer.start().catch((err) => logger.error('Sequencer crashed', { err: String(err) }));
 
     if (this.baseAdapter) {
-      this.runBaseSequencer();
+      await this.startBaseSequencer();
     }
     
     // Graceful shutdown: persist state before exit

@@ -106,7 +106,7 @@ function poseidonHash(inputs: bigint[]): bigint {
  * Updates are O(depth) per insertion. Path queries are O(depth).
  * This avoids the O(2^depth) memory blowup of naive implementations.
  */
-class ServerMerkleTree {
+export class ServerMerkleTree {
   private depth: number;
   private leaves: bigint[];
   private zeros: bigint[];
@@ -2215,7 +2215,7 @@ export class RelayerApiExtensions {
   /**
    * Generate a Groth16 proof for batch Merkle update.
    */
-  private async generateBatchProof(
+  async generateBatchProof(
     oldRoot: bigint,
     newRoot: bigint,
     startIndex: number,
