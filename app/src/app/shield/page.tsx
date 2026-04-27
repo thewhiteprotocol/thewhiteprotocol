@@ -90,6 +90,13 @@ export default function ShieldPage() {
     [notes, activeChain]
   );
 
+  // Notes available for withdrawal: settled + pending (so users see queued deposits),
+  // but NOT spent notes (they belong in history, not the withdraw UI)
+  const withdrawableNotes = useMemo(
+    () => notes.filter((n) => n.chain === activeChain && n.status !== "spent"),
+    [notes, activeChain]
+  );
+
   // Background polling: re-check status of pending notes (handles page refreshes)
   useEffect(() => {
     if (!isConnected) return;
@@ -164,7 +171,7 @@ export default function ShieldPage() {
             activeChain={activeChain}
             solanaWallet={solanaWallet}
             evmWalletClient={evmWalletClient}
-            notes={notes.filter((n) => n.chain === activeChain)}
+            notes={withdrawableNotes}
             loadingNotes={loadingNotes}
             onWithdraw={() => refreshNotes().catch(() => {})}
           />
@@ -200,11 +207,17 @@ function DepositTab({
   // Synchronous guard to prevent double-click / overlapping submissions
   const isSubmittingRef = useRef(false);
   // Track polling timeouts for cleanup
-  const pollRefs = useRef<{ timeout?: ReturnType<typeof setTimeout> }>({});
+  // We keep two separate refs so the max-duration cleanup doesn't overwrite
+  // the active polling timeout reference (which would leak the timer).
+  const pollRefs = useRef<{
+    pollTimeout?: ReturnType<typeof setTimeout>;
+    maxDurationTimeout?: ReturnType<typeof setTimeout>;
+  }>({});
 
   useEffect(() => {
     return () => {
-      if (pollRefs.current.timeout) clearTimeout(pollRefs.current.timeout);
+      if (pollRefs.current.pollTimeout) clearTimeout(pollRefs.current.pollTimeout);
+      if (pollRefs.current.maxDurationTimeout) clearTimeout(pollRefs.current.maxDurationTimeout);
     };
   }, []);
 
@@ -300,7 +313,8 @@ function DepositTab({
       });
 
       // Clear any previous polling
-      if (pollRefs.current.timeout) clearTimeout(pollRefs.current.timeout);
+      if (pollRefs.current.pollTimeout) clearTimeout(pollRefs.current.pollTimeout);
+      if (pollRefs.current.maxDurationTimeout) clearTimeout(pollRefs.current.maxDurationTimeout);
 
       // Poll relayer for note status until settled (with backoff)
       const pollCountRef = { count: 0 };
@@ -310,7 +324,7 @@ function DepositTab({
             const status = await checkNoteStatus(commitment);
             if (status.status === "settled" && status.leafIndex !== undefined) {
               await updateNote(commitment, { status: "settled", leafIndex: status.leafIndex });
-              pollRefs.current.timeout = undefined;
+              pollRefs.current.pollTimeout = undefined;
               onNoteUpdated?.();
               return; // stop
             }
@@ -321,7 +335,7 @@ function DepositTab({
           pollCountRef.count += 1;
           const count = pollCountRef.count;
           const nextDelay = count < 10 ? 10000 : count < 20 ? 30000 : 60000;
-          pollRefs.current.timeout = setTimeout(run, nextDelay);
+          pollRefs.current.pollTimeout = setTimeout(run, nextDelay);
         };
 
         run(); // kick off
@@ -330,11 +344,11 @@ function DepositTab({
       startPolling(note.commitment);
 
       // Stop polling after 10 minutes
-      const pollTimeout = setTimeout(() => {
-        if (pollRefs.current.timeout) clearTimeout(pollRefs.current.timeout);
-        pollRefs.current.timeout = undefined;
+      pollRefs.current.maxDurationTimeout = setTimeout(() => {
+        if (pollRefs.current.pollTimeout) clearTimeout(pollRefs.current.pollTimeout);
+        pollRefs.current.pollTimeout = undefined;
+        pollRefs.current.maxDurationTimeout = undefined;
       }, 600000);
-      pollRefs.current.timeout = pollTimeout;
       
       onDeposit(note);
       setResult({ txHash, commitment: commitment.toString(), note: { secret: secret.toString(), nullifier: nullifier.toString(), amount: amount.toString(), asset: asset.symbol, chain: activeChain, commitment: commitment.toString(), assetId: assetId.toString() } });
@@ -1250,6 +1264,7 @@ function WithdrawTab({
                 {notes.map((note) => {
                   const asset = SUPPORTED_ASSETS.find((a) => a.symbol === note.asset);
                   const isSettled = note.status === "settled";
+                  const isSpent = note.status === "spent";
                   return (
                     <button
                       key={note.commitment}
@@ -1271,7 +1286,11 @@ function WithdrawTab({
                             {new Date(note.timestamp).toLocaleDateString()} · Leaf #{note.leafIndex ?? "?"}
                           </p>
                         </div>
-                        {isSettled ? (
+                        {isSpent ? (
+                          <Badge variant="outline" className="border-zinc-500/30 text-zinc-400 bg-zinc-500/10">
+                            Spent
+                          </Badge>
+                        ) : isSettled ? (
                           <Badge variant="outline" className="border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
                             Settled
                           </Badge>
