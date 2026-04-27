@@ -191,6 +191,56 @@ export class BaseAdapter {
     return hash;
   }
 
+  private async getEventsPaginated<T>(
+    eventName: 'Deposit' | 'BatchSettlement',
+    fromBlock?: bigint,
+    toBlock?: bigint
+  ): Promise<T[]> {
+    // Contract deployment block on Base Sepolia (actual WhiteProtocol deployment tx block)
+    const deploymentBlock = 40136426n;
+    const start = fromBlock || deploymentBlock;
+    const end = toBlock || (await this.publicClient.getBlockNumber());
+    const chunkSize = 5000n;
+    const allLogs: any[] = [];
+
+    for (let chunkStart = start; chunkStart <= end; chunkStart += chunkSize) {
+      const chunkEnd = chunkStart + chunkSize > end ? end : chunkStart + chunkSize;
+      try {
+        const logs = await this.publicClient.getContractEvents({
+          address: this.contractAddress,
+          abi,
+          eventName,
+          fromBlock: chunkStart,
+          toBlock: chunkEnd,
+        });
+        allLogs.push(...logs);
+      } catch (err: any) {
+        // If a single chunk fails, log and continue
+        if (err?.message?.includes('limited to') || err?.message?.includes('range')) {
+          // Try smaller chunk
+          const subChunkSize = 2000n;
+          for (let subStart = chunkStart; subStart <= chunkEnd; subStart += subChunkSize) {
+            const subEnd = subStart + subChunkSize > chunkEnd ? chunkEnd : subStart + subChunkSize;
+            const subLogs = await this.publicClient.getContractEvents({
+              address: this.contractAddress,
+              abi,
+              eventName,
+              fromBlock: subStart,
+              toBlock: subEnd,
+            });
+            allLogs.push(...subLogs);
+          }
+        } else {
+          throw err;
+        }
+      }
+      // Small delay to avoid RPC rate limits
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    return allLogs as T[];
+  }
+
   async getDepositEvents(fromBlock?: bigint, toBlock?: bigint): Promise<
     Array<{
       commitment: bigint;
@@ -201,13 +251,7 @@ export class BaseAdapter {
       logIndex: number;
     }>
   > {
-    const logs = await this.publicClient.getContractEvents({
-      address: this.contractAddress,
-      abi,
-      eventName: 'Deposit',
-      fromBlock: fromBlock || 0n,
-      toBlock: toBlock || 'latest',
-    });
+    const logs = await this.getEventsPaginated('Deposit', fromBlock, toBlock);
     return logs.map((log: any) => ({
       commitment: log.args.commitment as bigint,
       amount: log.args.amount as bigint,
@@ -227,13 +271,7 @@ export class BaseAdapter {
       logIndex: number;
     }>
   > {
-    const logs = await this.publicClient.getContractEvents({
-      address: this.contractAddress,
-      abi,
-      eventName: 'BatchSettlement',
-      fromBlock: fromBlock || 0n,
-      toBlock: toBlock || 'latest',
-    });
+    const logs = await this.getEventsPaginated('BatchSettlement', fromBlock, toBlock);
     return logs.map((log: any) => ({
       startIndex: log.args.startIndex as bigint,
       batchSize: log.args.batchSize as bigint,
