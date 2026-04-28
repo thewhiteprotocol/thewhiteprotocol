@@ -264,6 +264,41 @@ impl MerkleTree {
         Ok(leaf_index)
     }
 
+    /// Compute the result of inserting commitments without mutating state.
+    /// Returns (new_filled_subtrees, computed_root).
+    fn compute_insertions(
+        &self,
+        commitments: &[[u8; 32]],
+        start_index: u32,
+    ) -> Result<(Vec<[u8; 32]>, [u8; 32])> {
+        let mut filled_subtrees = self.filled_subtrees.clone();
+        let mut computed_root = [0u8; 32];
+        for (i, commitment) in commitments.iter().enumerate() {
+            let leaf_index = start_index + i as u32;
+            let mut current_hash = *commitment;
+            let mut current_index = leaf_index;
+
+            for level in 0..self.depth {
+                let level_usize = level as usize;
+                let is_right_child = (current_index & 1) == 1;
+                current_index >>= 1;
+
+                if is_right_child {
+                    let left_sibling = filled_subtrees[level_usize];
+                    current_hash = crate::crypto::hash_two_to_one(&left_sibling, &current_hash)?;
+                } else {
+                    filled_subtrees[level_usize] = current_hash;
+                    current_hash = crate::crypto::hash_two_to_one(
+                        &current_hash,
+                        &self.zeros[level_usize],
+                    )?;
+                }
+            }
+            computed_root = current_hash;
+        }
+        Ok((filled_subtrees, computed_root))
+    }
+
     /// Replay incremental insertions to update filled_subtrees without touching
     /// other state (root, counters, history). Used by settle_deposits_batch to
     /// keep the tree consistent after ZK-verified batch settlement.
@@ -278,30 +313,73 @@ impl MerkleTree {
     /// # Errors
     /// - `CryptographyError` if Poseidon hash fails
     pub fn replay_insertions(&mut self, commitments: &[[u8; 32]], start_index: u32) -> Result<[u8; 32]> {
-        let mut computed_root = [0u8; 32];
-        for (i, commitment) in commitments.iter().enumerate() {
-            let leaf_index = start_index + i as u32;
-            let mut current_hash = *commitment;
-            let mut current_index = leaf_index;
+        let (new_filled_subtrees, computed_root) = self.compute_insertions(commitments, start_index)?;
+        self.filled_subtrees = new_filled_subtrees;
+        Ok(computed_root)
+    }
 
-            for level in 0..self.depth {
-                let level_usize = level as usize;
-                let is_right_child = (current_index & 1) == 1;
-                current_index >>= 1;
+    /// Settle a batch of commitments into the Merkle tree.
+    ///
+    /// This is the canonical function for updating the Merkle tree state during
+    /// batch settlement. It replays insertions to update `filled_subtrees`,
+    /// verifies the computed root matches the expected root (defense-in-depth),
+    /// and updates all tree state atomically.
+    ///
+    /// # Arguments
+    /// * `commitments` - Slice of commitments to insert
+    /// * `expected_new_root` - Expected root after insertions (from ZK proof)
+    /// * `timestamp` - Current timestamp
+    ///
+    /// # Returns
+    /// Computed root hash after all insertions
+    ///
+    /// # Errors
+    /// - `InvalidProof` if computed root does not match expected
+    /// - `CryptographyError` if Poseidon hash fails
+    /// - `ArithmeticOverflow` if counters overflow
+    pub fn settle_batch(
+        &mut self,
+        commitments: &[[u8; 32]],
+        expected_new_root: [u8; 32],
+        timestamp: i64,
+    ) -> Result<[u8; 32]> {
+        let start_index = self.next_leaf_index;
 
-                if is_right_child {
-                    let left_sibling = self.filled_subtrees[level_usize];
-                    current_hash = crate::crypto::hash_two_to_one(&left_sibling, &current_hash)?;
-                } else {
-                    self.filled_subtrees[level_usize] = current_hash;
-                    current_hash = crate::crypto::hash_two_to_one(
-                        &current_hash,
-                        &self.zeros[level_usize],
-                    )?;
-                }
-            }
-            computed_root = current_hash;
-        }
+        // Compute new filled_subtrees and root WITHOUT mutating state yet.
+        // This ensures that if the root check fails, no state is changed.
+        let (new_filled_subtrees, computed_root) =
+            self.compute_insertions(commitments, start_index)?;
+
+        // Defense-in-depth: on-chain recomputation must agree with the proof
+        require!(
+            computed_root == expected_new_root,
+            WhiteProtocolError::InvalidProof
+        );
+
+        // Apply all state changes atomically AFTER verification succeeds
+        self.filled_subtrees = new_filled_subtrees;
+        self.current_root = computed_root;
+
+        // Increment leaf counter
+        let batch_size = commitments.len() as u32;
+        self.next_leaf_index = self
+            .next_leaf_index
+            .checked_add(batch_size)
+            .ok_or(error!(WhiteProtocolError::ArithmeticOverflow))?;
+
+        // Update statistics
+        self.total_leaves = self
+            .total_leaves
+            .checked_add(commitments.len() as u64)
+            .ok_or(error!(WhiteProtocolError::ArithmeticOverflow))?;
+        self.last_insertion_at = timestamp;
+
+        // Add to root history (circular buffer)
+        let history_idx = self.root_history_index as usize;
+        self.root_history[history_idx] = computed_root;
+        self.root_history_index =
+            (self.root_history_index + 1) % self.root_history_size;
+
         Ok(computed_root)
     }
 
@@ -633,5 +711,167 @@ mod tests {
 
         tree.next_leaf_index = 16;
         assert_eq!(tree.fill_percentage(), 100);
+    }
+
+    // ========================================================================
+    // settle_batch production tests
+    // ========================================================================
+
+    fn make_test_tree(depth: u8) -> MerkleTree {
+        let mut tree = MerkleTree {
+            pool: Pubkey::default(),
+            depth,
+            next_leaf_index: 0,
+            current_root: [0u8; 32],
+            root_history: vec![[0u8; 32]; 30],
+            root_history_index: 0,
+            root_history_size: 30,
+            filled_subtrees: vec![],
+            zeros: vec![],
+            total_leaves: 0,
+            last_insertion_at: 0,
+            version: 2,
+        };
+        tree.zeros = crate::crypto::precomputed_zeros::get_precomputed_zeros(depth);
+        tree.filled_subtrees = tree.zeros[..depth as usize].to_vec();
+        tree.current_root = tree.zeros[depth as usize];
+        tree.root_history[0] = tree.current_root;
+        tree
+    }
+
+    fn make_commitment(seed: u8) -> [u8; 32] {
+        let mut c = [0u8; 32];
+        c[31] = seed;
+        c
+    }
+
+    /// Test 1: Fresh single batch — settle 1 commitment, verify all state updated
+    #[test]
+    fn test_settle_batch_single_leaf() {
+        let mut reference = make_test_tree(4);
+        let mut actual = make_test_tree(4);
+
+        let commitment = make_commitment(1);
+        let _expected_root = reference.insert_leaf(commitment, 1000).unwrap();
+
+        let computed_root = actual.settle_batch(&[commitment], reference.current_root, 1000).unwrap();
+
+        assert_eq!(computed_root, reference.current_root);
+        assert_eq!(actual.current_root, reference.current_root);
+        assert_eq!(actual.next_leaf_index, reference.next_leaf_index);
+        assert_eq!(actual.total_leaves, reference.total_leaves);
+        assert_eq!(actual.filled_subtrees, reference.filled_subtrees);
+        assert!(actual.is_known_root(&reference.current_root));
+    }
+
+    /// Test 2: Fresh multi-leaf batch — settle 2 commitments, verify both left/right cases
+    #[test]
+    fn test_settle_batch_multi_leaf() {
+        let mut reference = make_test_tree(4);
+        let mut actual = make_test_tree(4);
+
+        let c1 = make_commitment(1);
+        let c2 = make_commitment(2);
+
+        reference.insert_leaf(c1, 1000).unwrap();
+        reference.insert_leaf(c2, 1001).unwrap();
+
+        let computed_root = actual.settle_batch(&[c1, c2], reference.current_root, 1000).unwrap();
+
+        assert_eq!(computed_root, reference.current_root);
+        assert_eq!(actual.current_root, reference.current_root);
+        assert_eq!(actual.next_leaf_index, reference.next_leaf_index);
+        assert_eq!(actual.total_leaves, reference.total_leaves);
+        assert_eq!(actual.filled_subtrees, reference.filled_subtrees);
+    }
+
+    /// Test 3: Odd leaf count — settle 3 commitments
+    #[test]
+    fn test_settle_batch_odd_count() {
+        let mut reference = make_test_tree(4);
+        let mut actual = make_test_tree(4);
+
+        let commitments = [make_commitment(1), make_commitment(2), make_commitment(3)];
+        for (i, &c) in commitments.iter().enumerate() {
+            reference.insert_leaf(c, 1000 + i as i64).unwrap();
+        }
+
+        let computed_root = actual.settle_batch(&commitments, reference.current_root, 1000).unwrap();
+
+        assert_eq!(computed_root, reference.current_root);
+        assert_eq!(actual.current_root, reference.current_root);
+        assert_eq!(actual.next_leaf_index, reference.next_leaf_index);
+        assert_eq!(actual.total_leaves, reference.total_leaves);
+        assert_eq!(actual.filled_subtrees, reference.filled_subtrees);
+    }
+
+    /// Test 4: Multi-batch non-zero start index
+    #[test]
+    fn test_settle_batch_non_zero_start_index() {
+        let mut reference = make_test_tree(4);
+        let mut actual = make_test_tree(4);
+
+        let batch1 = [make_commitment(1), make_commitment(2)];
+        for (i, &c) in batch1.iter().enumerate() {
+            reference.insert_leaf(c, 1000 + i as i64).unwrap();
+        }
+        actual.settle_batch(&batch1, reference.current_root, 1000).unwrap();
+
+        // Verify intermediate state matches
+        assert_eq!(actual.next_leaf_index, 2);
+        assert_eq!(actual.filled_subtrees, reference.filled_subtrees);
+
+        let batch2 = [make_commitment(3), make_commitment(4)];
+        for (i, &c) in batch2.iter().enumerate() {
+            reference.insert_leaf(c, 2000 + i as i64).unwrap();
+        }
+        actual.settle_batch(&batch2, reference.current_root, 2000).unwrap();
+
+        assert_eq!(actual.current_root, reference.current_root);
+        assert_eq!(actual.next_leaf_index, 4);
+        assert_eq!(actual.total_leaves, 4);
+        assert_eq!(actual.filled_subtrees, reference.filled_subtrees);
+    }
+
+    /// Test 5: Invalid proof (mismatched root) — transaction fails, state unchanged
+    #[test]
+    fn test_settle_batch_invalid_root_reverts() {
+        let mut tree = make_test_tree(4);
+        let pre_root = tree.current_root;
+        let pre_index = tree.next_leaf_index;
+        let pre_leaves = tree.total_leaves;
+        let pre_subtrees = tree.filled_subtrees.clone();
+        let pre_history_idx = tree.root_history_index;
+
+        let commitment = make_commitment(1);
+        let wrong_root = [0xFFu8; 32];
+
+        let result = tree.settle_batch(&[commitment], wrong_root, 1000);
+        assert!(result.is_err(), "Expected InvalidProof error for mismatched root");
+
+        // Verify no state mutation
+        assert_eq!(tree.current_root, pre_root);
+        assert_eq!(tree.next_leaf_index, pre_index);
+        assert_eq!(tree.total_leaves, pre_leaves);
+        assert_eq!(tree.filled_subtrees, pre_subtrees);
+        assert_eq!(tree.root_history_index, pre_history_idx);
+    }
+
+    /// Test 6: Legacy corrupted state (filled_subtrees all zero, next_leaf_index > 0)
+    /// must fail clearly — no silent bypass.
+    #[test]
+    fn test_settle_batch_corrupted_state_fails() {
+        let mut tree = make_test_tree(4);
+
+        // Simulate corrupted state: next_leaf_index > 0 but filled_subtrees all zeros
+        tree.next_leaf_index = 3;
+        tree.total_leaves = 3;
+        tree.filled_subtrees = vec![[0u8; 32]; 4];
+
+        let commitment = make_commitment(1);
+        let fake_root = [0xABu8; 32];
+
+        let result = tree.settle_batch(&[commitment], fake_root, 1000);
+        assert!(result.is_err(), "Corrupted state must fail with InvalidProof");
     }
 }

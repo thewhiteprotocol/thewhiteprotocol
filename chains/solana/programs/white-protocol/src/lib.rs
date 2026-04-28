@@ -12,9 +12,8 @@ use anchor_lang::prelude::*;
 #[cfg(all(feature = "insecure-dev", not(debug_assertions)))]
 compile_error!("insecure-dev cannot be enabled in release builds - this would deploy placeholder crypto to production");
 
-// Temporarily allow for devnet debugging (PR-001)
-// #[cfg(all(feature = "event-debug", not(debug_assertions)))]
-// compile_error!("event-debug cannot be enabled in release builds - it leaks privacy-sensitive data");
+#[cfg(all(feature = "event-debug", not(debug_assertions)))]
+compile_error!("event-debug cannot be enabled in release builds - it leaks privacy-sensitive data");
 
 pub mod crypto;
 pub mod error;

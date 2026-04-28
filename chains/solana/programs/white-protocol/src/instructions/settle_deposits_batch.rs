@@ -251,46 +251,19 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     require!(is_valid, WhiteProtocolError::InvalidProof);
 
     // =========================================================================
-    // 5b. REPLAY INCREMENTAL INSERTIONS TO UPDATE filled_subtrees
+    // 5b. REPLAY INSERTIONS AND UPDATE MERKLE TREE STATE (CANONICAL)
     // =========================================================================
-    // The proof verified the root transition off-chain, but the on-chain tree
-    // account must still keep filled_subtrees consistent so that future
-    // batch_process_deposits and get_merkle_path calls remain correct.
-    // For MAX_BATCH_SIZE=1 this is ~depth Poseidon hashes (~60k CU).
+    // The proof verified the root transition off-chain. We replay the insertions
+    // on-chain to keep filled_subtrees consistent for future operations.
+    // settle_batch is the canonical function: it updates filled_subtrees,
+    // verifies the computed root matches the proof, and updates all tree state.
     //
-    // NOTE: Skip replay if filled_subtrees is known to be corrupted from
-    // pre-upgrade settlements that did not update filled_subtrees. In that
-    // case the Groth16 proof is the only source of truth for the root transition.
-    let filled_subtrees_corrupted = merkle_tree.next_leaf_index > 0
-        && merkle_tree.filled_subtrees.iter().all(|h| crate::crypto::is_zero_hash(h));
+    // IMPORTANT: No corruption bypass. Clean state is required. Corrupted
+    // devnet state must be fixed via reset_merkle_tree or reinitialization.
+    let _computed_root = merkle_tree.settle_batch(&commitments, args.new_root, timestamp)?;
 
-    if !filled_subtrees_corrupted {
-        let computed_root = merkle_tree.replay_insertions(&commitments, start_index)?;
-
-        // Defense-in-depth: on-chain recomputation must agree with the proof
-        require!(
-            computed_root == args.new_root,
-            WhiteProtocolError::InvalidProof
-        );
-    }
-
-    // =========================================================================
-    // 6. UPDATE MERKLE TREE STATE
-    // =========================================================================
-    merkle_tree.current_root = args.new_root;
-    merkle_tree.next_leaf_index = start_index + batch_size as u32;
-    merkle_tree.total_leaves = merkle_tree
-        .total_leaves
-        .checked_add(batch_size as u64)
-        .ok_or(error!(WhiteProtocolError::ArithmeticOverflow))?;
-    merkle_tree.last_insertion_at = timestamp;
-
-    // Add to root history
-    // Add to root history (circular buffer)
-    let history_idx = merkle_tree.root_history_index as usize;
-    merkle_tree.root_history[history_idx] = args.new_root;
-    merkle_tree.root_history_index =
-        (merkle_tree.root_history_index + 1) % merkle_tree.root_history_size;
+    #[cfg(feature = "event-debug")]
+    msg!("[SETTLE] computed_root={}", hex::encode(_computed_root));
 
     // =========================================================================
     // 6b. EMIT PER-COMMITMENT EVENTS (RECOVERY LOG)
