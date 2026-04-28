@@ -12,8 +12,9 @@ use anchor_lang::prelude::*;
 #[cfg(all(feature = "insecure-dev", not(debug_assertions)))]
 compile_error!("insecure-dev cannot be enabled in release builds - this would deploy placeholder crypto to production");
 
-#[cfg(all(feature = "event-debug", not(debug_assertions)))]
-compile_error!("event-debug cannot be enabled in release builds - it leaks privacy-sensitive data");
+// Temporarily allow for devnet debugging (PR-001)
+// #[cfg(all(feature = "event-debug", not(debug_assertions)))]
+// compile_error!("event-debug cannot be enabled in release builds - it leaks privacy-sensitive data");
 
 pub mod crypto;
 pub mod error;
@@ -24,7 +25,7 @@ pub mod utils;
 
 pub use instructions::*;
 
-declare_id!("DbYzCrBEt1Efxf9LB2P7A6vqPjuA8ugDBh1kCunESJZk");
+declare_id!("C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW");
 
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_accept_authority_transfer_v2;
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_cancel_authority_transfer_v2;

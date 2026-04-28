@@ -1,5 +1,8 @@
 /**
  * Generate batch settlement proof for actual pending deposit
+ * 
+ * IMPORTANT: This script now correctly computes tree roots using the same
+ * zero-tree logic as the on-chain MerkleTree and the circuit.
  */
 
 import * as fs from 'fs';
@@ -92,7 +95,9 @@ async function main() {
     return BigInt(poseidon.F.toString(result));
   };
   
-  const circuitDir = path.join(__dirname, '../circuits/build/merkle_batch_update');
+  // IMPORTANT: Use the SAME build directory as test-batch-proof.ts
+  // Both directories have identical artifacts, but we standardize on:
+  const circuitDir = path.join(__dirname, '../../../circuits/merkle_batch_update/build');
   const wasmPath = path.join(circuitDir, 'merkle_batch_update_js/merkle_batch_update.wasm');
   const zkeyPath = path.join(circuitDir, 'merkle_batch_update.zkey');
   
@@ -105,20 +110,24 @@ async function main() {
   const batchSize = 1;
   const maxBatch = 1;
   
-  // Compute old root (empty tree)
-  let oldRoot = BigInt(0);
-  for (let i = 0; i < depth; i++) {
-    oldRoot = hash2(oldRoot, BigInt(0));
+  // CORRECT empty tree root computation (matches on-chain MerkleTree.init)
+  // zeros[0] = 0, zeros[i] = hash2(zeros[i-1], zeros[i-1])
+  const zeros: bigint[] = [BigInt(0)];
+  for (let i = 1; i <= depth; i++) {
+    zeros.push(hash2(zeros[i - 1], zeros[i - 1]));
   }
   
-  // Compute new root after inserting commitment
+  const oldRoot = zeros[depth];
+  
+  // CORRECT new root computation for insertion at startIndex = 0
+  // At each level, since bit is 0 (left child), hash(current, zeros[level])
   let newRoot = DEPOSIT_COMMITMENT;
   for (let i = 0; i < depth; i++) {
-    newRoot = hash2(newRoot, BigInt(0));
+    newRoot = hash2(newRoot, zeros[i]);
   }
   
   console.log("\nTree State:");
-  console.log("  Old Root:", oldRoot.toString());
+  console.log("  Old Root (empty tree):", oldRoot.toString());
   console.log("  New Root:", newRoot.toString());
   console.log("  Start Index:", startIndex);
   console.log("  Batch Size:", batchSize);
@@ -130,10 +139,10 @@ async function main() {
   // Single commitment
   const commitments = [DEPOSIT_COMMITMENT.toString()];
   
-  // Path elements
+  // Path elements for startIndex = 0: all zeros (siblings are zeros[level])
   const pathElements: string[][] = [];
   for (let i = 0; i < maxBatch; i++) {
-    pathElements.push(Array(depth).fill("0"));
+    pathElements.push(zeros.slice(0, depth).map(z => z.toString()));
   }
   
   const input = {
@@ -157,6 +166,11 @@ async function main() {
     
     console.log("✓ Proof generated successfully!");
     console.log("\nPublic Signals:", publicSignals);
+    
+    // Verify locally
+    const vkey = JSON.parse(fs.readFileSync(path.join(circuitDir, 'verification_key.json'), 'utf8'));
+    const isValid = await snarkjs.groth16.verify(vkey, publicSignals, proof);
+    console.log("\nLocal snarkjs verification:", isValid ? "✓ VALID" : "✗ INVALID");
     
     // Format proof for Solana on-chain verifier
     // Layout (256 bytes, all big-endian):

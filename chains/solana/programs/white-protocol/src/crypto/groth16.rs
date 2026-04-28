@@ -204,7 +204,11 @@ pub fn verify(vk: &VerificationKey, proof: &Proof, public_inputs: &[Scalar]) -> 
     }
 
     // Compute vk_x = IC[0] + Σ(input[i] · IC[i+1])
+    #[cfg(feature = "event-debug")]
+    msg!("[VERIFY] Computing vk_x...");
     let vk_x = compute_vk_x(&vk.ic, public_inputs)?;
+    #[cfg(feature = "event-debug")]
+    msg!("[VERIFY] vk_x computed successfully");
 
     // Negate A: -A (uses Fp for negation, not Fr)
     let neg_a = g1_negate(&proof.a)?;
@@ -218,7 +222,18 @@ pub fn verify(vk: &VerificationKey, proof: &Proof, public_inputs: &[Scalar]) -> 
         make_pairing_element(&proof.c, &vk.delta_g2),
     ];
 
-    pairing_check_4(&pairs)
+    #[cfg(feature = "event-debug")]
+    msg!("[VERIFY] Calling pairing_check_4...");
+    let result = pairing_check_4(&pairs);
+    #[cfg(feature = "event-debug")]
+    {
+        match &result {
+            Ok(true) => msg!("[VERIFY] pairing_check_4: VALID"),
+            Ok(false) => msg!("[VERIFY] pairing_check_4: INVALID"),
+            Err(_) => msg!("[VERIFY] pairing_check_4: ERROR"),
+        }
+    }
+    result
 }
 
 /// Compute vk_x = IC[0] + Σ(input[i] · IC[i+1])
@@ -232,6 +247,8 @@ fn compute_vk_x(ic: &[G1Point], inputs: &[Scalar]) -> Result<G1Point> {
         }
 
         // Compute input[i] · IC[i+1]
+        #[cfg(feature = "event-debug")]
+        msg!("[VK_X] g1_mul: input[{}]", i);
         let product = g1_mul(&ic[i + 1], input)?;
 
         // Skip identity results
@@ -243,6 +260,8 @@ fn compute_vk_x(ic: &[G1Point], inputs: &[Scalar]) -> Result<G1Point> {
         if is_g1_identity(&vk_x) {
             vk_x = product;
         } else {
+            #[cfg(feature = "event-debug")]
+            msg!("[VK_X] g1_add: input[{}]", i);
             vk_x = g1_add(&vk_x, &product)?;
         }
     }

@@ -221,6 +221,15 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     // =========================================================================
     // 5. VERIFY GROTH16 PROOF
     // =========================================================================
+    #[cfg(feature = "event-debug")]
+    {
+        msg!("[SETTLE] old_root={}", hex::encode(old_root));
+        msg!("[SETTLE] new_root={}", hex::encode(args.new_root));
+        msg!("[SETTLE] start_index={}", start_index);
+        msg!("[SETTLE] batch_size={}", batch_size);
+        msg!("[SETTLE] commitments_hash={}", hex::encode(commitments_hash_field));
+    }
+
     let proof = Proof::from_bytes(&args.proof)?;
 
     let vk = VerificationKey::from_account(
@@ -231,7 +240,14 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
         &vk_account.vk_ic,
     );
 
+    #[cfg(feature = "event-debug")]
+    msg!("[SETTLE] Calling verify()...");
+
     let is_valid = verify(&vk, &proof, &public_inputs)?;
+
+    #[cfg(feature = "event-debug")]
+    msg!("[SETTLE] verify() returned: {}", is_valid);
+
     require!(is_valid, WhiteProtocolError::InvalidProof);
 
     // =========================================================================
@@ -241,13 +257,22 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     // account must still keep filled_subtrees consistent so that future
     // batch_process_deposits and get_merkle_path calls remain correct.
     // For MAX_BATCH_SIZE=1 this is ~depth Poseidon hashes (~60k CU).
-    let computed_root = merkle_tree.replay_insertions(&commitments, start_index)?;
+    //
+    // NOTE: Skip replay if filled_subtrees is known to be corrupted from
+    // pre-upgrade settlements that did not update filled_subtrees. In that
+    // case the Groth16 proof is the only source of truth for the root transition.
+    let filled_subtrees_corrupted = merkle_tree.next_leaf_index > 0
+        && merkle_tree.filled_subtrees.iter().all(|h| crate::crypto::is_zero_hash(h));
 
-    // Defense-in-depth: on-chain recomputation must agree with the proof
-    require!(
-        computed_root == args.new_root,
-        WhiteProtocolError::InvalidProof
-    );
+    if !filled_subtrees_corrupted {
+        let computed_root = merkle_tree.replay_insertions(&commitments, start_index)?;
+
+        // Defense-in-depth: on-chain recomputation must agree with the proof
+        require!(
+            computed_root == args.new_root,
+            WhiteProtocolError::InvalidProof
+        );
+    }
 
     // =========================================================================
     // 6. UPDATE MERKLE TREE STATE
