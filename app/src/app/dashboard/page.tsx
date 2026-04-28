@@ -18,6 +18,9 @@ const ASSET_DECIMALS: Record<string, number> = {
   ETH: 18,
   WETH: 18,
   USDC: 6,
+  BNB: 18,
+  WBNB: 18,
+  USDT: 18,
 };
 
 export default function DashboardPage() {
@@ -25,7 +28,7 @@ export default function DashboardPage() {
   const [notes, setNotes] = useState<StoredNote[]>([]);
   const [totalUsd, setTotalUsd] = useState<number | null>(null);
   const [breakdown, setBreakdown] = useState<
-    Array<{ asset: string; chain: "solana" | "base"; amount: bigint; usdValue: number }>
+    Array<{ asset: string; chain: "solana" | "base" | "bsc"; amount: bigint; usdValue: number }>
   >([]);
   const [pendingBalance, setPendingBalance] = useState<bigint>(0n);
   const [loading, setLoading] = useState(true);

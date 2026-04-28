@@ -141,7 +141,7 @@ export default function InvoicesPage() {
                       <StatusBadge status={inv.status} />
                     </div>
                     <div className="text-sm text-zinc-400">
-                      {inv.to.name} · {inv.total.toFixed(2)} {inv.asset} · {inv.chain === "base" ? "Base" : "Solana"}
+                      {inv.to.name} · {inv.total.toFixed(2)} {inv.asset} · {inv.chain === "base" ? "Base" : inv.chain === "bsc" ? "BSC" : "Solana"}
                     </div>
                     <div className="text-xs text-zinc-500">{new Date(inv.createdAt).toLocaleDateString()}</div>
                   </div>

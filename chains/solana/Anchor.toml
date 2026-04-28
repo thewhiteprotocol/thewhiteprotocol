@@ -7,12 +7,21 @@ skip-lint = false
 
 [programs.devnet]
 white_protocol = "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW"
+white_bridge_solana = "So11111111111111111111111111111111111111112"
 
 [programs.localnet]
 white_protocol = "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW"
+white_bridge_solana = "So11111111111111111111111111111111111111112"
 
 [programs.mainnet]
 white_protocol = "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW"
+white_bridge_solana = "So11111111111111111111111111111111111111112"
+
+# Shadow deployment: testnet program IDs for extended validation before mainnet upgrade.
+# These are separate deployments used for soak-testing. Replace with real keypairs.
+[programs.testnet]
+white_protocol = "ShadowWht1111111111111111111111111111111111"
+white_bridge_solana = "ShadowBrg1111111111111111111111111111111111"
 
 [registry]
 url = "https://api.apr.dev"

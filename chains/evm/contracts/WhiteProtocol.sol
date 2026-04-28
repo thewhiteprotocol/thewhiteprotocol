@@ -38,6 +38,11 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
     mapping(address => bool) public isRelayer;
     mapping(address => uint256) public relayerFees;
 
+    // Bridge hooks
+    address public bridge;
+    mapping(address => uint256) public bridgeOutgoing;
+    mapping(address => uint256) public bridgeIncoming;
+
     // Pool configuration
     uint256 public constant RELAYER_FEE_BPS = 50; // 0.5%
     uint256 public constant YIELD_RELAYER_FEE_BPS = 500; // 5%
@@ -74,6 +79,19 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
     event RelayerRegistered(address indexed relayer);
     event RelayerRemoved(address indexed relayer);
 
+    event BridgeSet(address indexed bridge);
+    event BridgeWithdraw(bytes32 indexed nullifierHash, address indexed asset, uint256 amount, bytes32 extDataHash);
+    event BridgeMint(address indexed asset, uint256 amount, bytes32 indexed newCommitment);
+
+    error OnlyBridge();
+    error BridgeNotSet();
+    error NullifierUsed();
+
+    modifier onlyBridge() {
+        if (msg.sender != bridge) revert OnlyBridge();
+        _;
+    }
+
     constructor(
         address initialOwner,
         address _depositVerifier,
@@ -85,6 +103,70 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         withdrawVerifier = IWithdrawVerifier(_withdrawVerifier);
         merkleBatchVerifier = IMerkleBatchVerifier(_merkleBatchVerifier);
         assetRegistry = AssetRegistry(_assetRegistry);
+    }
+
+    function setBridge(address _bridge) external onlyOwner {
+        bridge = _bridge;
+        emit BridgeSet(_bridge);
+    }
+
+    /// @notice Bridge withdraw — burns a note, holds funds in the vault as outbound liability.
+    function bridgeWithdraw(
+        bytes calldata proof,
+        bytes32 nullifierHash,
+        address asset,
+        uint256 amount,
+        bytes32 extDataHash
+    ) external onlyBridge nonReentrant {
+        if (bridge == address(0)) revert BridgeNotSet();
+        if (spentNullifiers[uint256(nullifierHash)]) revert NullifierUsed();
+        if (!assetRegistry.isSupported(asset)) revert("Asset not supported");
+
+        // Mark nullifier as spent
+        spentNullifiers[uint256(nullifierHash)] = true;
+
+        // Verify withdraw proof
+        uint256[8] memory p = _parseProof(proof);
+
+        // Public inputs: [root, nullifierHash, assetId, recipient, amount, relayer, relayerFee, publicDataHash]
+        uint256[8] memory pubSignals = [
+            getLastRoot(),
+            uint256(nullifierHash),
+            uint256(assetRegistry.getAssetId(asset)),
+            uint256(uint160(bridge)),       // recipient = bridge contract
+            amount,
+            uint256(0),                      // relayer
+            uint256(0),                      // relayerFee
+            uint256(extDataHash)             // publicDataHash
+        ];
+
+        require(
+            withdrawVerifier.verifyProof(
+                [p[0], p[1]],
+                [[p[2], p[3]], [p[4], p[5]]],
+                [p[6], p[7]],
+                pubSignals
+            ),
+            "Invalid withdraw proof"
+        );
+
+        bridgeOutgoing[asset] += amount;
+        // NO transfer out — funds remain in vault as outbound liability
+
+        emit BridgeWithdraw(nullifierHash, asset, amount, extDataHash);
+    }
+
+    /// @notice Bridge mint — inserts a new commitment from an inbound bridge message.
+    function bridgeMint(
+        address asset,
+        uint256 amount,
+        bytes32 newCommitment
+    ) external onlyBridge nonReentrant {
+        if (bridge == address(0)) revert BridgeNotSet();
+        if (!assetRegistry.isSupported(asset)) revert("Asset not supported");
+        bridgeIncoming[asset] += amount;
+        insert(uint256(newCommitment));
+        emit BridgeMint(asset, amount, newCommitment);
     }
 
     /**

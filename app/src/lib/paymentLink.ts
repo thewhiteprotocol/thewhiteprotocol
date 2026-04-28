@@ -9,7 +9,7 @@ export interface PaymentRequest {
   commitment: string;
   amount?: string;
   asset: string;
-  chain: "solana" | "base";
+  chain: "solana" | "base" | "bsc" | "bsc";
   encryptedNote?: string;
   /** Optional ephemeral pubkey for stealth withdrawals (hex string) */
   ephemeralPubkey?: string;
@@ -30,7 +30,7 @@ const APP_ORIGIN = typeof window !== "undefined" ? window.location.origin : "htt
 export async function createPaymentRequest(
   amount: string | undefined,
   asset: string,
-  chain: "solana" | "base"
+  chain: "solana" | "base" | "bsc"
 ): Promise<PaymentLinkResult> {
   const secret = randomFieldElement();
   const nullifier = randomFieldElement();
@@ -81,11 +81,11 @@ export function parsePaymentLink(url: string): PaymentRequest | null {
     const commitment = parsed.searchParams.get("c");
     const amount = parsed.searchParams.get("a") || undefined;
     const asset = parsed.searchParams.get("t");
-    const chain = parsed.searchParams.get("ch") as "solana" | "base" | null;
+    const chain = parsed.searchParams.get("ch") as "solana" | "base" | "bsc" | null;
     const encryptedNote = parsed.searchParams.get("n") || "";
 
     if (!commitment || !asset || !chain) return null;
-    if (chain !== "solana" && chain !== "base") return null;
+    if (chain !== "solana" && chain !== "base" && chain !== "bsc") return null;
 
     return {
       commitment,
@@ -103,11 +103,11 @@ export function parsePaymentParams(params: URLSearchParams): PaymentRequest | nu
   const commitment = params.get("c");
   const amount = params.get("a") || undefined;
   const asset = params.get("t");
-  const chain = params.get("ch") as "solana" | "base" | null;
+  const chain = params.get("ch") as "solana" | "base" | "bsc" | null;
   const encryptedNote = params.get("n") || "";
 
   if (!commitment || !asset || !chain) return null;
-  if (chain !== "solana" && chain !== "base") return null;
+  if (chain !== "solana" && chain !== "base" && chain !== "bsc") return null;
 
   return {
     commitment,
@@ -118,7 +118,7 @@ export function parsePaymentParams(params: URLSearchParams): PaymentRequest | nu
   };
 }
 
-function getAssetConfig(symbol: string, chain: "solana" | "base") {
+function getAssetConfig(symbol: string, chain: "solana" | "base" | "bsc") {
   return SUPPORTED_ASSETS.find((a) => a.symbol === symbol && (a.chain === chain || a.chain === "both"));
 }
 

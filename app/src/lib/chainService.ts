@@ -11,7 +11,7 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { AnchorProvider, Program, BN, Idl } from "@coral-xyz/anchor";
-import { baseSepolia } from "wagmi/chains";
+import { baseSepolia, bscTestnet } from "wagmi/chains";
 import { createPublicClient, http, parseAbi } from "viem";
 import { CHAINS } from "@/config/chains";
 import {
@@ -21,6 +21,9 @@ import {
 import {
   BASE_PROTOCOL_ADDRESS,
 } from "@/config/base";
+import {
+  BSC_PROTOCOL_ADDRESS,
+} from "@/config/bsc";
 import { MERKLE_TREE_DEPTH } from "./crypto";
 import { IncrementalMerkleTree } from "./merkleTree";
 import solanaIdl from "./solana_idl.json";
@@ -155,12 +158,18 @@ function computeSolanaMerklePath(
   return { pathElements, pathIndices };
 }
 
-// ─── Base Chain Service ───
-export class BaseChainService {
-  private publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(CHAINS.base.rpcUrl),
-  });
+// ─── EVM Chain Service ───
+export class EvmChainService {
+  private publicClient;
+  private protocolAddress: `0x${string}`;
+
+  constructor(config: { chain: any; rpcUrl: string; protocolAddress: `0x${string}` }) {
+    this.publicClient = createPublicClient({
+      chain: config.chain,
+      transport: http(config.rpcUrl),
+    });
+    this.protocolAddress = config.protocolAddress;
+  }
 
   async getPoolState(): Promise<{
     currentRoot: bigint;
@@ -169,17 +178,17 @@ export class BaseChainService {
   }> {
     const [currentRoot, currentRootIndex, levels] = await Promise.all([
       this.publicClient.readContract({
-        address: BASE_PROTOCOL_ADDRESS,
+        address: this.protocolAddress,
         abi: WHITE_PROTOCOL_ABI,
         functionName: "getLastRoot",
       }),
       this.publicClient.readContract({
-        address: BASE_PROTOCOL_ADDRESS,
+        address: this.protocolAddress,
         abi: WHITE_PROTOCOL_ABI,
         functionName: "currentRootIndex",
       }),
       this.publicClient.readContract({
-        address: BASE_PROTOCOL_ADDRESS,
+        address: this.protocolAddress,
         abi: WHITE_PROTOCOL_ABI,
         functionName: "LEVELS",
       }),
@@ -689,5 +698,19 @@ export class SolanaChainService {
   }
 }
 
-export const baseChainService = new BaseChainService();
+export const baseChainService = new EvmChainService({
+  chain: baseSepolia,
+  rpcUrl: CHAINS.base.rpcUrl,
+  protocolAddress: BASE_PROTOCOL_ADDRESS,
+});
+export const bscChainService = new EvmChainService({
+  chain: bscTestnet,
+  rpcUrl: CHAINS.bsc.rpcUrl,
+  protocolAddress: BSC_PROTOCOL_ADDRESS,
+});
 export const solanaChainService = new SolanaChainService();
+
+export function getEvmChainService(chain: "base" | "bsc" | "solana"): EvmChainService {
+  if (chain === "solana") throw new Error("getEvmChainService does not support solana");
+  return chain === "bsc" ? bscChainService : baseChainService;
+}

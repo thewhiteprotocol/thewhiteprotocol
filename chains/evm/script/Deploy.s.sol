@@ -26,6 +26,8 @@ contract Deploy is Script {
     bool public s_wrappedNativeDeployed;
     address public s_usdc;
     bool public s_usdcPresent;
+    address public s_usdt;
+    bool public s_usdtPresent;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -42,6 +44,7 @@ contract Deploy is Script {
         _deployCore(deployerPrivateKey, deployer);
         _resolveWrappedNative(network, deployerPrivateKey);
         _resolveUsdc(network);
+        _resolveUsdt(network);
         _configurePool(deployerPrivateKey, deployer);
         _verifyAndSave(network, deployer);
     }
@@ -168,6 +171,24 @@ contract Deploy is Script {
         }
     }
 
+    function _resolveUsdt(string memory network) internal {
+        string memory networksJson = vm.readFile("configs/networks.json");
+        string memory usdtRaw = vm.parseJsonString(
+            networksJson, string.concat(".", network, ".usdt")
+        );
+        bool usdtIsNull = keccak256(bytes(usdtRaw)) == keccak256(bytes("null"));
+        address usdtOverride = vm.envOr("USDT_OVERRIDE", address(0));
+
+        if (!usdtIsNull) {
+            s_usdt = vm.parseAddress(usdtRaw);
+            if (usdtOverride != address(0)) {
+                s_usdt = usdtOverride;
+            }
+            s_usdtPresent = true;
+            console.log("Using USDT:", s_usdt);
+        }
+    }
+
     function _configurePool(uint256 deployerPrivateKey, address deployer) internal {
         vm.startBroadcast(deployerPrivateKey);
         WhiteProtocol whiteProtocol = WhiteProtocol(payable(s_whiteProtocol));
@@ -181,6 +202,15 @@ contract Deploy is Script {
         if (s_usdcPresent) {
             console.log("Adding USDC asset...");
             whiteProtocol.addSupportedAsset(s_usdc, false, 6, 1, 1000000 * 10 ** 6);
+        }
+
+        if (s_usdtPresent) {
+            console.log("Adding USDT asset...");
+            // Verify the contract actually exists and exposes ERC20 symbol
+            (bool ok, bytes memory data) = s_usdt.staticcall(abi.encodeWithSignature("symbol()"));
+            require(ok && data.length > 0, "USDT address has no symbol() - wrong address");
+            whiteProtocol.addSupportedAsset(s_usdt, false, 18, 1, 1000000 * 10 ** 18);
+            console.log("Registered USDT:", s_usdt);
         }
 
         console.log("Registering deployer as relayer...");
@@ -213,6 +243,9 @@ contract Deploy is Script {
 
         require(whiteProtocol.isSupported(address(0)), "Native asset not supported");
         require(whiteProtocol.isSupported(s_wrappedNative), "Wrapped native not supported");
+        if (s_usdtPresent) {
+            require(whiteProtocol.isSupported(s_usdt), "USDT asset not supported");
+        }
         console.log("Asset support verified");
 
         console.log("============================================================");
@@ -237,9 +270,10 @@ contract Deploy is Script {
 
         vm.writeJson(finalJson, deploymentPath);
 
-        // Fix "null" string to proper JSON null for usdc
+        // Fix "null" string to proper JSON null for usdc and usdt
         string memory jsonContent = vm.readFile(deploymentPath);
         jsonContent = _replaceOnce(jsonContent, '"usdc": "null"', '"usdc": null');
+        jsonContent = _replaceOnce(jsonContent, '"usdt": "null"', '"usdt": null');
         vm.writeFile(deploymentPath, jsonContent);
 
         console.log("Deployment saved to:", deploymentPath);
@@ -263,7 +297,9 @@ contract Deploy is Script {
         vm.serializeString(obj, "native", "0x0000000000000000000000000000000000000000");
         vm.serializeString(obj, "wrappedNative", vm.toString(s_wrappedNative));
         string memory usdc = s_usdcPresent ? vm.toString(s_usdc) : "null";
-        return vm.serializeString(obj, "usdc", usdc);
+        vm.serializeString(obj, "usdc", usdc);
+        string memory usdt = s_usdtPresent ? vm.toString(s_usdt) : "null";
+        return vm.serializeString(obj, "usdt", usdt);
     }
 
     function _buildMerkleJson(uint256 emptyRoot, uint256 nextLeaf)

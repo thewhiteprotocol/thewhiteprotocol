@@ -18,7 +18,7 @@ import { SUPPORTED_ASSETS } from "@/config/constants";
 import { CHAINS } from "@/config/chains";
 import { initializePoseidon, computeAssetIdBigInt, formatProofForOnChain, randomFieldElement } from "@/lib/crypto";
 import { generateDepositProof } from "@/lib/proofService";
-import { solanaChainService, baseChainService } from "@/lib/chainService";
+import { solanaChainService, getEvmChainService } from "@/lib/chainService";
 import { useToast } from "@/providers/ToastContext";
 import { addNote } from "@/lib/noteStore";
 import { maybeCreateReceipt } from "@/lib/autoReceipt";
@@ -313,7 +313,7 @@ function PaymentConfirm({ parsed, onReset }: { parsed: PaymentRequest; onReset: 
       } else {
         if (!evmWalletClient) throw new Error("EVM wallet not connected");
         const tokenAddr = (asset?.address || "0x0000000000000000000000000000000000000000") as `0x${string}`;
-        hash = await baseChainService.deposit(
+        hash = await getEvmChainService(activeChain).deposit(
           evmWalletClient,
           proofBytes,
           commitment,

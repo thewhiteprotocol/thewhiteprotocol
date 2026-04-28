@@ -26,7 +26,7 @@ export interface RelayerQuote {
   netAmount: string;
   relayer: {
     solana: string;
-    base: string | null;
+    evm: Record<string, string | null>;
   };
 }
 
@@ -37,7 +37,7 @@ export async function getRelayerQuote(amount: string): Promise<RelayerQuote> {
 }
 
 export interface RelayedWithdrawalParams {
-  chain: "solana" | "base";
+  chain: "solana" | "base" | "bsc";
   proofData: string; // hex string, 512 chars = 256 bytes
   merkleRoot: string; // hex string, 64 chars = 32 bytes
   nullifierHash: string; // hex string, 64 chars = 32 bytes
@@ -48,7 +48,7 @@ export interface RelayedWithdrawalParams {
 }
 
 export interface RelayedWithdrawalV2Params {
-  chain: "solana" | "base";
+  chain: "solana" | "base" | "bsc";
   proofData: string; // hex string, 512 chars = 256 bytes
   merkleRoot: string; // hex string, 64 chars = 32 bytes
   nullifierHash: string; // hex string, 64 chars = 32 bytes
@@ -80,6 +80,19 @@ export async function submitRelayedWithdrawalV2(params: RelayedWithdrawalV2Param
     }),
   });
   return res.json();
+}
+
+const CHAIN_TO_RELAYER_NETWORK: Record<string, string> = {
+  base: "base-sepolia",
+  bsc: "bsc-testnet",
+};
+
+export function getRelayerEvmAddress(quote: RelayerQuote, chain: "base" | "bsc"): string | null {
+  const network = CHAIN_TO_RELAYER_NETWORK[chain];
+  if (!network) return null;
+  const fromMap = quote.relayer.evm?.[network];
+  if (fromMap) return fromMap;
+  return (quote.relayer as any).base || null;
 }
 
 export interface NoteStatusResponse {

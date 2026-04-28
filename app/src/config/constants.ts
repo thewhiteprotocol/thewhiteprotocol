@@ -11,7 +11,7 @@ export interface AssetConfig {
   name: string;
   decimals: number;
   icon: string;
-  chain: "solana" | "base" | "both";
+  chain: "solana" | "base" | "bsc" | "both";
   address?: string;
   isNative?: boolean;
   isYield?: boolean;
@@ -54,9 +54,36 @@ export const SUPPORTED_ASSETS: AssetConfig[] = [
     address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
     isNative: false,
   },
+  {
+    symbol: "BNB",
+    name: "BNB",
+    decimals: 18,
+    icon: "/icons/bnb.svg",
+    chain: "bsc",
+    address: "0x0000000000000000000000000000000000000000",
+    isNative: true,
+  },
+  {
+    symbol: "WBNB",
+    name: "Wrapped BNB",
+    decimals: 18,
+    icon: "/icons/wbnb.svg",
+    chain: "bsc",
+    address: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd",
+    isNative: false,
+  },
+  {
+    symbol: "USDT",
+    name: "Tether USD",
+    decimals: 18,
+    icon: "/icons/usdt.svg",
+    chain: "bsc",
+    address: "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd",
+    isNative: false,
+  },
 ];
 
-export const getAssetsForChain = (chain: "solana" | "base") => {
+export const getAssetsForChain = (chain: "solana" | "base" | "bsc") => {
   return SUPPORTED_ASSETS.filter((a) => a.chain === chain || a.chain === "both");
 };
 

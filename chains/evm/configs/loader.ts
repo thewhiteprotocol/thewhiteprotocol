@@ -8,6 +8,7 @@ export interface NetworkConfig {
   nativeSymbol: string;
   wrappedNative: string | null;
   usdc: string | null;
+  usdt: string | null;
   blockTimeSeconds: number;
   finalityConfirmations: number;
   isTestnet: boolean;

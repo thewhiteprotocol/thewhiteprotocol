@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, useAccount as useWagmiAccount } from "wagmi";
 import { RainbowKitProvider, ConnectButton } from "@rainbow-me/rainbowkit";
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { baseSepolia } from "wagmi/chains";
+import { baseSepolia, bscTestnet } from "wagmi/chains";
 import { http } from "wagmi";
 
 import { useChain, ChainProvider } from "./ChainContext";
@@ -32,9 +32,10 @@ function InnerWalletProvider({ children }: { children: React.ReactNode }) {
       getDefaultConfig({
         appName: "The White Protocol",
         projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "white-protocol",
-        chains: [baseSepolia],
+        chains: [baseSepolia, bscTestnet],
         transports: {
           [baseSepolia.id]: http(CHAINS.base.rpcUrl),
+          [bscTestnet.id]: http(CHAINS.bsc.rpcUrl),
         },
         ssr: true,
       }),
@@ -79,7 +80,7 @@ function EvmWalletBridge({ children }: { children: React.ReactNode }) {
   const { activeChain, setWalletAddress, setIsConnected } = useChain();
 
   useEffect(() => {
-    if (activeChain === "base") {
+    if (activeChain === "base" || activeChain === "bsc") {
       setWalletAddress(address || null);
       setIsConnected(isConnected);
     }

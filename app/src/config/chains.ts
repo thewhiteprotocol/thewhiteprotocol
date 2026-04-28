@@ -1,6 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 
-export type SupportedChain = "solana" | "base";
+export type SupportedChain = "solana" | "base" | "bsc";
 
 export interface ChainConfig {
   id: SupportedChain;
@@ -32,9 +32,20 @@ export const BASE_SEPOLIA: ChainConfig = {
   blockExplorerUrl: "https://sepolia.basescan.org",
 };
 
+export const BSC_TESTNET: ChainConfig = {
+  id: "bsc",
+  name: "BSC Testnet",
+  displayName: "BSC",
+  icon: "/icons/bsc.svg",
+  isTestnet: true,
+  rpcUrl: process.env.NEXT_PUBLIC_BSC_TESTNET_RPC_URL || "https://data-seed-prebsc-1-s1.binance.org:8545",
+  blockExplorerUrl: "https://testnet.bscscan.com",
+};
+
 export const CHAINS: Record<SupportedChain, ChainConfig> = {
   solana: SOLANA_DEVNET,
   base: BASE_SEPOLIA,
+  bsc: BSC_TESTNET,
 };
 
-export const SUPPORTED_CHAINS: SupportedChain[] = ["solana", "base"];
+export const SUPPORTED_CHAINS: SupportedChain[] = ["solana", "base", "bsc"];

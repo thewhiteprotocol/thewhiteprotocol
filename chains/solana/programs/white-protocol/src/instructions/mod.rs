@@ -3,7 +3,10 @@
 
 pub mod admin;
 pub mod batch_process_deposits;
+pub mod bridge_mint;
+pub mod bridge_withdraw;
 pub mod compliance;
+pub mod initialize_bridge_config;
 pub mod deposit_masp;
 pub mod initialize_pending_deposits_buffer;
 pub mod initialize_pool_registries;
@@ -25,6 +28,9 @@ pub use admin::{ClearPendingBuffer, ResetMerkleTree,
     UnpausePoolV2,
 };
 pub use batch_process_deposits::BatchProcessDeposits;
+pub use bridge_mint::BridgeMint;
+pub use bridge_withdraw::BridgeWithdraw;
+pub use initialize_bridge_config::InitializeBridgeConfig;
 pub use compliance::{AttachAuditMetadata, ConfigureCompliance};
 pub use deposit_masp::DepositMasp;
 pub use initialize_pending_deposits_buffer::*;

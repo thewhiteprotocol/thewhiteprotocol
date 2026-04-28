@@ -90,6 +90,9 @@ pub enum WhiteProtocolError {
     // =========================================================================
     // AMOUNT/VALUE ERRORS
     // =========================================================================
+    #[msg("Invalid address: cannot be default / zero pubkey")]
+    InvalidAddress,
+
     #[msg("Invalid amount: must be greater than zero")]
     InvalidAmount,
 

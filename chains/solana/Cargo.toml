@@ -1,5 +1,5 @@
 [workspace]
-members = ["programs/white-protocol"]
+members = ["programs/white-protocol", "programs/white-bridge-solana"]
 exclude = ["stealth-utils"]
 resolver = "2"
 

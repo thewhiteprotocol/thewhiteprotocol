@@ -55,6 +55,9 @@ pub(crate) use crate::instructions::set_feature_flags::__client_accounts_set_fea
 pub(crate) use crate::instructions::withdraw_v2::__client_accounts_withdraw_v2;
 pub(crate) use crate::instructions::admin::clear_pending::__client_accounts_clear_pending_buffer;
 pub(crate) use crate::instructions::admin::reset_merkle::__client_accounts_reset_merkle_tree;
+pub(crate) use crate::instructions::bridge_mint::__client_accounts_bridge_mint;
+pub(crate) use crate::instructions::bridge_withdraw::__client_accounts_bridge_withdraw;
+pub(crate) use crate::instructions::initialize_bridge_config::__client_accounts_initialize_bridge_config;
 
 #[program]
 pub mod white_protocol {
@@ -394,6 +397,48 @@ pub mod white_protocol {
     /// Disable a feature flag (authority only)
     pub fn disable_feature(ctx: Context<SetFeatureFlags>, feature: u8) -> Result<()> {
         instructions::set_feature_flags::disable_feature(ctx, feature)
+    }
+
+    /// Initialize bridge configuration for a pool.
+    pub fn initialize_bridge_config(
+        ctx: Context<InitializeBridgeConfig>,
+        bridge_authority: Pubkey,
+    ) -> Result<()> {
+        instructions::initialize_bridge_config::handler(ctx, bridge_authority)
+    }
+
+    /// Bridge withdraw: burns/nullifies a commitment for outbound bridging.
+    #[allow(clippy::too_many_arguments)]
+    pub fn bridge_withdraw(
+        ctx: Context<BridgeWithdraw>,
+        proof_data: Vec<u8>,
+        merkle_root: [u8; 32],
+        nullifier_hash: [u8; 32],
+        recipient: Pubkey,
+        amount: u64,
+        asset_id: [u8; 32],
+        public_data_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::bridge_withdraw::handler(
+            ctx,
+            proof_data,
+            merkle_root,
+            nullifier_hash,
+            recipient,
+            amount,
+            asset_id,
+            public_data_hash,
+        )
+    }
+
+    /// Bridge mint: creates a commitment for inbound bridged funds.
+    pub fn bridge_mint(
+        ctx: Context<BridgeMint>,
+        amount: u64,
+        commitment: [u8; 32],
+        asset_id: [u8; 32],
+    ) -> Result<()> {
+        instructions::bridge_mint::handler(ctx, amount, commitment, asset_id)
     }
 
 }

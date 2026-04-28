@@ -3306,6 +3306,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "white-bridge-solana"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+]
+
+[[package]]
 name = "white-protocol"
 version = "2.0.0"
 dependencies = [

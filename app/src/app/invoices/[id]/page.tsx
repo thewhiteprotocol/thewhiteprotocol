@@ -9,7 +9,7 @@ import { getInvoice, updateInvoiceStatus, type Invoice } from "@/lib/invoiceServ
 import { createReceipt } from "@/lib/receiptService";
 import { generateInvoicePDF } from "@/lib/pdfGenerator";
 import { useChain } from "@/providers/ChainContext";
-import { baseChainService, solanaChainService } from "@/lib/chainService";
+import { getEvmChainService, solanaChainService } from "@/lib/chainService";
 import { QRCodeSVG } from "qrcode.react";
 import { Loader2, Copy, Download, Check, FileText, X, ArrowLeft } from "lucide-react";
 
@@ -53,14 +53,15 @@ export default function InvoiceDetailPage() {
         let paid = false;
         let txHash: string | undefined;
 
-        if (invoice.chain === "base") {
-          const pendingIndex = await baseChainService.getCommitmentPendingIndex(BigInt(invoice.commitment));
+        if (invoice.chain === "base" || invoice.chain === "bsc") {
+          const evmService = getEvmChainService(invoice.chain);
+          const pendingIndex = await evmService.getCommitmentPendingIndex(BigInt(invoice.commitment));
           if (pendingIndex > 0n) {
             // Still pending, keep polling
             return;
           }
           // Not pending - check if it was ever deposited (settled)
-          const event = await baseChainService.findDepositEvent(BigInt(invoice.commitment));
+          const event = await evmService.findDepositEvent(BigInt(invoice.commitment));
           if (event) {
             paid = true;
             txHash = event.blockNumber.toString(); // use blockNumber as proxy since event doesn't include txHash directly

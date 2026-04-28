@@ -18,14 +18,14 @@ import { getAssetsForChain, AssetConfig, SUPPORTED_ASSETS } from "@/config/const
 import { CHAINS } from "@/config/chains";
 import { initializePoseidon, computeCommitment, computeNullifierHash, computeAssetIdBigInt, randomFieldElement, formatProofForOnChain, MERKLE_TREE_DEPTH, pubkeyToScalar } from "@/lib/crypto";
 import { generateDepositProof, generateWithdrawProof, generateWithdrawV2Proof } from "@/lib/proofService";
-import { solanaChainService, baseChainService } from "@/lib/chainService";
+import { solanaChainService, getEvmChainService } from "@/lib/chainService";
 import { getNotes, addNote, updateNote, markSpent } from "@/lib/noteStore";
 import { maybeCreateReceipt } from "@/lib/autoReceipt";
 import { StoredNote } from "@/lib/types";
 import { encodeNote, decodeNote, downloadNoteFile, type DecodedNote } from "@/lib/noteFormat";
 import { QRCodeSVG } from "qrcode.react";
 import { formatTokenAmount, parseTokenAmount } from "@/lib/balanceService";
-import { getRelayerQuote, submitRelayedWithdrawal, submitRelayedWithdrawalV2, checkNoteStatus, getMerkleProof, trackDeposit, RelayerQuote } from "@/lib/relayerClient";
+import { getRelayerQuote, getRelayerEvmAddress, submitRelayedWithdrawal, submitRelayedWithdrawalV2, checkNoteStatus, getMerkleProof, trackDeposit, RelayerQuote } from "@/lib/relayerClient";
 
 function truncate(str: string, len = 8) {
   if (str.length <= len * 2 + 4) return str;
@@ -189,7 +189,7 @@ function DepositTab({
   onDeposit,
   onNoteUpdated,
 }: {
-  activeChain: "solana" | "base";
+  activeChain: "solana" | "base" | "bsc";
   solanaWallet: any;
   evmWalletClient: any;
   onDeposit: (note: StoredNote) => void;
@@ -250,7 +250,7 @@ function DepositTab({
         amount: rawAmount,
         assetId,
       });
-      const proofBytes = formatProofForOnChain(proof, activeChain === "solana" ? "solana" : "base");
+      const proofBytes = formatProofForOnChain(proof, activeChain === "solana" ? "solana" : "evm");
 
       setStep("Sending transaction...");
       let txHash: string | undefined;
@@ -269,7 +269,7 @@ function DepositTab({
       } else {
         if (!evmWalletClient) throw new Error("EVM wallet not connected");
         const tokenAddr = (asset.address || "0x0000000000000000000000000000000000000000") as `0x${string}`;
-        txHash = await baseChainService.deposit(
+        txHash = await getEvmChainService(activeChain).deposit(
           evmWalletClient,
           proofBytes,
           commitment,
@@ -563,7 +563,7 @@ function WithdrawTab({
   loadingNotes,
   onWithdraw,
 }: {
-  activeChain: "solana" | "base";
+  activeChain: "solana" | "base" | "bsc";
   solanaWallet: any;
   evmWalletClient: any;
   notes: StoredNote[];
@@ -666,7 +666,7 @@ function WithdrawTab({
       const quoteAmount = amountToWithdraw || selectedNote.amount;
       const quote = await getRelayerQuote(quoteAmount);
       relayerFee = BigInt(quote.fee);
-      relayerAddress = activeChain === "solana" ? quote.relayer.solana : quote.relayer.base;
+      relayerAddress = activeChain === "solana" ? quote.relayer.solana : getRelayerEvmAddress(quote, activeChain);
     } else if (activeChain === "solana") {
       relayerAddress = solanaWallet.publicKey?.toBase58();
     } else {
@@ -695,7 +695,7 @@ function WithdrawTab({
       relayer: relayerScalar,
       relayerFee,
     });
-    const proofBytes = formatProofForOnChain(proof, activeChain === "solana" ? "solana" : "base");
+    const proofBytes = formatProofForOnChain(proof, activeChain === "solana" ? "solana" : "evm");
 
     return { secret, nullifier, amount, noteAmount, assetId, nullifierHash, merkleRoot, proofBytes };
   }
@@ -743,7 +743,7 @@ function WithdrawTab({
       setStep("Fetching relayer quote...");
       const quote = await getRelayerQuote(amountToWithdraw);
       relayerFee = BigInt(quote.fee);
-      relayerAddress = activeChain === "solana" ? quote.relayer.solana : quote.relayer.base;
+      relayerAddress = activeChain === "solana" ? quote.relayer.solana : getRelayerEvmAddress(quote, activeChain);
     } else if (activeChain === "solana") {
       relayerAddress = solanaWallet.publicKey?.toBase58();
     } else {
@@ -810,7 +810,7 @@ function WithdrawTab({
       if (!evmWalletClient) throw new Error("EVM wallet not connected");
       const asset = SUPPORTED_ASSETS.find((a) => a.symbol === selectedNote!.asset);
       const tokenAddr = (asset?.address || "0x0000000000000000000000000000000000000000") as `0x${string}`;
-      txHash = await baseChainService.withdraw(
+      txHash = await getEvmChainService(activeChain).withdraw(
         evmWalletClient,
         proofBytes,
         nullifierHash,

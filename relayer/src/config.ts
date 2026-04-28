@@ -8,6 +8,7 @@ export interface NetworkConfig {
   nativeSymbol: string;
   wrappedNative: string | null;
   usdc: string | null;
+  usdt: string | null;
   blockTimeSeconds: number;
   finalityConfirmations: number;
   isTestnet: boolean;
@@ -34,6 +35,7 @@ export interface DeploymentJson {
     native: string;
     wrappedNative: string;
     usdc: string | null;
+    usdt: string | null;
   };
   relayers: string[];
   merkleState: {

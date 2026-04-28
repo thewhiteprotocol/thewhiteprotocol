@@ -401,7 +401,7 @@ function StealthAddressCard() {
         signature = Uint8Array.from(Buffer.from(sigHex.slice(2), "hex"));
       }
       
-      const chainTag = activeChain === "solana" ? ChainTag.Solana : ChainTag.Base;
+      const chainTag = activeChain === "solana" ? ChainTag.Solana : activeChain === "base" ? ChainTag.Base : ChainTag.Universal;
       const { serialized } = await generateMetaAddressFromWallet(
         async (_msg) => signature,
         chainTag

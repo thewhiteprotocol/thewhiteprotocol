@@ -1,5 +1,6 @@
 pub mod asset_vault;
 pub mod batcher_role;
+pub mod bridge_config;
 pub mod commitment_index;
 pub mod compliance;
 pub mod merkle_tree;
@@ -11,6 +12,7 @@ pub mod verification_key;
 
 pub use asset_vault::AssetVault;
 pub use batcher_role::BatcherRole;
+pub use bridge_config::BridgeConfig;
 pub use commitment_index::CommitmentIndex;
 pub use compliance::ComplianceConfig;
 pub use merkle_tree::MerkleTree;

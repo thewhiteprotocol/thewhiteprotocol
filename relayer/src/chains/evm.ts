@@ -14,6 +14,8 @@ import {
   mainnet,
   polygon,
   polygonZkEvm,
+  bscTestnet,
+  bsc,
 } from 'viem/chains';
 
 const CHAIN_MAP: Record<number, Chain> = {
@@ -25,6 +27,8 @@ const CHAIN_MAP: Record<number, Chain> = {
   1: mainnet,
   137: polygon,
   1101: polygonZkEvm,
+  97: bscTestnet,
+  56: bsc,
 };
 
 const abi = parseAbi([

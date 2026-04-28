@@ -1,7 +1,7 @@
 {
   "name": "@thewhiteprotocol/evm",
   "version": "2.0.0",
-  "description": "The White Protocol - EVM chain implementations (Base, Ethereum, Polygon, Polygon zkEVM)",
+  "description": "The White Protocol - EVM chain implementations (Base, Ethereum, Polygon, Polygon zkEVM, BSC)",
   "scripts": {
     "build": "forge build",
     "test": "forge test -vvv",
@@ -10,13 +10,23 @@
     "deploy:ethereum-sepolia": "NETWORK=ethereum-sepolia forge script script/Deploy.s.sol --ffi --rpc-url $ETHEREUM_SEPOLIA_RPC_URL --broadcast --verify",
     "deploy:polygon-amoy": "NETWORK=polygon-amoy forge script script/Deploy.s.sol --ffi --rpc-url $POLYGON_AMOY_RPC_URL --broadcast --verify",
     "deploy:polygon-zkevm-cardona": "NETWORK=polygon-zkevm-cardona forge script script/Deploy.s.sol --ffi --rpc-url $POLYGON_ZKEVM_CARDONA_RPC_URL --broadcast --verify",
+    "deploy:bsc-testnet": "NETWORK=bsc-testnet forge script script/Deploy.s.sol --ffi --rpc-url $BSC_TESTNET_RPC_URL --broadcast --verify",
+    "deploy:bsc-mainnet": "ALLOW_MAINNET=true NETWORK=bsc-testnet forge script script/Deploy.s.sol --ffi --rpc-url $BSC_MAINNET_RPC_URL --broadcast --verify",
     "deploy:sepolia": "NETWORK=base-sepolia forge script script/Deploy.s.sol --ffi --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --verify",
+    "test:e2e:bsc-testnet": "ts-node test/e2e/e2e-bsc-testnet.ts",
     "verify:sepolia": "forge verify-contract --chain-id 84532 --compiler-version v0.8.23+commit.f704f362"
   },
   "dependencies": {
     "@thewhiteprotocol/core": "file:../../packages/core"
   },
   "devDependencies": {
+    "@layerzerolabs/lz-definitions": "^3.0.168",
+    "@layerzerolabs/lz-evm-messagelib-v2": "^3.0.168",
+    "@layerzerolabs/lz-evm-protocol-v2": "^3.0.168",
+    "@layerzerolabs/metadata-tools": "^3.0.3",
+    "@layerzerolabs/oapp-evm": "^0.4.1",
+    "@layerzerolabs/test-devtools-evm-foundry": "^8.0.1",
+    "@layerzerolabs/toolbox-foundry": "^0.1.13",
     "solc": "^0.8.23"
   }
 }

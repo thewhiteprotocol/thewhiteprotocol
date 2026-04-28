@@ -7,6 +7,9 @@ const COINGECKO_IDS: Record<string, string> = {
   ETH: "ethereum",
   WETH: "weth",
   USDC: "usd-coin",
+  BNB: "binancecoin",
+  WBNB: "wbnb",
+  USDT: "tether",
 };
 
 let priceCache: Record<string, number> = {};
@@ -40,7 +43,7 @@ export async function fetchPrices(): Promise<Record<string, number>> {
 
 export function getShieldedBalance(
   notes: StoredNote[],
-  chain?: "solana" | "base",
+  chain?: "solana" | "base" | "bsc",
   asset?: string
 ): bigint {
   return notes
@@ -77,11 +80,14 @@ const ASSET_DECIMALS: Record<string, number> = {
   ETH: 18,
   WETH: 18,
   USDC: 6,
+  BNB: 18,
+  WBNB: 18,
+  USDT: 18,
 };
 
-export async function getTotalBalanceUsd(notes: StoredNote[]): Promise<{ total: number; breakdown: Array<{ asset: string; chain: "solana" | "base"; amount: bigint; usdValue: number }> }> {
+export async function getTotalBalanceUsd(notes: StoredNote[]): Promise<{ total: number; breakdown: Array<{ asset: string; chain: "solana" | "base" | "bsc"; amount: bigint; usdValue: number }> }> {
   const prices = await fetchPrices();
-  const breakdownMap = new Map<string, { asset: string; chain: "solana" | "base"; amount: bigint }>();
+  const breakdownMap = new Map<string, { asset: string; chain: "solana" | "base" | "bsc"; amount: bigint }>();
 
   for (const note of notes.filter((n) => n.status !== "spent")) {
     const key = `${note.chain}:${note.asset}`;
@@ -94,7 +100,7 @@ export async function getTotalBalanceUsd(notes: StoredNote[]): Promise<{ total: 
   }
 
   let total = 0;
-  const breakdown: Array<{ asset: string; chain: "solana" | "base"; amount: bigint; usdValue: number }> = [];
+  const breakdown: Array<{ asset: string; chain: "solana" | "base" | "bsc"; amount: bigint; usdValue: number }> = [];
 
   for (const entry of breakdownMap.values()) {
     const decimals = ASSET_DECIMALS[entry.asset] || 18;
