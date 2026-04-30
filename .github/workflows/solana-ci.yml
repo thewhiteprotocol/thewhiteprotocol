@@ -1,0 +1,207 @@
+name: Solana CI
+
+on:
+  pull_request:
+    paths:
+      - 'chains/solana/**'
+      - 'circuits/**'
+      - '.github/workflows/solana-ci.yml'
+  push:
+    branches: [main, master]
+    paths:
+      - 'chains/solana/**'
+      - 'circuits/**'
+      - '.github/workflows/solana-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOLANA_CLI_VERSION: 1.18.18
+  ANCHOR_VERSION: 0.32.1
+  NODE_VERSION: 20
+
+jobs:
+  solana-rust:
+    name: Rust Tests & SBF Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./chains/solana
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Solana Toolchain
+        uses: actions/cache@v4
+        id: solana-cache
+        with:
+          path: |
+            ~/.cache/solana/
+            ~/.local/share/solana/
+          key: solana-${{ env.SOLANA_CLI_VERSION }}-${{ runner.os }}
+
+      - name: Install Solana CLI
+        if: steps.solana-cache.outputs.cache-hit != 'true'
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_CLI_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Add Solana to PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: chains/solana
+
+      - name: Check Formatting
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        run: cargo clippy -p white-protocol --lib -- -D warnings
+
+      - name: Run Rust Tests
+        run: cargo test -p white-protocol --lib
+
+      - name: Build SBF
+        run: cargo build-sbf
+
+  solana-build-mode-safety:
+    name: Build Mode Safety
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./chains/solana
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Solana Toolchain
+        uses: actions/cache@v4
+        id: solana-cache
+        with:
+          path: |
+            ~/.cache/solana/
+            ~/.local/share/solana/
+          key: solana-${{ env.SOLANA_CLI_VERSION }}-${{ runner.os }}
+
+      - name: Install Solana CLI
+        if: steps.solana-cache.outputs.cache-hit != 'true'
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_CLI_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Add Solana to PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: chains/solana/package.json
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Run Build Mode Safety Check
+        run: npx tsx scripts/check-build-mode-safety.ts
+
+  solana-idl-drift:
+    name: IDL Drift Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./chains/solana
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Solana Toolchain
+        uses: actions/cache@v4
+        id: solana-cache
+        with:
+          path: |
+            ~/.cache/solana/
+            ~/.local/share/solana/
+          key: solana-${{ env.SOLANA_CLI_VERSION }}-${{ runner.os }}
+
+      - name: Install Solana CLI
+        if: steps.solana-cache.outputs.cache-hit != 'true'
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_CLI_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Add Solana to PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: chains/solana/package.json
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Run IDL Drift Check
+        run: npx tsx scripts/check-idl-drift.ts
+
+  solana-circuit-artifacts:
+    name: Circuit Artifact Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./chains/solana
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: chains/solana/package.json
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Run Circuit Artifact Check
+        run: npx tsx scripts/check-circuit-artifacts.ts
+
+  solana-localnet-e2e:
+    name: Localnet E2E Integration Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./chains/solana
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Solana Toolchain
+        uses: actions/cache@v4
+        id: solana-cache
+        with:
+          path: |
+            ~/.cache/solana/
+            ~/.local/share/solana/
+          key: solana-${{ env.SOLANA_CLI_VERSION }}-${{ runner.os }}
+
+      - name: Install Solana CLI
+        if: steps.solana-cache.outputs.cache-hit != 'true'
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_CLI_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Add Solana to PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: chains/solana/package.json
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Run Localnet E2E
+        run: bash scripts/ci-localnet-e2e.sh

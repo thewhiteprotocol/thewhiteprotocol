@@ -143,7 +143,10 @@ impl RelayerRegistry {
 
     /// Register a new relayer
     pub fn register_relayer(&mut self, timestamp: i64) -> Result<()> {
-        require!(self.registrations_open, WhiteProtocolError::RegistrationsClosed);
+        require!(
+            self.registrations_open,
+            WhiteProtocolError::RegistrationsClosed
+        );
 
         self.relayer_count = self
             .relayer_count

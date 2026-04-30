@@ -65,7 +65,7 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
     );
     
     event StealthWithdrawal(
-        bytes32 indexed ephemeralPubkey,
+        bytes ephemeralPubkey,
         address indexed destination,
         uint256 blockNumber
     );
@@ -242,9 +242,9 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         uint256 fee,
         address relayer
     ) external nonReentrant {
-        _withdrawInternal(proof, nullifierHash, root, recipient, token, amount, fee, relayer, bytes32(0));
+        _withdrawInternal(proof, nullifierHash, root, recipient, token, amount, fee, relayer, new bytes(0));
     }
-    
+
     function withdrawStealth(
         bytes calldata proof,
         uint256 nullifierHash,
@@ -254,12 +254,13 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         uint256 amount,
         uint256 fee,
         address relayer,
-        bytes32 ephemeralPubkey
+        bytes calldata ephemeralPubkey
     ) external nonReentrant {
-        require(ephemeralPubkey != bytes32(0), "Invalid ephemeral pubkey");
+        require(ephemeralPubkey.length == 33, "Invalid ephemeral pubkey length");
+        require(ephemeralPubkey[0] == 0x02 || ephemeralPubkey[0] == 0x03, "Invalid ephemeral pubkey prefix");
         _withdrawInternal(proof, nullifierHash, root, recipient, token, amount, fee, relayer, ephemeralPubkey);
     }
-    
+
     function _withdrawInternal(
         bytes calldata proof,
         uint256 nullifierHash,
@@ -269,7 +270,7 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         uint256 amount,
         uint256 fee,
         address relayer,
-        bytes32 ephemeralPubkey
+        bytes memory ephemeralPubkey
     ) internal {
         require(proof.length == 256, "Invalid proof length");
         require(!spentNullifiers[nullifierHash], "Nullifier already spent");
@@ -284,7 +285,7 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
 
         // Verify withdraw proof
         uint256[8] memory p = _parseProof(proof);
-        
+
         // Public inputs: [root, nullifierHash, assetId, recipient, amount, relayer, relayerFee, publicDataHash]
         uint256[8] memory pubSignals = [
             root,
@@ -296,7 +297,7 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
             fee,
             0 // publicDataHash
         ];
-        
+
         require(
             withdrawVerifier.verifyProof(
                 [p[0], p[1]],
@@ -314,22 +315,22 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         if (token == address(0)) {
             (bool success, ) = payable(recipient).call{value: recipientAmount}("");
             require(success, "ETH transfer failed");
-            
+
             if (fee > 0 && relayer != address(0)) {
                 (bool feeSuccess, ) = payable(relayer).call{value: fee}("");
                 require(feeSuccess, "Fee transfer failed");
             }
         } else {
             IERC20(token).safeTransfer(recipient, recipientAmount);
-            
+
             if (fee > 0 && relayer != address(0)) {
                 IERC20(token).safeTransfer(relayer, fee);
             }
         }
 
         emit Withdrawal(nullifierHash, recipient, relayer, amount, fee);
-        
-        if (ephemeralPubkey != bytes32(0)) {
+
+        if (ephemeralPubkey.length > 0) {
             emit StealthWithdrawal(ephemeralPubkey, recipient, block.number);
         }
     }

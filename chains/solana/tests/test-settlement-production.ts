@@ -21,7 +21,11 @@ import { buildPoseidon } from 'circomlibjs';
 import { createHash } from 'crypto';
 
 const RPC = process.env.ANCHOR_PROVIDER_URL || 'http://localhost:8899';
-const PROGRAM_ID = new PublicKey('DAoezX29ingBicFfrqboD7xBeLro2b6RL77dhEbXivVD');
+// Program ID: env var override for localnet keypair mismatch, otherwise canonical from IDL
+const idlPath = process.env.IDL_PATH || 'target/idl/white_protocol.json';
+const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8'));
+const PROGRAM_ID = new PublicKey(process.env.PROGRAM_ID || idl.address);
+const TEST_SLEEP_MS = parseInt(process.env.TEST_SLEEP_MS || '2000', 10);
 let POOL_CONFIG: PublicKey;
 let MERKLE_TREE: PublicKey;
 let PENDING_DEPOSITS: PublicKey;
@@ -128,7 +132,8 @@ async function main(): Promise<TestResult[]> {
 
   const provider = new anchor.AnchorProvider(connection, new anchor.Wallet(authority), { commitment: 'confirmed' });
   anchor.setProvider(provider);
-  const idl = JSON.parse(fs.readFileSync('target/idl/white_protocol.json', 'utf8'));
+  // Override IDL address so Anchor uses the correct program ID (e.g. localnet keypair)
+  (idl as any).address = PROGRAM_ID.toBase58();
   const program = new anchor.Program(idl as any, provider);
 
   const { deriveAssetId } = await import('../sdk/src/crypto/keccak');
@@ -326,7 +331,7 @@ async function main(): Promise<TestResult[]> {
     console.log('\n🧪 Test 1: Fresh single batch');
     try {
       const note = await makeDeposit(BigInt(0.01 * LAMPORTS_PER_SOL));
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, TEST_SLEEP_MS));
       await settleSingle(note);
 
       const merkleTreeAfter = await (program.account as any).merkleTree.fetch(MERKLE_TREE);
@@ -359,7 +364,7 @@ async function main(): Promise<TestResult[]> {
     try {
       const note1 = await makeDeposit(BigInt(0.01 * LAMPORTS_PER_SOL));
       const note2 = await makeDeposit(BigInt(0.01 * LAMPORTS_PER_SOL));
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, TEST_SLEEP_MS));
       await settleBatch([note1, note2]);
 
       const w1 = await withdraw(note1, 0);
@@ -384,7 +389,7 @@ async function main(): Promise<TestResult[]> {
       for (let i = 0; i < 3; i++) {
         notes.push(await makeDeposit(BigInt(0.01 * LAMPORTS_PER_SOL)));
       }
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, TEST_SLEEP_MS));
       await settleBatch(notes);
 
       for (let i = 0; i < 3; i++) {
@@ -406,12 +411,12 @@ async function main(): Promise<TestResult[]> {
     console.log('\n🧪 Test 4: Multi-batch non-zero start index');
     try {
       const batch1 = [await makeDeposit(BigInt(0.01 * LAMPORTS_PER_SOL))];
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, TEST_SLEEP_MS));
       await settleBatch(batch1);
       console.log('  Batch 1 settled at index 0');
 
       const batch2 = [await makeDeposit(BigInt(0.01 * LAMPORTS_PER_SOL))];
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, TEST_SLEEP_MS));
       await settleBatch(batch2);
       console.log('  Batch 2 settled at index 1');
 
@@ -432,7 +437,7 @@ async function main(): Promise<TestResult[]> {
     console.log('\n🧪 Test 5: Invalid proof mutation safety');
     try {
       const note = await makeDeposit(BigInt(0.01 * LAMPORTS_PER_SOL));
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, TEST_SLEEP_MS));
 
       const merkleTreeBefore = await (program.account as any).merkleTree.fetch(MERKLE_TREE);
       const preRoot = Buffer.from(merkleTreeBefore.currentRoot).toString('hex');
@@ -508,7 +513,7 @@ async function main(): Promise<TestResult[]> {
   results.forEach(r => {
     const status = r.passed ? '✅ PASS' : '❌ FAIL';
     console.log(`  ${status}: ${r.test}`);
-    if (r.error) console.log(`         Error: ${r.error.substring(0, 80)}`);
+    if (r.error) console.log(`         Error: ${r.error}`);
   });
 
   console.log(`\n  Total: ${passed}/${total} tests passed`);

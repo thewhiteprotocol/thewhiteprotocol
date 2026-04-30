@@ -16,7 +16,8 @@ use crate::crypto::WithdrawPublicInputs;
 use crate::error::WhiteProtocolError;
 use crate::events::WithdrawMaspEvent;
 use crate::state::{
-    AssetVault, BridgeConfig, MerkleTree, PoolConfig, SpentNullifier, SpendType, VerificationKeyAccount,
+    AssetVault, BridgeConfig, MerkleTree, PoolConfig, SpendType, SpentNullifier,
+    VerificationKeyAccount,
 };
 use crate::utils::cu;
 use crate::ProofType;
@@ -138,7 +139,10 @@ pub fn handler(
     // INPUT VALIDATION
     // =========================================================================
 
-    require!(proof_data.len() == 256, WhiteProtocolError::InvalidProofFormat);
+    require!(
+        proof_data.len() == 256,
+        WhiteProtocolError::InvalidProofFormat
+    );
     require!(amount > 0, WhiteProtocolError::InvalidAmount);
     require!(
         !nullifier_hash.iter().all(|&b| b == 0),
@@ -235,7 +239,9 @@ pub fn handler(
         cu("bridge_withdraw: after token transfer");
     }
 
-    ctx.accounts.asset_vault.record_withdrawal(amount, timestamp)?;
+    ctx.accounts
+        .asset_vault
+        .record_withdrawal(amount, timestamp)?;
     ctx.accounts.pool_config.record_withdrawal(timestamp)?;
 
     emit!(WithdrawMaspEvent {
@@ -247,7 +253,12 @@ pub fn handler(
         timestamp,
     });
 
-    msg!("BridgeWithdraw: amount={}, asset={:?}, recipient={}", amount, asset_id, recipient);
+    msg!(
+        "BridgeWithdraw: amount={}, asset={:?}, recipient={}",
+        amount,
+        asset_id,
+        recipient
+    );
 
     Ok(())
 }

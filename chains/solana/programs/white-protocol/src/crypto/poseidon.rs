@@ -563,7 +563,8 @@ pub fn hash_two_to_one(left: &Scalar, right: &Scalar) -> Result<Scalar> {
             solana_poseidon::Parameters::Bn254X5,
             solana_poseidon::Endianness::BigEndian,
             &[left.as_slice(), right.as_slice()],
-        ).map_err(|_| error!(crate::error::WhiteProtocolError::CryptographyError))?;
+        )
+        .map_err(|_| error!(crate::error::WhiteProtocolError::CryptographyError))?;
         Ok(hash.to_bytes())
     }
     #[cfg(not(target_os = "solana"))]
@@ -638,7 +639,9 @@ mod tests {
     #[test]
     fn test_not_placeholder() {
         #[inline(never)]
-        fn is_placeholder_runtime() -> bool { IS_PLACEHOLDER }
+        fn is_placeholder_runtime() -> bool {
+            IS_PLACEHOLDER
+        }
         assert!(!is_placeholder_runtime());
     }
 

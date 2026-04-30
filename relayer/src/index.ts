@@ -117,7 +117,7 @@ interface WithdrawRequest {
   mint: string;
   /** Target chain */
   chain?: 'solana' | string;
-  /** Optional ephemeral pubkey for stealth withdrawals (64 hex chars = 32 bytes) */
+  /** Optional ephemeral pubkey for stealth withdrawals (66 hex chars = 33 bytes compressed secp256k1) */
   ephemeralPubkey?: string;
   /** Withdrawal version: v1 = standard, v2 = partial with change output */
   version?: 'v1' | 'v2';
@@ -1055,12 +1055,16 @@ export class RelayerService {
       }
     }
     
-    // Validate ephemeral pubkey if provided (32 bytes = 64 hex chars)
+    // Validate ephemeral pubkey if provided (33 bytes compressed secp256k1 = 66 hex chars)
     if (request.ephemeralPubkey) {
-      if (!/^[0-9a-fA-F]{64}$/.test(request.ephemeralPubkey)) {
-        throw new Error('Invalid ephemeral pubkey: must be 64 hex characters');
+      if (!/^[0-9a-fA-F]{66}$/.test(request.ephemeralPubkey)) {
+        throw new Error('Invalid ephemeral pubkey: must be 66 hex characters (33-byte compressed secp256k1)');
       }
-      if (request.ephemeralPubkey === '0'.repeat(64)) {
+      const prefix = parseInt(request.ephemeralPubkey.slice(0, 2), 16);
+      if (prefix !== 0x02 && prefix !== 0x03) {
+        throw new Error('Invalid ephemeral pubkey: must start with 0x02 or 0x03');
+      }
+      if (request.ephemeralPubkey === '0'.repeat(66)) {
         throw new Error('Invalid ephemeral pubkey: all zeros');
       }
     }
@@ -1923,7 +1927,7 @@ export async function main(): Promise<void> {
     circuitsPath: process.env.CIRCUITS_PATH || "../circuits/build",
     treeDepth: parseInt(process.env.TREE_DEPTH || "20", 10),
     baseRpcUrl: process.env.BASE_RPC_URL || 'https://sepolia.base.org',
-    baseProtocolAddress: process.env.BASE_PROTOCOL_ADDRESS || '0xCE959493cf6F15314b4B9eEbb28369716341e7FE',
+    baseProtocolAddress: process.env.BASE_PROTOCOL_ADDRESS || '0xC7632F1E2F38d1a16A9C451129a9d24edB10A265',
     baseDeployerPrivateKey: process.env.BASE_DEPLOYER_PRIVATE_KEY,
     authorityKeypair: process.env.AUTHORITY_KEYPAIR
       ? Keypair.fromSecretKey(parseAuthorityKeypair())

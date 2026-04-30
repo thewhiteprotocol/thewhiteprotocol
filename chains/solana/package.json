@@ -6,10 +6,26 @@
   "types": "sdk/dist/index.d.ts",
   "scripts": {
     "build": "anchor build && tsc -p sdk",
+    "build:sbf": "cargo build-sbf",
     "test": "anchor test",
+    "test:rust": "cargo test -p white-protocol --lib",
     "test:e2e": "npx tsx tests/run-all-e2e.ts",
+    "test:settlement:localnet": "bash scripts/ci-localnet-e2e.sh",
+    "test:settlement:devnet": "ANCHOR_PROVIDER_URL=https://api.devnet.solana.com npx tsx tests/test-settlement-production.ts",
     "deploy:devnet": "anchor deploy --provider.cluster devnet",
-    "idl:generate": "anchor idl generate"
+    "idl:generate": "anchor idl generate",
+    "fmt": "cargo fmt",
+    "fmt:check": "cargo fmt --check",
+    "clippy": "cargo clippy -p white-protocol --lib -- -D warnings",
+    "ci:solana": "npm run ci:fmt && npm run ci:clippy && npm run ci:rust && npm run ci:build && npm run ci:circuits && npm run ci:idl-check",
+    "ci:fmt": "npm run fmt:check",
+    "ci:clippy": "npm run clippy",
+    "ci:rust": "npm run test:rust",
+    "ci:build": "npm run build:sbf",
+    "ci:build-mode": "npx tsx scripts/check-build-mode-safety.ts",
+    "ci:circuits": "npx tsx scripts/check-circuit-artifacts.ts",
+    "ci:idl-check": "npx tsx scripts/check-idl-drift.ts",
+    "ci:localnet": "bash scripts/ci-localnet-e2e.sh"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

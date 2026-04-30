@@ -33,7 +33,7 @@ const CHAIN_MAP: Record<number, Chain> = {
 
 const abi = parseAbi([
   'function withdraw(bytes memory proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer) external',
-  'function withdrawStealth(bytes memory proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer, bytes32 ephemeralPubkey) external',
+  'function withdrawStealth(bytes memory proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer, bytes ephemeralPubkey) external',
   'function settleBatch(bytes memory proof, uint256 oldRoot, uint256 newRoot, uint256 startIndex, uint256 batchSize, uint256 commitmentsHash) external',
   'function getLastRoot() external view returns (uint256)',
   'function roots(uint256 index) external view returns (uint256)',
@@ -46,7 +46,7 @@ const abi = parseAbi([
   'function getPendingDeposit(uint256 index) external view returns (uint256)',
   'event Deposit(uint256 indexed commitment, uint256 amount, address indexed asset, uint256 leafIndex)',
   'event BatchSettlement(uint256 indexed startIndex, uint256 batchSize, uint256 newRoot)',
-  'event StealthWithdrawal(bytes32 indexed ephemeralPubkey, address indexed destination, uint256 blockNumber)',
+  'event StealthWithdrawal(bytes ephemeralPubkey, address indexed destination, uint256 blockNumber)',
 ]);
 
 export interface EvmConfig {

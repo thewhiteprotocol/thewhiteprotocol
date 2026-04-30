@@ -31,8 +31,8 @@ use crate::error::WhiteProtocolError;
 use crate::events::WithdrawMaspDebugEvent;
 use crate::events::WithdrawMaspEvent;
 use crate::state::{
-    AssetVault, MerkleTree, PoolConfig, RelayerNode, RelayerRegistry, SpendType,
-    SpentNullifier, VerificationKeyAccount, YieldRegistry,
+    AssetVault, MerkleTree, PoolConfig, RelayerNode, RelayerRegistry, SpendType, SpentNullifier,
+    VerificationKeyAccount, YieldRegistry,
 };
 use crate::ProofType;
 
@@ -171,7 +171,10 @@ pub fn handler(
     // =========================================================================
 
     // Validate proof data length (Groth16: 2*G1 + 1*G2 = 256 bytes)
-    require!(proof_data.len() == 256, WhiteProtocolError::InvalidProofFormat);
+    require!(
+        proof_data.len() == 256,
+        WhiteProtocolError::InvalidProofFormat
+    );
 
     // Validate amount is above minimum (prevents dust attacks)
     require!(
@@ -543,18 +546,42 @@ pub fn handler_stealth(
     // StealthWithdrawal event. Both functions must stay in sync.
 
     // Input validation
-    require!(proof_data.len() == 256, WhiteProtocolError::InvalidProofFormat);
-    require!(amount >= MIN_WITHDRAWAL_AMOUNT, WhiteProtocolError::InvalidAmount);
-    require!(!nullifier_hash.iter().all(|&b| b == 0), WhiteProtocolError::InvalidNullifier);
-    require!(!merkle_root.iter().all(|&b| b == 0), WhiteProtocolError::InvalidMerkleRoot);
-    require!(!ephemeral_pubkey.iter().all(|&b| b == 0), WhiteProtocolError::InvalidEphemeralPubkey);
-    require!(relayer_fee <= amount, WhiteProtocolError::RelayerFeeExceedsAmount);
+    require!(
+        proof_data.len() == 256,
+        WhiteProtocolError::InvalidProofFormat
+    );
+    require!(
+        amount >= MIN_WITHDRAWAL_AMOUNT,
+        WhiteProtocolError::InvalidAmount
+    );
+    require!(
+        !nullifier_hash.iter().all(|&b| b == 0),
+        WhiteProtocolError::InvalidNullifier
+    );
+    require!(
+        !merkle_root.iter().all(|&b| b == 0),
+        WhiteProtocolError::InvalidMerkleRoot
+    );
+    require!(
+        !ephemeral_pubkey.iter().all(|&b| b == 0),
+        WhiteProtocolError::InvalidEphemeralPubkey
+    );
+    require!(
+        relayer_fee <= amount,
+        WhiteProtocolError::RelayerFeeExceedsAmount
+    );
 
     let fee_times_ten = relayer_fee
         .checked_mul(10)
         .ok_or(error!(WhiteProtocolError::RelayerFeeOverflow))?;
-    require!(fee_times_ten <= amount, WhiteProtocolError::RelayerFeeOutOfRange);
-    require!(asset_id == ctx.accounts.asset_vault.asset_id, WhiteProtocolError::AssetIdMismatch);
+    require!(
+        fee_times_ten <= amount,
+        WhiteProtocolError::RelayerFeeOutOfRange
+    );
+    require!(
+        asset_id == ctx.accounts.asset_vault.asset_id,
+        WhiteProtocolError::AssetIdMismatch
+    );
 
     if ctx.accounts.pool_config.is_yield_enforcement_enabled() {
         let yield_registry = ctx

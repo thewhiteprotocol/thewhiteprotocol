@@ -615,7 +615,9 @@ impl WithdrawPublicInputsBuilder {
             recipient: self
                 .recipient
                 .ok_or(error!(WhiteProtocolError::RecipientMismatch))?,
-            amount: self.amount.ok_or(error!(WhiteProtocolError::InvalidAmount))?,
+            amount: self
+                .amount
+                .ok_or(error!(WhiteProtocolError::InvalidAmount))?,
             relayer: self
                 .relayer
                 .ok_or(error!(WhiteProtocolError::RelayerNotRegistered))?,

@@ -179,7 +179,10 @@ pub fn handler(
     // =========================================================================
 
     // Validate proof data length (Groth16: 2*G1 + 1*G2 = 256 bytes)
-    require!(proof_data.len() == 256, WhiteProtocolError::InvalidProofFormat);
+    require!(
+        proof_data.len() == 256,
+        WhiteProtocolError::InvalidProofFormat
+    );
 
     // Validate amount is above minimum
     require!(

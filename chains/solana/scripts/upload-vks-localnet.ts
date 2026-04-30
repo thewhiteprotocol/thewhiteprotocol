@@ -11,8 +11,17 @@ import {
 import * as fs from "fs";
 import * as path from "path";
 
-const PROGRAM_ID = new PublicKey("DAoezX29ingBicFfrqboD7xBeLro2b6RL77dhEbXivVD");
-const POOL_CONFIG = new PublicKey("DZLJU6MAeWZ7aGLyt2j7Jq2XnNq2ch6jUAVgKmki9HaF");
+// Program ID: env var override for localnet keypair mismatch, otherwise canonical from IDL
+const idlPath = process.env.IDL_PATH || "target/idl/white_protocol.json";
+const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
+const PROGRAM_ID = new PublicKey(process.env.PROGRAM_ID || idl.address);
+
+const keypairPath = process.env.ANCHOR_WALLET || "/workspaces/thewhiteprotocol/devnet-deployer.json";
+const authority = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keypairPath, "utf8"))));
+const [POOL_CONFIG] = PublicKey.findProgramAddressSync(
+  [Buffer.from("white_pool"), authority.publicKey.toBuffer()],
+  PROGRAM_ID
+);
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -33,14 +42,16 @@ function g2ToBytes(point: string[][]): Buffer {
 }
 
 async function main() {
-  const connection = new Connection("http://localhost:8899", "confirmed");
+  const rpcUrl = process.env.ANCHOR_PROVIDER_URL || "http://localhost:8899";
+  const connection = new Connection(rpcUrl, "confirmed");
   const keypairPath = process.env.ANCHOR_WALLET || "/workspaces/thewhiteprotocol/devnet-deployer.json";
   const authority = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(keypairPath, "utf8"))));
   const wallet = new anchor.Wallet(authority);
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   anchor.setProvider(provider);
 
-  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
+  // Override IDL address so Anchor uses the correct program ID (e.g. localnet keypair)
+  (idl as any).address = PROGRAM_ID.toBase58();
   const program = new anchor.Program(idl, provider);
 
   const vkConfigs = [
@@ -169,7 +180,7 @@ async function main() {
         .instruction();
 
       const tx = new Transaction().add(
-        ComputeBudgetProgram.setComputeUnitLimit({ units: 100_000 }),
+        ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
         ix
       );
       const sig = await sendAndConfirmTransaction(connection, tx, [authority]);

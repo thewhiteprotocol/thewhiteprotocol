@@ -3,9 +3,9 @@
 //! Allows pool authority to enable/disable feature flags on the pool.
 //! This includes FEATURE_YIELD_ENFORCEMENT for LST yield fee enforcement.
 
-use anchor_lang::prelude::*;
 use crate::error::WhiteProtocolError;
 use crate::state::PoolConfig;
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct SetFeatureFlags<'info> {
@@ -28,10 +28,14 @@ pub fn enable_feature(ctx: Context<SetFeatureFlags>, feature: u8) -> Result<()> 
         feature.count_ones() == 1 && feature <= PoolConfig::FEATURE_YIELD_ENFORCEMENT,
         WhiteProtocolError::InvalidFeatureFlag
     );
-    
+
     ctx.accounts.pool_config.enable_feature(feature);
-    
-    msg!("Feature {} enabled. New flags: {}", feature, ctx.accounts.pool_config.feature_flags);
+
+    msg!(
+        "Feature {} enabled. New flags: {}",
+        feature,
+        ctx.accounts.pool_config.feature_flags
+    );
     Ok(())
 }
 
@@ -42,15 +46,19 @@ pub fn disable_feature(ctx: Context<SetFeatureFlags>, feature: u8) -> Result<()>
         feature.count_ones() == 1 && feature <= PoolConfig::FEATURE_YIELD_ENFORCEMENT,
         WhiteProtocolError::InvalidFeatureFlag
     );
-    
+
     // Don't allow disabling MASP (core functionality)
     require!(
         feature != PoolConfig::FEATURE_MASP,
         WhiteProtocolError::CannotDisableCoreFeature
     );
-    
+
     ctx.accounts.pool_config.disable_feature(feature);
-    
-    msg!("Feature {} disabled. New flags: {}", feature, ctx.accounts.pool_config.feature_flags);
+
+    msg!(
+        "Feature {} disabled. New flags: {}",
+        feature,
+        ctx.accounts.pool_config.feature_flags
+    );
     Ok(())
 }

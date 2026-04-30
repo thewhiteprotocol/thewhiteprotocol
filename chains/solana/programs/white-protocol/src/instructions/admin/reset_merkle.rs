@@ -1,9 +1,9 @@
 //! Reset Merkle Tree Instruction
 //!
 //! Admin function to reset merkle tree state to empty.
-use anchor_lang::prelude::*;
 use crate::error::WhiteProtocolError;
-use crate::state::{PoolConfig, MerkleTree};
+use crate::state::{MerkleTree, PoolConfig};
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct ResetMerkleTree<'info> {
@@ -26,18 +26,18 @@ pub struct ResetMerkleTree<'info> {
 
 pub fn handler(ctx: Context<ResetMerkleTree>) -> Result<()> {
     let merkle = &mut ctx.accounts.merkle_tree;
-    
+
     // Reset to empty tree state
     merkle.next_leaf_index = 0;
     merkle.current_root = merkle.zeros[merkle.depth as usize];
     merkle.filled_subtrees = merkle.zeros[..merkle.depth as usize].to_vec();
     merkle.root_history_index = 0;
-    
+
     // Clear root history
     for i in 0..merkle.root_history.len() {
         merkle.root_history[i] = [0u8; 32];
     }
-    
+
     msg!("Merkle tree reset to empty state");
     Ok(())
 }

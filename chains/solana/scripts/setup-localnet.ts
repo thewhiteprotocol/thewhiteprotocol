@@ -10,7 +10,10 @@ import {
 } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, NATIVE_MINT, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import * as fs from "fs";
-const PROGRAM_ID = new PublicKey("DAoezX29ingBicFfrqboD7xBeLro2b6RL77dhEbXivVD");
+// Program ID: env var override for localnet keypair mismatch, otherwise canonical from IDL
+const idlPath = process.env.IDL_PATH || "target/idl/white_protocol.json";
+const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
+const PROGRAM_ID = new PublicKey(process.env.PROGRAM_ID || idl.address);
 const WRAPPED_SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
 const TREE_DEPTH = 20;
 const ROOT_HISTORY_SIZE = 100;
@@ -20,15 +23,18 @@ function sleep(ms: number) {
 }
 
 async function main() {
-  const connection = new Connection("http://localhost:8899", "confirmed");
+  const rpcUrl = process.env.ANCHOR_PROVIDER_URL || "http://localhost:8899";
+  const connection = new Connection(rpcUrl, "confirmed");
+  const walletPath = process.env.ANCHOR_WALLET || "/workspaces/thewhiteprotocol/devnet-deployer.json";
   const authority = Keypair.fromSecretKey(
-    Uint8Array.from(JSON.parse(fs.readFileSync("/workspaces/thewhiteprotocol/devnet-deployer.json", "utf8")))
+    Uint8Array.from(JSON.parse(fs.readFileSync(walletPath, "utf8")))
   );
   const wallet = new anchor.Wallet(authority);
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   anchor.setProvider(provider);
 
-  const idl = JSON.parse(fs.readFileSync("target/idl/white_protocol.json", "utf8"));
+  // Override IDL address so Anchor uses the correct program ID (e.g. localnet keypair)
+  (idl as any).address = PROGRAM_ID.toBase58();
   const program = new anchor.Program(idl, provider);
 
   console.log("Authority:", authority.publicKey.toBase58());

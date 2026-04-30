@@ -5,7 +5,8 @@ use crate::crypto::DepositPublicInputs;
 use crate::error::WhiteProtocolError;
 use crate::events::DepositQueuedEvent;
 use crate::state::{
-    AssetVault, CommitmentIndex, MerkleTree, PendingDepositsBuffer, PoolConfig, VerificationKeyAccount,
+    AssetVault, CommitmentIndex, MerkleTree, PendingDepositsBuffer, PoolConfig,
+    VerificationKeyAccount,
 };
 use crate::utils::cu;
 use crate::ProofType;
@@ -158,7 +159,10 @@ pub fn handler(
         WhiteProtocolError::InvalidCommitment
     );
 
-    require!(proof_data.len() == 256, WhiteProtocolError::InvalidProofFormat);
+    require!(
+        proof_data.len() == 256,
+        WhiteProtocolError::InvalidProofFormat
+    );
     cu("deposit: after proof len");
 
     require!(

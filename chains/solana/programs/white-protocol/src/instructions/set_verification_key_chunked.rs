@@ -57,7 +57,10 @@ pub fn initialize_vk_handler(
     pool_config.require_vk_unlocked(proof_type)?;
 
     // Account-level gates
-    require!(!vk_account.is_locked, WhiteProtocolError::VerificationKeyLocked);
+    require!(
+        !vk_account.is_locked,
+        WhiteProtocolError::VerificationKeyLocked
+    );
     require!(
         !vk_account.is_initialized,
         WhiteProtocolError::VkAlreadyFinalized
@@ -128,7 +131,10 @@ pub fn append_vk_ic_handler(
     let vk_account = &mut ctx.accounts.vk_account;
 
     // Cannot mutate a locked VK
-    require!(!vk_account.is_locked, WhiteProtocolError::VerificationKeyLocked);
+    require!(
+        !vk_account.is_locked,
+        WhiteProtocolError::VerificationKeyLocked
+    );
 
     // Cannot append after finalization
     require!(
@@ -182,7 +188,10 @@ pub fn finalize_vk_handler(ctx: Context<FinalizeVkV2>, proof_type: ProofType) ->
     let vk_account = &mut ctx.accounts.vk_account;
 
     // Cannot touch a locked VK
-    require!(!vk_account.is_locked, WhiteProtocolError::VerificationKeyLocked);
+    require!(
+        !vk_account.is_locked,
+        WhiteProtocolError::VerificationKeyLocked
+    );
 
     // Must be complete before finalizing or locking
     require!(
@@ -263,10 +272,7 @@ pub fn close_vk_handler(ctx: Context<CloseVkV2>, proof_type: ProofType) -> Resul
     pool_config.vk_configured &= !mask;
     pool_config.vk_locked &= !mask;
 
-    msg!(
-        "Closed VK for proof type {:?}",
-        proof_type
-    );
+    msg!("Closed VK for proof type {:?}", proof_type);
 
     Ok(())
 }

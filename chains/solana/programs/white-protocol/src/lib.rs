@@ -29,17 +29,25 @@ declare_id!("C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW");
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_accept_authority_transfer_v2;
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_cancel_authority_transfer_v2;
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_initiate_authority_transfer_v2;
+pub(crate) use crate::instructions::admin::clear_pending::__client_accounts_clear_pending_buffer;
 pub(crate) use crate::instructions::admin::pause_v2::__client_accounts_pause_pool_v2;
+pub(crate) use crate::instructions::admin::reset_merkle::__client_accounts_reset_merkle_tree;
 pub(crate) use crate::instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2;
 pub(crate) use crate::instructions::batch_process_deposits::__client_accounts_batch_process_deposits;
+pub(crate) use crate::instructions::bridge_mint::__client_accounts_bridge_mint;
+pub(crate) use crate::instructions::bridge_withdraw::__client_accounts_bridge_withdraw;
 pub(crate) use crate::instructions::deposit_masp::__client_accounts_deposit_masp;
+pub(crate) use crate::instructions::init_yield_registry::__client_accounts_init_yield_registry;
+pub(crate) use crate::instructions::initialize_bridge_config::__client_accounts_initialize_bridge_config;
 pub(crate) use crate::instructions::initialize_pool_registries::__client_accounts_initialize_pool_registries;
 pub(crate) use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
+pub(crate) use crate::instructions::manage_yield_mints::__client_accounts_manage_yield_mints;
 pub(crate) use crate::instructions::register_asset::__client_accounts_register_asset;
 pub(crate) use crate::instructions::relayer::configure_registry::__client_accounts_configure_relayer_registry;
 pub(crate) use crate::instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer;
 pub(crate) use crate::instructions::relayer::register_relayer::__client_accounts_register_relayer;
 pub(crate) use crate::instructions::relayer::update_relayer::__client_accounts_update_relayer;
+pub(crate) use crate::instructions::set_feature_flags::__client_accounts_set_feature_flags;
 pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_append_vk_ic_v2;
 pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_close_vk_v2;
 pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_finalize_vk_v2;
@@ -48,16 +56,8 @@ pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_l
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
 pub(crate) use crate::instructions::withdraw_masp::__client_accounts_withdraw_masp;
 pub(crate) use crate::instructions::withdraw_masp::__client_accounts_withdraw_masp_stealth;
-pub(crate) use crate::instructions::withdraw_yield_v2::__client_accounts_withdraw_yield_v2;
-pub(crate) use crate::instructions::init_yield_registry::__client_accounts_init_yield_registry;
-pub(crate) use crate::instructions::manage_yield_mints::__client_accounts_manage_yield_mints;
-pub(crate) use crate::instructions::set_feature_flags::__client_accounts_set_feature_flags;
 pub(crate) use crate::instructions::withdraw_v2::__client_accounts_withdraw_v2;
-pub(crate) use crate::instructions::admin::clear_pending::__client_accounts_clear_pending_buffer;
-pub(crate) use crate::instructions::admin::reset_merkle::__client_accounts_reset_merkle_tree;
-pub(crate) use crate::instructions::bridge_mint::__client_accounts_bridge_mint;
-pub(crate) use crate::instructions::bridge_withdraw::__client_accounts_bridge_withdraw;
-pub(crate) use crate::instructions::initialize_bridge_config::__client_accounts_initialize_bridge_config;
+pub(crate) use crate::instructions::withdraw_yield_v2::__client_accounts_withdraw_yield_v2;
 
 #[program]
 pub mod white_protocol {
@@ -440,7 +440,6 @@ pub mod white_protocol {
     ) -> Result<()> {
         instructions::bridge_mint::handler(ctx, amount, commitment, asset_id)
     }
-
 }
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProofType {

@@ -59,7 +59,10 @@ pub fn handler(
     // SECURITY: Defense-in-depth - also check the VK account's own lock flag
     // This catches cases where pool_config and vk_account get out of sync
     if vk_account.is_initialized {
-        require!(!vk_account.is_locked, WhiteProtocolError::VerificationKeyLocked);
+        require!(
+            !vk_account.is_locked,
+            WhiteProtocolError::VerificationKeyLocked
+        );
     }
 
     // Validate IC length matches expected for proof type
@@ -139,7 +142,10 @@ pub fn lock_handler(ctx: Context<LockVerificationKeyV2>, proof_type: ProofType) 
     let vk_account = &mut ctx.accounts.vk_account;
 
     // Check not already locked
-    require!(!vk_account.is_locked, WhiteProtocolError::VerificationKeyLocked);
+    require!(
+        !vk_account.is_locked,
+        WhiteProtocolError::VerificationKeyLocked
+    );
 
     let clock = Clock::get()?;
     let timestamp = clock.unix_timestamp;

@@ -1,0 +1,48 @@
+name: Solana Devnet Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      sleep_ms:
+        description: 'TEST_SLEEP_MS for devnet (default 5000)'
+        required: false
+        default: '5000'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 20
+
+jobs:
+  devnet-verify:
+    name: Devnet Integration Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./chains/solana
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: chains/solana/package.json
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Run Devnet Settlement Test
+        env:
+          ANCHOR_PROVIDER_URL: ${{ secrets.SOLANA_DEVNET_RPC || 'https://api.devnet.solana.com' }}
+          ANCHOR_WALLET: ${{ secrets.SOLANA_DEVNET_WALLET_PATH }}
+          TEST_SLEEP_MS: ${{ github.event.inputs.sleep_ms }}
+        run: |
+          if [ -z "$ANCHOR_WALLET" ]; then
+            echo "⚠️ SOLANA_DEVNET_WALLET_PATH secret not set. Skipping devnet test."
+            exit 0
+          fi
+          echo "🧪 Running devnet integration test..."
+          npx tsx tests/test-settlement-production.ts

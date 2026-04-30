@@ -5,8 +5,8 @@
 //!
 //! This verifies our Poseidon implementation matches circomlibjs exactly.
 
-use white_protocol::crypto::{poseidon2, poseidon3, poseidon4};
 use serde::Deserialize;
+use white_protocol::crypto::{poseidon2, poseidon3, poseidon4};
 
 type Scalar = [u8; 32];
 

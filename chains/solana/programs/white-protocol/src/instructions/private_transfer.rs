@@ -19,9 +19,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 
 use crate::error::WhiteProtocolError;
-use crate::state::{
-    AssetVault, MerkleTree, PoolConfig, RelayerRegistry, VerificationKeyAccount,
-};
+use crate::state::{AssetVault, MerkleTree, PoolConfig, RelayerRegistry, VerificationKeyAccount};
 use crate::ProofType;
 
 /// Maximum number of input nullifiers (design target)

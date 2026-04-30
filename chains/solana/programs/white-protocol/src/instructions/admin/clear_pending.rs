@@ -1,9 +1,9 @@
 //! Clear Pending Buffer Instruction
 //!
 //! Emergency admin function to clear pending deposits buffer.
-use anchor_lang::prelude::*;
 use crate::error::WhiteProtocolError;
-use crate::state::{PoolConfig, PendingDepositsBuffer};
+use crate::state::{PendingDepositsBuffer, PoolConfig};
+use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct ClearPendingBuffer<'info> {

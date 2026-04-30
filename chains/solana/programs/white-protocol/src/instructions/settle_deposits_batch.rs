@@ -9,12 +9,12 @@
 //! 3. Sequencer generates Groth16 proof
 //! 4. This instruction verifies proof and updates state
 
-use anchor_lang::prelude::*;
 use crate::crypto::groth16::{verify, Proof, VerificationKey};
 use crate::error::WhiteProtocolError;
 use crate::events::{BatchSettledEvent, CommitmentInsertedEvent};
 use crate::state::{MerkleTree, PendingDepositsBuffer, PoolConfig, VerificationKeyAccount};
 use crate::ProofType;
+use anchor_lang::prelude::*;
 
 /// Maximum batch size must match circuit's maxBatch parameter
 pub const MAX_BATCH_SIZE: usize = 1;
@@ -91,23 +91,22 @@ fn sha256_to_field(hash: &[u8; 32]) -> [u8; 32] {
 
 /// Compute commitments hash matching circuit encoding
 /// Circuit hashes MAX_BATCH_SIZE slots, inactive slots are 0
-/// 
+///
 /// SECURITY: Commitments are Poseidon hashes which are guaranteed to be < P
 /// (BN254 base field). We keep the reduction logic for defense-in-depth
 /// but use a proper loop to handle any value.
 fn compute_commitments_hash(commitments: &[[u8; 32]], batch_size: usize) -> [u8; 32] {
     use sha2::{Digest, Sha256};
-    
+
     // BN254 prime p (big-endian)
     const P: [u8; 32] = [
-        0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29,
-        0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58, 0x5d,
-        0x97, 0x81, 0x6a, 0x91, 0x68, 0x71, 0xca, 0x8d,
-        0x3c, 0x20, 0x8c, 0x16, 0xd8, 0x7c, 0xfd, 0x47,
+        0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58,
+        0x5d, 0x97, 0x81, 0x6a, 0x91, 0x68, 0x71, 0xca, 0x8d, 0x3c, 0x20, 0x8c, 0x16, 0xd8, 0x7c,
+        0xfd, 0x47,
     ];
-    
+
     let mut preimage = [0u8; MAX_BATCH_SIZE * 32];
-    
+
     for i in 0..MAX_BATCH_SIZE {
         if i < batch_size && i < commitments.len() {
             let c = &commitments[i];
@@ -119,8 +118,8 @@ fn compute_commitments_hash(commitments: &[[u8; 32]], batch_size: usize) -> [u8;
             preimage[i * 32..(i + 1) * 32].copy_from_slice(&current);
         }
     }
-    
-    let hash = Sha256::digest(&preimage);
+
+    let hash = Sha256::digest(preimage);
     let mut h = [0u8; 32];
     h.copy_from_slice(&hash);
     h
@@ -129,8 +128,12 @@ fn compute_commitments_hash(commitments: &[[u8; 32]], batch_size: usize) -> [u8;
 /// Compare two 32-byte big-endian numbers: a >= b
 fn is_gte_big_endian(a: &[u8; 32], b: &[u8; 32]) -> bool {
     for i in 0..32 {
-        if a[i] > b[i] { return true; }
-        if a[i] < b[i] { return false; }
+        if a[i] > b[i] {
+            return true;
+        }
+        if a[i] < b[i] {
+            return false;
+        }
     }
     true // equal
 }
@@ -151,7 +154,6 @@ fn sub_big_endian(a: &[u8; 32], b: &[u8; 32]) -> [u8; 32] {
     }
     result
 }
-
 
 /// Handler for settle_deposits_batch instruction
 pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs) -> Result<()> {
@@ -227,7 +229,10 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
         msg!("[SETTLE] new_root={}", hex::encode(args.new_root));
         msg!("[SETTLE] start_index={}", start_index);
         msg!("[SETTLE] batch_size={}", batch_size);
-        msg!("[SETTLE] commitments_hash={}", hex::encode(commitments_hash_field));
+        msg!(
+            "[SETTLE] commitments_hash={}",
+            hex::encode(commitments_hash_field)
+        );
     }
 
     let proof = Proof::from_bytes(&args.proof)?;

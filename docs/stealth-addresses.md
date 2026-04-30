@@ -87,11 +87,11 @@ pub struct StealthWithdrawal {
 
 ### Base / EVM
 
-The `withdrawStealth` function accepts a `bytes32 ephemeralPubkey` and emits:
+The `withdrawStealth` function accepts a `bytes calldata ephemeralPubkey` (33-byte compressed secp256k1) and emits:
 
 ```solidity
 event StealthWithdrawal(
-    bytes32 indexed ephemeralPubkey,
+    bytes ephemeralPubkey,
     address indexed destination,
     uint256 blockNumber
 );

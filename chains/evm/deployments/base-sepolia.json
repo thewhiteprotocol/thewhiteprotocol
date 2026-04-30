@@ -1,30 +1,26 @@
 {
   "chainId": 84532,
-  "network": "base-sepolia",
-  "deployer": "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c",
-  "timestamp": 1776040156,
   "contracts": {
-    "WhiteProtocol": "0xCE959493cf6F15314b4B9eEbb28369716341e7FE",
-    "AssetRegistry": "0x87319Da4558FcBD4f3475cFECc468ee4D736D3ea",
-    "DepositVerifier": "0x3F44E947d9f9F0055854aF678F03C32F4bbd415e",
-    "WithdrawVerifier": "0xcb657012d8a718EA8FC51E68cC729d923f023E59",
-    "MerkleBatchVerifier": "0x71930f07b3bA75A314a6e7c44C350AD0E2718473"
+    "AssetRegistry": "0x7B4eD77809d1F54C6b8aE1d743b086471D488253",
+    "DepositVerifier": "0xbcC566af14aDC6a7872Fb99379148F86Eb807394",
+    "MerkleBatchVerifier": "0xF2BCD1aF0B70fF9c206d5e2059f98F9c9148470C",
+    "WhiteProtocol": "0xC7632F1E2F38d1a16A9C451129a9d24edB10A265",
+    "WithdrawVerifier": "0x78508a36ceE77c9171A6B7963175b369834D9F21"
   },
-  "supportedAssets": [
-    {
-      "symbol": "ETH",
-      "address": "0x0000000000000000000000000000000000000000",
-      "decimals": 18,
-      "yield": false
-    },
-    {
-      "symbol": "WETH",
-      "address": "0x4200000000000000000000000000000000000006",
-      "decimals": 18,
-      "yield": false
-    }
-  ],
+  "deployedAt": "2026-04-30T12:50:38Z",
+  "deployer": "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c",
+  "merkleState": {
+    "emptyRoot": "0x2134e76ac5d21aab186c2be1dd8f84ee880a1e46eaf712f9d371b6df22191f3e",
+    "nextLeafIndex": 0
+  },
+  "network": "base-sepolia",
   "relayers": [
     "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c"
-  ]
+  ],
+  "supportedAssets": {
+    "native": "0x0000000000000000000000000000000000000000",
+    "usdc": null,
+    "usdt": null,
+    "wrappedNative": "0x4200000000000000000000000000000000000006"
+  }
 }

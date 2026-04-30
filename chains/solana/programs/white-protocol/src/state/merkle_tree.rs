@@ -288,10 +288,8 @@ impl MerkleTree {
                     current_hash = crate::crypto::hash_two_to_one(&left_sibling, &current_hash)?;
                 } else {
                     filled_subtrees[level_usize] = current_hash;
-                    current_hash = crate::crypto::hash_two_to_one(
-                        &current_hash,
-                        &self.zeros[level_usize],
-                    )?;
+                    current_hash =
+                        crate::crypto::hash_two_to_one(&current_hash, &self.zeros[level_usize])?;
                 }
             }
             computed_root = current_hash;
@@ -312,8 +310,13 @@ impl MerkleTree {
     ///
     /// # Errors
     /// - `CryptographyError` if Poseidon hash fails
-    pub fn replay_insertions(&mut self, commitments: &[[u8; 32]], start_index: u32) -> Result<[u8; 32]> {
-        let (new_filled_subtrees, computed_root) = self.compute_insertions(commitments, start_index)?;
+    pub fn replay_insertions(
+        &mut self,
+        commitments: &[[u8; 32]],
+        start_index: u32,
+    ) -> Result<[u8; 32]> {
+        let (new_filled_subtrees, computed_root) =
+            self.compute_insertions(commitments, start_index)?;
         self.filled_subtrees = new_filled_subtrees;
         Ok(computed_root)
     }
@@ -377,8 +380,7 @@ impl MerkleTree {
         // Add to root history (circular buffer)
         let history_idx = self.root_history_index as usize;
         self.root_history[history_idx] = computed_root;
-        self.root_history_index =
-            (self.root_history_index + 1) % self.root_history_size;
+        self.root_history_index = (self.root_history_index + 1) % self.root_history_size;
 
         Ok(computed_root)
     }
@@ -754,7 +756,9 @@ mod tests {
         let commitment = make_commitment(1);
         let _expected_root = reference.insert_leaf(commitment, 1000).unwrap();
 
-        let computed_root = actual.settle_batch(&[commitment], reference.current_root, 1000).unwrap();
+        let computed_root = actual
+            .settle_batch(&[commitment], reference.current_root, 1000)
+            .unwrap();
 
         assert_eq!(computed_root, reference.current_root);
         assert_eq!(actual.current_root, reference.current_root);
@@ -776,7 +780,9 @@ mod tests {
         reference.insert_leaf(c1, 1000).unwrap();
         reference.insert_leaf(c2, 1001).unwrap();
 
-        let computed_root = actual.settle_batch(&[c1, c2], reference.current_root, 1000).unwrap();
+        let computed_root = actual
+            .settle_batch(&[c1, c2], reference.current_root, 1000)
+            .unwrap();
 
         assert_eq!(computed_root, reference.current_root);
         assert_eq!(actual.current_root, reference.current_root);
@@ -796,7 +802,9 @@ mod tests {
             reference.insert_leaf(c, 1000 + i as i64).unwrap();
         }
 
-        let computed_root = actual.settle_batch(&commitments, reference.current_root, 1000).unwrap();
+        let computed_root = actual
+            .settle_batch(&commitments, reference.current_root, 1000)
+            .unwrap();
 
         assert_eq!(computed_root, reference.current_root);
         assert_eq!(actual.current_root, reference.current_root);
@@ -815,7 +823,9 @@ mod tests {
         for (i, &c) in batch1.iter().enumerate() {
             reference.insert_leaf(c, 1000 + i as i64).unwrap();
         }
-        actual.settle_batch(&batch1, reference.current_root, 1000).unwrap();
+        actual
+            .settle_batch(&batch1, reference.current_root, 1000)
+            .unwrap();
 
         // Verify intermediate state matches
         assert_eq!(actual.next_leaf_index, 2);
@@ -825,7 +835,9 @@ mod tests {
         for (i, &c) in batch2.iter().enumerate() {
             reference.insert_leaf(c, 2000 + i as i64).unwrap();
         }
-        actual.settle_batch(&batch2, reference.current_root, 2000).unwrap();
+        actual
+            .settle_batch(&batch2, reference.current_root, 2000)
+            .unwrap();
 
         assert_eq!(actual.current_root, reference.current_root);
         assert_eq!(actual.next_leaf_index, 4);
@@ -847,7 +859,10 @@ mod tests {
         let wrong_root = [0xFFu8; 32];
 
         let result = tree.settle_batch(&[commitment], wrong_root, 1000);
-        assert!(result.is_err(), "Expected InvalidProof error for mismatched root");
+        assert!(
+            result.is_err(),
+            "Expected InvalidProof error for mismatched root"
+        );
 
         // Verify no state mutation
         assert_eq!(tree.current_root, pre_root);
@@ -872,6 +887,9 @@ mod tests {
         let fake_root = [0xABu8; 32];
 
         let result = tree.settle_batch(&[commitment], fake_root, 1000);
-        assert!(result.is_err(), "Corrupted state must fail with InvalidProof");
+        assert!(
+            result.is_err(),
+            "Corrupted state must fail with InvalidProof"
+        );
     }
 }

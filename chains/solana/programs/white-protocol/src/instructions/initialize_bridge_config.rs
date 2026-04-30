@@ -36,10 +36,7 @@ pub struct InitializeBridgeConfig<'info> {
 }
 
 /// Handler for initialize_bridge_config
-pub fn handler(
-    ctx: Context<InitializeBridgeConfig>,
-    bridge_authority: Pubkey,
-) -> Result<()> {
+pub fn handler(ctx: Context<InitializeBridgeConfig>, bridge_authority: Pubkey) -> Result<()> {
     require!(
         bridge_authority != Pubkey::default(),
         WhiteProtocolError::InvalidAddress

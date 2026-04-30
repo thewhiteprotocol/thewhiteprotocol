@@ -6,8 +6,8 @@ pub mod batch_process_deposits;
 pub mod bridge_mint;
 pub mod bridge_withdraw;
 pub mod compliance;
-pub mod initialize_bridge_config;
 pub mod deposit_masp;
+pub mod initialize_bridge_config;
 pub mod initialize_pending_deposits_buffer;
 pub mod initialize_pool_registries;
 pub mod initialize_pool_registries_v2;
@@ -23,16 +23,16 @@ pub mod shielded_cpi;
 pub mod withdraw_masp;
 pub mod withdraw_v2;
 
-pub use admin::{ClearPendingBuffer, ResetMerkleTree,
-    AcceptAuthorityTransferV2, CancelAuthorityTransferV2, InitiateAuthorityTransferV2, PausePoolV2,
-    UnpausePoolV2,
+pub use admin::{
+    AcceptAuthorityTransferV2, CancelAuthorityTransferV2, ClearPendingBuffer,
+    InitiateAuthorityTransferV2, PausePoolV2, ResetMerkleTree, UnpausePoolV2,
 };
 pub use batch_process_deposits::BatchProcessDeposits;
 pub use bridge_mint::BridgeMint;
 pub use bridge_withdraw::BridgeWithdraw;
-pub use initialize_bridge_config::InitializeBridgeConfig;
 pub use compliance::{AttachAuditMetadata, ConfigureCompliance};
 pub use deposit_masp::DepositMasp;
+pub use initialize_bridge_config::InitializeBridgeConfig;
 pub use initialize_pending_deposits_buffer::*;
 pub use initialize_pool_registries::InitializePoolRegistries;
 pub use initialize_pool_registries_v2::InitializePoolRegistriesV2;

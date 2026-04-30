@@ -46,33 +46,39 @@ contract StealthWithdrawalTest is Test {
     MockVerifier public depositVerifier;
     MockWithdrawVerifier public withdrawVerifier;
     MockMerkleBatchVerifier public merkleBatchVerifier;
-    
+
     address public owner = address(1);
     address public user = address(2);
     address public relayer = address(3);
-    
-    // Stealth parameters
-    bytes32 public ephemeralPubkey = bytes32(uint256(0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef));
+
+    // Valid 33-byte compressed secp256k1 ephemeral pubkey (prefix 0x02)
+    bytes public ephemeralPubkey =
+        hex"021234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+
+    // Valid 33-byte compressed secp256k1 ephemeral pubkey (prefix 0x03)
+    bytes public ephemeralPubkey03 =
+        hex"031234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+
     address public stealthRecipient = address(0xdeadbeef);
-    
+
     // Event mirror for expectEmit
     event StealthWithdrawal(
-        bytes32 indexed ephemeralPubkey,
+        bytes ephemeralPubkey,
         address indexed destination,
         uint256 blockNumber
     );
 
     function setUp() public {
         vm.startPrank(owner);
-        
+
         // Deploy verifiers
         depositVerifier = new MockVerifier();
         withdrawVerifier = new MockWithdrawVerifier();
         merkleBatchVerifier = new MockMerkleBatchVerifier();
-        
+
         // Deploy asset registry
         assetRegistry = new AssetRegistry(owner);
-        
+
         // Deploy main contract
         whiteProtocol = new WhiteProtocol(
             owner,
@@ -81,161 +87,259 @@ contract StealthWithdrawalTest is Test {
             address(merkleBatchVerifier),
             address(assetRegistry)
         );
-        
+
         // Add ETH as supported asset
         assetRegistry.addAsset(address(0), false, 18, 0.001 ether, 100 ether);
-        
+
         // Register relayer
         whiteProtocol.registerRelayer(relayer);
-        
+
         vm.stopPrank();
-        
+
         // Fund user
         vm.deal(user, 10 ether);
     }
 
-    function test_StealthWithdrawalEvent() public {
-        // First deposit
+    function _depositAndGetRoot() internal returns (uint256 root) {
         bytes memory proof = new bytes(256);
         uint256 commitment = uint256(keccak256(abi.encodePacked("test")));
         uint256 amount = 1 ether;
-        
+
         vm.prank(user);
         whiteProtocol.deposit{value: amount}(proof, commitment, amount, address(0));
-        
-        // Get current root
-        uint256 root = whiteProtocol.getLastRoot();
-        
-        // Prepare stealth withdrawal
+
+        return whiteProtocol.getLastRoot();
+    }
+
+    function test_StealthWithdrawalEvent02() public {
+        uint256 root = _depositAndGetRoot();
         uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifier")));
-        uint256 fee = 0.005 ether; // 0.5%
-        
+        uint256 fee = 0.005 ether;
+
         vm.prank(relayer);
-        
+
         // Expect the StealthWithdrawal event
         vm.expectEmit(true, true, false, true);
-        emit StealthWithdrawal(
-            ephemeralPubkey,
-            stealthRecipient,
-            block.number
-        );
-        
+        emit StealthWithdrawal(ephemeralPubkey, stealthRecipient, block.number);
+
         whiteProtocol.withdrawStealth(
-            proof,
+            new bytes(256),
             nullifierHash,
             root,
             stealthRecipient,
             address(0),
-            amount,
+            1 ether,
             fee,
             relayer,
             ephemeralPubkey
         );
-        
-        // Verify nullifier is spent
+
         assertTrue(whiteProtocol.isSpent(nullifierHash));
     }
 
-    function test_StealthWithdrawalInvalidEphemeral() public {
-        // First deposit
-        bytes memory proof = new bytes(256);
-        uint256 commitment = uint256(keccak256(abi.encodePacked("test")));
-        uint256 amount = 1 ether;
-        
-        vm.prank(user);
-        whiteProtocol.deposit{value: amount}(proof, commitment, amount, address(0));
-        
-        uint256 root = whiteProtocol.getLastRoot();
-        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifier")));
+    function test_StealthWithdrawalEvent03() public {
+        uint256 root = _depositAndGetRoot();
+        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifier03")));
         uint256 fee = 0.005 ether;
-        
+
         vm.prank(relayer);
-        vm.expectRevert("Invalid ephemeral pubkey");
-        
+
+        vm.expectEmit(true, true, false, true);
+        emit StealthWithdrawal(ephemeralPubkey03, stealthRecipient, block.number);
+
         whiteProtocol.withdrawStealth(
-            proof,
+            new bytes(256),
             nullifierHash,
             root,
             stealthRecipient,
             address(0),
-            amount,
+            1 ether,
             fee,
             relayer,
-            bytes32(0) // zero ephemeral pubkey should revert
+            ephemeralPubkey03
+        );
+
+        assertTrue(whiteProtocol.isSpent(nullifierHash));
+    }
+
+    function test_StealthWithdrawalRejects32Bytes() public {
+        uint256 root = _depositAndGetRoot();
+        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifier32")));
+        uint256 fee = 0.005 ether;
+
+        bytes memory badPubkey = hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        assertEq(badPubkey.length, 32, "Test pubkey should be 32 bytes");
+
+        vm.prank(relayer);
+        vm.expectRevert("Invalid ephemeral pubkey length");
+
+        whiteProtocol.withdrawStealth(
+            new bytes(256),
+            nullifierHash,
+            root,
+            stealthRecipient,
+            address(0),
+            1 ether,
+            fee,
+            relayer,
+            badPubkey
+        );
+    }
+
+    function test_StealthWithdrawalRejects34Bytes() public {
+        uint256 root = _depositAndGetRoot();
+        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifier34")));
+        uint256 fee = 0.005 ether;
+
+        bytes memory badPubkey =
+            hex"021234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12";
+        assertEq(badPubkey.length, 34, "Test pubkey should be 34 bytes");
+
+        vm.prank(relayer);
+        vm.expectRevert("Invalid ephemeral pubkey length");
+
+        whiteProtocol.withdrawStealth(
+            new bytes(256),
+            nullifierHash,
+            root,
+            stealthRecipient,
+            address(0),
+            1 ether,
+            fee,
+            relayer,
+            badPubkey
+        );
+    }
+
+    function test_StealthWithdrawalRejects33BytesInvalidPrefix() public {
+        uint256 root = _depositAndGetRoot();
+        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifierPrefix")));
+        uint256 fee = 0.005 ether;
+
+        bytes memory badPubkey =
+            hex"041234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        assertEq(badPubkey.length, 33, "Test pubkey should be 33 bytes");
+        assertEq(uint8(badPubkey[0]), 0x04, "Test pubkey prefix should be 0x04");
+
+        vm.prank(relayer);
+        vm.expectRevert("Invalid ephemeral pubkey prefix");
+
+        whiteProtocol.withdrawStealth(
+            new bytes(256),
+            nullifierHash,
+            root,
+            stealthRecipient,
+            address(0),
+            1 ether,
+            fee,
+            relayer,
+            badPubkey
+        );
+    }
+
+    function test_StealthWithdrawalRejects33BytesZeroPrefix() public {
+        uint256 root = _depositAndGetRoot();
+        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifierZeroPrefix")));
+        uint256 fee = 0.005 ether;
+
+        bytes memory badPubkey =
+            hex"001234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        assertEq(badPubkey.length, 33, "Test pubkey should be 33 bytes");
+
+        vm.prank(relayer);
+        vm.expectRevert("Invalid ephemeral pubkey prefix");
+
+        whiteProtocol.withdrawStealth(
+            new bytes(256),
+            nullifierHash,
+            root,
+            stealthRecipient,
+            address(0),
+            1 ether,
+            fee,
+            relayer,
+            badPubkey
+        );
+    }
+
+    function test_StealthWithdrawalRejectsEmptyBytes() public {
+        uint256 root = _depositAndGetRoot();
+        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifierEmpty")));
+        uint256 fee = 0.005 ether;
+
+        vm.prank(relayer);
+        vm.expectRevert("Invalid ephemeral pubkey length");
+
+        whiteProtocol.withdrawStealth(
+            new bytes(256),
+            nullifierHash,
+            root,
+            stealthRecipient,
+            address(0),
+            1 ether,
+            fee,
+            relayer,
+            new bytes(0)
         );
     }
 
     function test_RegularWithdrawalNoStealthEvent() public {
-        // First deposit
-        bytes memory proof = new bytes(256);
-        uint256 commitment = uint256(keccak256(abi.encodePacked("test")));
-        uint256 amount = 1 ether;
-        
-        vm.prank(user);
-        whiteProtocol.deposit{value: amount}(proof, commitment, amount, address(0));
-        
-        uint256 root = whiteProtocol.getLastRoot();
-        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifier")));
+        uint256 root = _depositAndGetRoot();
+        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifierRegular")));
         uint256 fee = 0.005 ether;
-        
+
         vm.prank(relayer);
-        
+
         // Regular withdraw should NOT emit StealthWithdrawal
-        // We verify this by checking the logs after the call
         whiteProtocol.withdraw(
-            proof,
+            new bytes(256),
             nullifierHash,
             root,
             user,
             address(0),
-            amount,
+            1 ether,
             fee,
             relayer
         );
-        
+
         assertTrue(whiteProtocol.isSpent(nullifierHash));
     }
 
     function test_StealthWithdrawalDoubleSpend() public {
-        // First deposit
-        bytes memory proof = new bytes(256);
-        uint256 commitment = uint256(keccak256(abi.encodePacked("test")));
-        uint256 amount = 1 ether;
-        
-        vm.prank(user);
-        whiteProtocol.deposit{value: amount}(proof, commitment, amount, address(0));
-        
-        uint256 root = whiteProtocol.getLastRoot();
-        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifier")));
+        uint256 root = _depositAndGetRoot();
+        uint256 nullifierHash = uint256(keccak256(abi.encodePacked("nullifierDs")));
         uint256 fee = 0.005 ether;
-        
+
         // First stealth withdrawal
         vm.prank(relayer);
         whiteProtocol.withdrawStealth(
-            proof,
+            new bytes(256),
             nullifierHash,
             root,
             stealthRecipient,
             address(0),
-            amount,
+            1 ether,
             fee,
             relayer,
             ephemeralPubkey
         );
-        
+
         // Second attempt should fail (double spend)
         vm.prank(relayer);
         vm.expectRevert("Nullifier already spent");
+
+        bytes memory differentPubkey =
+            hex"031234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
         whiteProtocol.withdrawStealth(
-            proof,
+            new bytes(256),
             nullifierHash,
             root,
             stealthRecipient,
             address(0),
-            amount,
+            1 ether,
             fee,
             relayer,
-            bytes32(uint256(0xabcdef)) // different ephemeral pubkey, same nullifier
+            differentPubkey
         );
     }
 

@@ -17,6 +17,8 @@
     "test:solana": "cd chains/solana && npm test",
     "test:e2e:solana": "cd chains/solana && npx tsx tests/run-all-e2e.ts",
     "test:evm": "cd chains/evm && forge test",
+    "ci:solana": "cd chains/solana && npm run ci:solana",
+    "ci:localnet": "cd chains/solana && npm run ci:localnet",
     "relayer:start": "cd relayer && npm start",
     "dev:site": "cd frontend && npm run dev",
     "dev:app": "cd app && npm run dev",

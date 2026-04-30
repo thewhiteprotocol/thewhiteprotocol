@@ -27,7 +27,7 @@ const CONFIG = {
   rpcUrl: 'https://sepolia.base.org',
   privateKey: process.env.DEPLOYER_PRIVATE_KEY || '',
   contracts: {
-    whiteProtocol: '0xCE959493cf6F15314b4B9eEbb28369716341e7FE'
+    whiteProtocol: '0xC7632F1E2F38d1a16A9C451129a9d24edB10A265'
   },
   circuits: {
     deposit: '../../../circuits/deposit/build',
