@@ -8,6 +8,7 @@ import { buildPoseidon } from 'circomlibjs';
 import * as snarkjs from 'snarkjs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { computeAssetIdBigInt } from '@thewhiteprotocol/core';
 
 // Contract ABIs
 const WHITEPROTOCOL_ABI = [
@@ -24,10 +25,10 @@ const WHITEPROTOCOL_ABI = [
 
 // Configuration
 const CONFIG = {
-  rpcUrl: 'https://sepolia.base.org',
+  rpcUrl: 'https://base-sepolia-rpc.publicnode.com',
   privateKey: process.env.DEPLOYER_PRIVATE_KEY || '',
   contracts: {
-    whiteProtocol: '0xC7632F1E2F38d1a16A9C451129a9d24edB10A265'
+    whiteProtocol: '0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0'
   },
   circuits: {
     deposit: '../../../circuits/deposit/build',
@@ -144,7 +145,10 @@ async function main() {
   testSecret = randomBigInt(31);
   testNullifier = randomBigInt(31);
   const depositAmountWei = ethers.utils.parseEther('0.001');
-  testCommitment = await computeCommitment(testSecret, testNullifier, BigInt(depositAmountWei.toString()), BigInt(0));
+  const ASSET_ID = computeAssetIdBigInt(ethers.constants.AddressZero);
+  console.log(`Asset ID: ${ASSET_ID.toString()}`);
+  
+  testCommitment = await computeCommitment(testSecret, testNullifier, BigInt(depositAmountWei.toString()), ASSET_ID);
   
   console.log('Test Values:');
   console.log(`  Secret: ${testSecret.toString().slice(0, 30)}...`);
@@ -164,7 +168,7 @@ async function main() {
     const depositAmount = ethers.utils.parseEther('0.001');
     
     // Recompute commitment to ensure it matches
-    const expectedCommitment = await computeCommitment(testSecret, testNullifier, BigInt(depositAmount.toString()), BigInt(0));
+    const expectedCommitment = await computeCommitment(testSecret, testNullifier, BigInt(depositAmount.toString()), ASSET_ID);
     console.log(`Computed commitment: ${expectedCommitment.toString().slice(0, 30)}...`);
     console.log(`Test commitment: ${testCommitment.toString().slice(0, 30)}...`);
     
@@ -172,7 +176,7 @@ async function main() {
       secret: testSecret.toString(),
       nullifier: testNullifier.toString(),
       amount: depositAmount.toString(),
-      asset_id: '0',
+      asset_id: ASSET_ID.toString(),
       commitment: expectedCommitment.toString()
     };
     
@@ -352,13 +356,13 @@ async function main() {
       secret: testSecret.toString(),
       nullifier: testNullifier.toString(),
       amount: withdrawAmount.toString(),
-      asset_id: '0',
+      asset_id: ASSET_ID.toString(),
       leaf_index: '0',
       merkle_root: newRoot.toString(),
       nullifier_hash: nullifierHash.toString(),
       merkle_path: pathElements.map(e => e.toString()),
       merkle_path_indices: Array(20).fill('0'),
-      recipient: '0',
+      recipient: BigInt(recipient).toString(),
       relayer: '0',
       relayer_fee: '0',
       public_data_hash: '0'
@@ -444,13 +448,13 @@ async function main() {
         secret: testSecret.toString(),
         nullifier: testNullifier.toString(),
         amount: withdrawAmount.toString(),
-        asset_id: '0',
+        asset_id: ASSET_ID.toString(),
         leaf_index: '0',
         merkle_root: newRoot.toString(),
         nullifier_hash: nullifierHash.toString(),
         merkle_path: pathElements.map(e => e.toString()),
         merkle_path_indices: Array(20).fill('0'),
-        recipient: '0',
+        recipient: BigInt(wallet.address).toString(),
         relayer: '0',
         relayer_fee: '0',
         public_data_hash: '0'

@@ -1927,7 +1927,7 @@ export async function main(): Promise<void> {
     circuitsPath: process.env.CIRCUITS_PATH || "../circuits/build",
     treeDepth: parseInt(process.env.TREE_DEPTH || "20", 10),
     baseRpcUrl: process.env.BASE_RPC_URL || 'https://sepolia.base.org',
-    baseProtocolAddress: process.env.BASE_PROTOCOL_ADDRESS || '0xC7632F1E2F38d1a16A9C451129a9d24edB10A265',
+    baseProtocolAddress: process.env.BASE_PROTOCOL_ADDRESS || '0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0',
     baseDeployerPrivateKey: process.env.BASE_DEPLOYER_PRIVATE_KEY,
     authorityKeypair: process.env.AUTHORITY_KEYPAIR
       ? Keypair.fromSecretKey(parseAuthorityKeypair())

@@ -42,7 +42,7 @@
 | Chain | Code Exists | Contracts/Program | Deployment Config | Deployed Address | Tests | Relayer Support | Frontend Support | SDK/Core Support | Status | Production Ready? |
 |-------|:-----------:|:-----------------:|:-----------------:|:----------------:|:-----:|:---------------:|:----------------:|:----------------:|:------:|:-----------------:|
 | **Solana Devnet** | ✅ | ✅ White Protocol + Bridge skeleton | ✅ Anchor.toml | ✅ `C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW` | ⚠️ Partial | ⚠️ Stubbed | ✅ `frontend/` + `app/` | ✅ Solana SDK | **PARTIAL** | ❌ No |
-| **Base Sepolia** | ✅ | ✅ Full EVM suite | ✅ `networks.json` | ✅ `0xCE959493cf6F15314b4B9eEbb28369716341e7FE` | ✅ 50 Foundry + TS E2E | ✅ Live | ✅ `app/` | ✅ Core SDK | **COMPLETE** | ❌ Testnet only |
+| **Base Sepolia** | ✅ | ✅ Full EVM suite | ✅ `networks.json` | ✅ `0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0` | ✅ 50 Foundry + TS E2E | ✅ Live | ✅ `app/` | ✅ Core SDK | **COMPLETE** | ❌ Testnet only |
 | **Ethereum Sepolia** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ⚠️ Config only | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ No |
 | **Polygon Amoy** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ⚠️ Config only | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ No |
 | **Polygon zkEVM Cardona** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ⚠️ Config only | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ No |
@@ -168,7 +168,7 @@ The EVM side is the **most production-ready component**. Contracts are chain-agn
 
 #### Evidence
 - Deployment artifact: `chains/evm/deployments/base-sepolia.json`
-- Contracts: `WhiteProtocol: 0xCE959493cf6F15314b4B9eEbb28369716341e7FE`, `AssetRegistry: 0x87319Da4558FcBD4f3475cFECc468ee4D736D3ea`
+- Contracts: `WhiteProtocol: 0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0`, `AssetRegistry: 0x568aD2F600011E343a4EC53F8C7b9b8eDC6173b4`
 - Broadcast logs: `chains/evm/broadcast/Deploy.s.sol/84532/`
 
 #### Deposit Flow

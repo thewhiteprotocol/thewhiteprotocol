@@ -9,6 +9,7 @@ import * as snarkjs from 'snarkjs';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
+import { computeAssetIdBigInt } from '@thewhiteprotocol/core';
 
 // ─── Configuration ───
 const RPC_URL = process.env.BSC_TESTNET_RPC_URL;
@@ -375,7 +376,7 @@ async function main() {
     await runAssetTest('BNB', whiteProtocol, wallet, provider, {
       token: 'native',
       amount: '0.001',
-      assetId: BigInt(0),
+      assetId: computeAssetIdBigInt(ethers.constants.AddressZero),
       decimals: 18,
     });
   } catch (e: any) {
@@ -394,7 +395,7 @@ async function main() {
       await runAssetTest('WBNB', whiteProtocol, wallet, provider, {
         token: wrappedNative,
         amount: '0.001',
-        assetId: BigInt(0), // asset registry assigns IDs; 0 is placeholder
+        assetId: computeAssetIdBigInt(wrappedNative),
         decimals: 18,
       });
     } catch (e: any) {
@@ -427,7 +428,7 @@ async function main() {
         await runAssetTest('USDT', whiteProtocol, wallet, provider, {
           token: usdt,
           amount: '1',
-          assetId: BigInt(0),
+          assetId: computeAssetIdBigInt(usdt),
           decimals: 18,
         });
       } catch (e: any) {

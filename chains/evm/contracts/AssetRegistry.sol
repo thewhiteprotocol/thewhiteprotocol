@@ -23,7 +23,8 @@ contract AssetRegistry is Ownable {
     // List of supported assets (for iteration)
     address[] public supportedAssets;
     
-    // Asset ID mapping (keccak256 hash of address)
+    // Asset ID mapping (canonical field-safe asset ID)
+    // Formula: 0x00 || keccak256("white:asset_id:v1" || token)[0..31]
     mapping(address => bytes32) public assetIds;
 
     event AssetAdded(address indexed token, bool isYieldAsset);
@@ -59,7 +60,7 @@ contract AssetRegistry is Ownable {
             maxDeposit: maxDeposit
         });
         
-        assetIds[token] = keccak256(abi.encodePacked(token));
+        assetIds[token] = _computeAssetId(token);
         supportedAssets.push(token);
         
         emit AssetAdded(token, _isYieldAsset);
@@ -101,10 +102,26 @@ contract AssetRegistry is Ownable {
     }
 
     /**
-     * @notice Get asset ID (keccak256 hash)
+     * @notice Get asset ID (canonical field-safe asset ID)
+     * @dev Returns a BN254 field element: 0x00 || keccak256("white:asset_id:v1" || token)[0..31]
      */
     function getAssetId(address token) external view returns (bytes32) {
         return assetIds[token];
+    }
+
+    /**
+     * @notice Compute canonical asset ID from token address
+     * @dev Matches TypeScript/core formula:
+     *      0x00 || keccak256("white:asset_id:v1" || token)[0..31]
+     *      This ensures the result is always < 2^248, well within BN254 field prime.
+     */
+    function _computeAssetId(address token) internal pure returns (bytes32) {
+        bytes memory prefix = bytes("white:asset_id:v1");
+        bytes memory input = abi.encodePacked(prefix, token);
+        bytes32 hash = keccak256(input);
+        // Drop the least significant byte (shift right by 8 bits)
+        // Result: 0x00 || hash[0..30]
+        return bytes32(uint256(hash) >> 8);
     }
 
     /**

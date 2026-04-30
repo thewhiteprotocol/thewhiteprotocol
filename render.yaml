@@ -31,7 +31,7 @@ services:
       - key: WSOL_VAULT
         value: 629JMEcz1u4AjyahByEcQtyGF3TwDnBPY7nHhaLVB9PS
       - key: BASE_PROTOCOL_ADDRESS
-        value: 0xCE959493cf6F15314b4B9eEbb28369716341e7FE
+        value: 0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0
       - key: FEE_BPS
         value: "50"
       - key: WITHDRAW_VK_PATH

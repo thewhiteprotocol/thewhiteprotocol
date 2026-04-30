@@ -9,6 +9,7 @@ import * as snarkjs from 'snarkjs';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { computeAssetIdBigInt } from '@thewhiteprotocol/core';
 
 // Contract ABIs (simplified)
 const WHITEPROTOCOL_ABI = [
@@ -36,10 +37,10 @@ const ASSETREGISTRY_ABI = [
 
 // Test configuration
 const CONFIG = {
-  rpcUrl: 'https://sepolia.base.org',
+  rpcUrl: 'https://base-sepolia-rpc.publicnode.com',
   privateKey: process.env.DEPLOYER_PRIVATE_KEY || '',
   contracts: {
-    whiteProtocol: '0xC7632F1E2F38d1a16A9C451129a9d24edB10A265',
+    whiteProtocol: '0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0',
     assetRegistry: '0x7B4eD77809d1F54C6b8aE1d743b086471D488253'
   },
   circuits: {
@@ -395,11 +396,11 @@ async function main() {
     
     // Send deposit transaction
     const depositAmount = ethers.utils.parseEther('0.001');
-    const assetId = 0; // ETH
+    const assetId = computeAssetIdBigInt(ethers.constants.AddressZero);
     
     // Generate proof
     console.log('Generating deposit proof...');
-    const { proof, publicSignals } = await generateDepositProof(secret, nullifier, BigInt(depositAmount.toString()), BigInt(assetId));
+    const { proof, publicSignals } = await generateDepositProof(secret, nullifier, BigInt(depositAmount.toString()), assetId);
     console.log('Proof generated successfully');
     
     // Format proof for contract
@@ -452,7 +453,7 @@ async function main() {
     const wrongAmount = ethers.utils.parseEther('0.002');
     const assetId = 0;
     const commitment = await computeCommitment(secret, nullifier);
-    const { proof, publicSignals } = await generateDepositProof(secret, nullifier, BigInt(depositAmount.toString()), BigInt(assetId));
+    const { proof, publicSignals } = await generateDepositProof(secret, nullifier, BigInt(depositAmount.toString()), assetId);
     const proofBytes = await formatProofForContract(proof, publicSignals);
     
     try {
@@ -478,7 +479,7 @@ async function main() {
     const assetId = 0;
     const { secret, nullifier } = await generateSecretAndNullifier();
     const commitment = await computeCommitment(secret, nullifier);
-    const { proof, publicSignals } = await generateDepositProof(secret, nullifier, BigInt(depositAmount.toString()), BigInt(assetId));
+    const { proof, publicSignals } = await generateDepositProof(secret, nullifier, BigInt(depositAmount.toString()), assetId);
     const proofBytes = await formatProofForContract(proof, publicSignals);
     
     const unsupportedToken = '0x1234567890123456789012345678901234567891';

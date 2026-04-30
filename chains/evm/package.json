@@ -13,8 +13,10 @@
     "deploy:bsc-testnet": "NETWORK=bsc-testnet forge script script/Deploy.s.sol --ffi --rpc-url $BSC_TESTNET_RPC_URL --broadcast --verify",
     "deploy:bsc-mainnet": "ALLOW_MAINNET=true NETWORK=bsc-testnet forge script script/Deploy.s.sol --ffi --rpc-url $BSC_MAINNET_RPC_URL --broadcast --verify",
     "deploy:sepolia": "NETWORK=base-sepolia forge script script/Deploy.s.sol --ffi --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --verify",
-    "test:e2e:bsc-testnet": "ts-node test/e2e/e2e-bsc-testnet.ts",
-    "verify:sepolia": "forge verify-contract --chain-id 84532 --compiler-version v0.8.23+commit.f704f362"
+    "test:e2e:bsc-testnet": "tsx test/e2e/e2e-bsc-testnet.ts",
+    "test:e2e:base": "tsx test/e2e-base.ts",
+    "test:e2e:base:full": "tsx test/e2e-base-full.ts",
+    "verify:base-sepolia": "echo 'Run with BASESCAN_API_KEY env var set'; forge verify-contract --chain-id 84532 --compiler-version v0.8.20+commit.a1b79de6 0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0 WhiteProtocol --watch"
   },
   "dependencies": {
     "@thewhiteprotocol/core": "file:../../packages/core"
