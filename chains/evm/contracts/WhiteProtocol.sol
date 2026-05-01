@@ -43,6 +43,10 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
     mapping(address => uint256) public bridgeOutgoing;
     mapping(address => uint256) public bridgeIncoming;
 
+    // Protocol domain ID (uint32: high byte = chain family, low 3 bytes = network ID)
+    uint32 public domainId;
+    bool public domainIdSet;
+
     // Pool configuration
     uint256 public constant RELAYER_FEE_BPS = 50; // 0.5%
     uint256 public constant YIELD_RELAYER_FEE_BPS = 500; // 5%
@@ -108,6 +112,16 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
     function setBridge(address _bridge) external onlyOwner {
         bridge = _bridge;
         emit BridgeSet(_bridge);
+    }
+
+    /**
+     * @notice Set the protocol domain ID. Can only be called once.
+     * @param _domainId Protocol domain ID (e.g. 0x02000002 for Base Sepolia)
+     */
+    function setDomainId(uint32 _domainId) external onlyOwner {
+        require(!domainIdSet, "Domain ID already set");
+        domainId = _domainId;
+        domainIdSet = true;
     }
 
     /// @notice Bridge withdraw — burns a note, holds funds in the vault as outbound liability.

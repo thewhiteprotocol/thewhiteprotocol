@@ -293,8 +293,13 @@ impl AssetVault {
     }
 }
 
-/// Helper to compute asset_id from mint address
+/// Helper to compute v1 asset_id from mint address (legacy, for existing pools).
 pub fn compute_asset_id(mint: &Pubkey) -> [u8; 32] {
+    compute_asset_id_v1(mint)
+}
+
+/// Helper to compute v1 asset_id from mint address.
+pub fn compute_asset_id_v1(mint: &Pubkey) -> [u8; 32] {
     // Canonical, deterministic asset_id suitable for BN254 Fr public inputs.
     //
     // Raw Keccak256(mint) is a random 256-bit value and will often be >= Fr modulus,
@@ -303,6 +308,22 @@ pub fn compute_asset_id(mint: &Pubkey) -> [u8; 32] {
     // Off-chain circuits/SDK MUST use the same derivation:
     //   asset_id = 0x00 || Keccak256("white:asset_id:v1" || mint)[0..31]
     let h = crate::crypto::keccak::keccak256_concat(&[b"white:asset_id:v1", mint.as_ref()]);
+    let mut out = [0u8; 32];
+    out[1..32].copy_from_slice(&h[0..31]);
+    out
+}
+
+/// Helper to compute v2 asset_id from mint address with domain separation.
+///
+/// Formula:
+///   asset_id = 0x00 || Keccak256("white:asset_id:v2" || uint32BE(domain_id) || mint)[0..31]
+pub fn compute_asset_id_v2(mint: &Pubkey, domain_id: u32) -> [u8; 32] {
+    let domain_bytes = domain_id.to_be_bytes();
+    let h = crate::crypto::keccak::keccak256_concat(&[
+        b"white:asset_id:v2",
+        &domain_bytes,
+        mint.as_ref(),
+    ]);
     let mut out = [0u8; 32];
     out[1..32].copy_from_slice(&h[0..31]);
     out

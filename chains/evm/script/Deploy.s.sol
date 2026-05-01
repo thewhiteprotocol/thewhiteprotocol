@@ -41,7 +41,7 @@ contract Deploy is Script {
         console.log("============================================================");
 
         _loadAndGuard(network);
-        _deployCore(deployerPrivateKey, deployer);
+        _deployCore(deployerPrivateKey, deployer, network);
         _resolveWrappedNative(network, deployerPrivateKey);
         _resolveUsdc(network);
         _resolveUsdt(network);
@@ -82,7 +82,10 @@ contract Deploy is Script {
         );
     }
 
-    function _deployCore(uint256 deployerPrivateKey, address deployer) internal {
+    function _deployCore(uint256 deployerPrivateKey, address deployer, string memory network) internal {
+        string memory networksJson = vm.readFile("configs/networks.json");
+        uint32 domainId = uint32(vm.parseJsonUint(networksJson, string.concat(".", network, ".domainId")));
+
         vm.startBroadcast(deployerPrivateKey);
 
         console.log("Deploying DepositVerifier...");
@@ -102,6 +105,10 @@ contract Deploy is Script {
         s_assetRegistry = address(assetRegistry);
         console.log("AssetRegistry:", s_assetRegistry);
 
+        console.log("Configuring AssetRegistry domain...");
+        assetRegistry.configureDomain(domainId, 2);
+        console.log("Domain ID:", domainId);
+
         console.log("Deploying WhiteProtocol...");
         WhiteProtocol whiteProtocol = new WhiteProtocol(
             deployer,
@@ -112,6 +119,9 @@ contract Deploy is Script {
         );
         s_whiteProtocol = payable(address(whiteProtocol));
         console.log("WhiteProtocol:", s_whiteProtocol);
+
+        console.log("Setting WhiteProtocol domain ID...");
+        whiteProtocol.setDomainId(domainId);
 
         console.log("Transferring AssetRegistry ownership...");
         assetRegistry.transferOwnership(s_whiteProtocol);

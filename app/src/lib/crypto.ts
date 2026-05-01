@@ -31,7 +31,13 @@ export function poseidonHash(inputs: bigint[]): bigint {
   return BigInt(poseidon.F.toString(result));
 }
 
-export function computeAssetId(tokenAddress: string | Uint8Array): Uint8Array {
+/**
+ * Compute v1 asset ID from token address using Keccak256.
+ * Matches on-chain formula: 0x00 || keccak256("white:asset_id:v1" || mint)[0..31]
+ *
+ * @deprecated Use computeAssetIdV2 for new deployments.
+ */
+export function computeAssetIdV1(tokenAddress: string | Uint8Array): Uint8Array {
   let mintBytes: Uint8Array;
   if (typeof tokenAddress === "string") {
     if (tokenAddress.startsWith("0x")) {
@@ -61,9 +67,79 @@ export function computeAssetId(tokenAddress: string | Uint8Array): Uint8Array {
   return out;
 }
 
-export function computeAssetIdBigInt(tokenAddress: string | Uint8Array): bigint {
-  const bytes = computeAssetId(tokenAddress);
+/**
+ * Compute v2 asset ID with protocol-scoped domain separation.
+ * Formula: 0x00 || keccak256("white:asset_id:v2" || uint32BE(domainId) || mint)[0..31]
+ */
+export function computeAssetIdV2(
+  tokenAddress: string | Uint8Array,
+  domainId: number
+): Uint8Array {
+  let mintBytes: Uint8Array;
+  if (typeof tokenAddress === "string") {
+    if (tokenAddress.startsWith("0x")) {
+      mintBytes = Uint8Array.from(Buffer.from(tokenAddress.slice(2), "hex"));
+    } else if (tokenAddress.length >= 32 && tokenAddress.length <= 44) {
+      mintBytes = new PublicKey(tokenAddress).toBytes();
+    } else {
+      mintBytes = Uint8Array.from(Buffer.from(tokenAddress, "hex"));
+    }
+  } else {
+    mintBytes = tokenAddress;
+  }
+
+  const prefix = new TextEncoder().encode("white:asset_id:v2");
+  const domainBytes = new Uint8Array(4);
+  domainBytes[0] = (domainId >>> 24) & 0xff;
+  domainBytes[1] = (domainId >>> 16) & 0xff;
+  domainBytes[2] = (domainId >>> 8) & 0xff;
+  domainBytes[3] = domainId & 0xff;
+
+  const input = new Uint8Array(prefix.length + domainBytes.length + mintBytes.length);
+  input.set(prefix, 0);
+  input.set(domainBytes, prefix.length);
+  input.set(mintBytes, prefix.length + domainBytes.length);
+
+  const hash = keccak_256(input);
+  const out = new Uint8Array(32);
+  out[0] = 0;
+  out.set(hash.slice(0, 31), 1);
+  return out;
+}
+
+/**
+ * Backward-compatible alias for computeAssetIdV1.
+ * @deprecated Use computeAssetIdV1 or computeAssetIdV2 explicitly.
+ */
+export function computeAssetId(tokenAddress: string | Uint8Array): Uint8Array {
+  return computeAssetIdV1(tokenAddress);
+}
+
+/**
+ * Compute v1 asset ID as bigint.
+ * @deprecated Use computeAssetIdV2BigInt for new deployments.
+ */
+export function computeAssetIdV1BigInt(tokenAddress: string | Uint8Array): bigint {
+  const bytes = computeAssetIdV1(tokenAddress);
   return BigInt("0x" + Buffer.from(bytes).toString("hex"));
+}
+
+/**
+ * Compute v2 asset ID as bigint.
+ */
+export function computeAssetIdV2BigInt(
+  tokenAddress: string | Uint8Array,
+  domainId: number
+): bigint {
+  const bytes = computeAssetIdV2(tokenAddress, domainId);
+  return BigInt("0x" + Buffer.from(bytes).toString("hex"));
+}
+
+/**
+ * Backward-compatible alias for computeAssetIdV1BigInt.
+ */
+export function computeAssetIdBigInt(tokenAddress: string | Uint8Array): bigint {
+  return computeAssetIdV1BigInt(tokenAddress);
 }
 
 export function computeCommitment(

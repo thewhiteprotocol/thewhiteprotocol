@@ -8,8 +8,11 @@
 import { keccak_256 } from '@noble/hashes/sha3';
 import { PublicKey } from '@solana/web3.js';
 
-/** Domain separator for asset ID derivation */
-const ASSET_ID_DOMAIN = new TextEncoder().encode('white:asset_id:v1');
+/** Domain separator for v1 asset ID derivation */
+const ASSET_ID_DOMAIN_V1 = new TextEncoder().encode('white:asset_id:v1');
+
+/** Domain separator for v2 asset ID derivation */
+const ASSET_ID_DOMAIN_V2 = new TextEncoder().encode('white:asset_id:v2');
 
 /**
  * Compute keccak256 hash of data
@@ -33,22 +36,44 @@ export function keccak256Concat(inputs: Uint8Array[]): Uint8Array {
 }
 
 /**
- * Derive asset ID from mint address (canonical on-chain derivation)
- * 
+ * Derive v1 asset ID from mint address (legacy, for existing pools).
  * CANONICAL DERIVATION (matches on-chain exactly):
  * asset_id = 0x00 || Keccak256("white:asset_id:v1" || mint_bytes)[0..31]
- * 
- * This ensures the asset_id fits in BN254 scalar field by:
- * 1. Using domain separator to prevent collisions
- * 2. Prefixing with 0x00 and taking first 31 bytes of hash
- * 
- * @param mint - Token mint public key
- * @returns Asset ID as 32-byte Uint8Array
+ *
+ * @deprecated Use deriveAssetIdV2 for new deployments.
  */
 export function deriveAssetId(mint: PublicKey): Uint8Array {
-  const hash = keccak256Concat([ASSET_ID_DOMAIN, mint.toBuffer()]);
+  return deriveAssetIdV1(mint);
+}
+
+/**
+ * Derive v1 asset ID from mint address.
+ */
+export function deriveAssetIdV1(mint: PublicKey): Uint8Array {
+  const hash = keccak256Concat([ASSET_ID_DOMAIN_V1, mint.toBuffer()]);
   const out = new Uint8Array(32);
-  // 0x00 prefix + first 31 bytes of hash
+  out.set(hash.slice(0, 31), 1);
+  return out;
+}
+
+/**
+ * Derive v2 asset ID from mint address with protocol-scoped domain separation.
+ * CANONICAL DERIVATION:
+ * asset_id = 0x00 || Keccak256("white:asset_id:v2" || uint32BE(domainId) || mint_bytes)[0..31]
+ *
+ * @param mint - Token mint public key
+ * @param domainId - Protocol domain ID (uint32)
+ * @returns Asset ID as 32-byte Uint8Array
+ */
+export function deriveAssetIdV2(mint: PublicKey, domainId: number): Uint8Array {
+  const domainBytes = new Uint8Array(4);
+  domainBytes[0] = (domainId >>> 24) & 0xff;
+  domainBytes[1] = (domainId >>> 16) & 0xff;
+  domainBytes[2] = (domainId >>> 8) & 0xff;
+  domainBytes[3] = domainId & 0xff;
+
+  const hash = keccak256Concat([ASSET_ID_DOMAIN_V2, domainBytes, mint.toBuffer()]);
+  const out = new Uint8Array(32);
   out.set(hash.slice(0, 31), 1);
   return out;
 }

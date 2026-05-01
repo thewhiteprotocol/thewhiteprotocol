@@ -45,7 +45,11 @@ export {
   poseidonHash2,
   poseidonHash,
   computeAssetId,
+  computeAssetIdV1,
+  computeAssetIdV2,
   computeAssetIdBigInt,
+  computeAssetIdV1BigInt,
+  computeAssetIdV2BigInt,
   computeCommitment,
   computeNullifierHash,
   pubkeyToScalar,
@@ -58,6 +62,17 @@ export {
   formatProofForOnChain,
   parseProofFromOnChain,
 } from './crypto.js';
+
+// Domain registry
+export {
+  ChainFamily,
+  ProtocolDomain,
+  type ProtocolDomainId,
+  decomposeDomainId,
+  composeDomainId,
+  domainIdToBytes,
+  domainIdToName,
+} from './domains.js';
 
 // Stealth addresses
 export * from './stealth/index.js';

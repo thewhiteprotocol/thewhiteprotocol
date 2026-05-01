@@ -522,10 +522,10 @@ function hexToBytes(hex: string): Uint8Array {
 // =============================================================================
 
 /**
- * Compute asset ID from mint address
+ * Compute v1 asset ID from mint address (legacy, for existing pools).
  * Matches on-chain: 0x00 || keccak256("white:asset_id:v1" || mint)[0..31]
  */
-function computeAssetId(mint: PublicKey): Uint8Array {
+function computeAssetIdV1(mint: PublicKey): Uint8Array {
   const prefix = new TextEncoder().encode('white:asset_id:v1');
   const mintBytes = mint.toBytes();
   const combined = new Uint8Array(prefix.length + mintBytes.length);
@@ -538,6 +538,36 @@ function computeAssetId(mint: PublicKey): Uint8Array {
   assetId.set(hash.slice(0, 31), 1);
   
   return assetId;
+}
+
+/**
+ * Compute v2 asset ID from mint address with protocol-scoped domain separation.
+ * Matches on-chain: 0x00 || keccak256("white:asset_id:v2" || uint32BE(domainId) || mint)[0..31]
+ */
+function computeAssetIdV2(mint: PublicKey, domainId: number): Uint8Array {
+  const prefix = new TextEncoder().encode('white:asset_id:v2');
+  const domainBytes = new Uint8Array(4);
+  domainBytes[0] = (domainId >>> 24) & 0xff;
+  domainBytes[1] = (domainId >>> 16) & 0xff;
+  domainBytes[2] = (domainId >>> 8) & 0xff;
+  domainBytes[3] = domainId & 0xff;
+  const mintBytes = mint.toBytes();
+  const combined = new Uint8Array(prefix.length + domainBytes.length + mintBytes.length);
+  combined.set(prefix);
+  combined.set(domainBytes, prefix.length);
+  combined.set(mintBytes, prefix.length + domainBytes.length);
+  
+  const hash = keccak_256(combined);
+  const assetId = new Uint8Array(32);
+  assetId[0] = 0x00;
+  assetId.set(hash.slice(0, 31), 1);
+  
+  return assetId;
+}
+
+/** Backward-compatible alias for computeAssetIdV1 */
+function computeAssetId(mint: PublicKey): Uint8Array {
+  return computeAssetIdV1(mint);
 }
 
 function assetIdToBigInt(assetId: Uint8Array): bigint {
