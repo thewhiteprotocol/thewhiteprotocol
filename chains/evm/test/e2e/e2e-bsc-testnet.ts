@@ -1,4 +1,10 @@
 /**
+ * ⚠️ DEPRECATED: This script uses the old v1 asset ID formula and empty-tree assumption.
+ * It will fail on non-empty trees and v2 deployments.
+ *
+ * Use the network-agnostic runner instead:
+ *   NETWORK=bsc-testnet tsx test/e2e-base-full.ts
+ *
  * E2E Test for White Protocol on BSC Testnet
  * Tests deposit, batch settlement, and withdraw for BNB, WBNB, and USDT
  */

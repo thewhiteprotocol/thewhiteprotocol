@@ -24,12 +24,5 @@
     "wrappedNative": "0x4200000000000000000000000000000000000006"
   },
   "domainId": 33554434,
-  "assetIdVersion": 2,
-  "active": true,
-  "generation": "PR-005C",
-  "previousArtifact": "deployments/base-sepolia-v1-backup.json",
-  "domainIdHex": "0x02000002",
-  "assetIdFormula": "white:asset_id:v2",
-  "verifiedE2E": true,
-  "notes": "Active Base Sepolia testnet deployment with v2 domain-separated asset IDs"
+  "assetIdVersion": 2
 }

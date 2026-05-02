@@ -1,0 +1,26 @@
+{
+  "chainId": 84532,
+  "contracts": {
+    "AssetRegistry": "0x568aD2F600011E343a4EC53F8C7b9b8eDC6173b4",
+    "DepositVerifier": "0x050BC2E5A356F07Ce9abce3db411e5F1Cf0cb731",
+    "MerkleBatchVerifier": "0xd3A9efF3666fD71f3257ac26ff74f20afb7719C7",
+    "WhiteProtocol": "0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0",
+    "WithdrawVerifier": "0x71cF7510652b11e22972CAc1798a12b4bCb8d8CD"
+  },
+  "deployedAt": "2026-04-30T14:43:54Z",
+  "deployer": "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c",
+  "merkleState": {
+    "emptyRoot": "0x2134e76ac5d21aab186c2be1dd8f84ee880a1e46eaf712f9d371b6df22191f3e",
+    "nextLeafIndex": 0
+  },
+  "network": "base-sepolia",
+  "relayers": [
+    "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c"
+  ],
+  "supportedAssets": {
+    "native": "0x0000000000000000000000000000000000000000",
+    "usdc": null,
+    "usdt": null,
+    "wrappedNative": "0x4200000000000000000000000000000000000006"
+  }
+}

@@ -10,6 +10,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { computeAssetIdBigInt } from '@thewhiteprotocol/core';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Contract ABIs (simplified)
 const WHITEPROTOCOL_ABI = [
@@ -35,13 +37,25 @@ const ASSETREGISTRY_ABI = [
   "function getAssetId(address asset) external view returns (uint256)"
 ];
 
+// Load active deployment artifact
+const ARTIFACT_PATH = process.env.DEPLOYMENT_ARTIFACT
+  ? path.resolve(process.env.DEPLOYMENT_ARTIFACT)
+  : path.join(__dirname, '../deployments/base-sepolia.json');
+
+if (!fs.existsSync(ARTIFACT_PATH)) {
+  console.error(`Deployment artifact not found: ${ARTIFACT_PATH}`);
+  process.exit(1);
+}
+
+const artifact = JSON.parse(fs.readFileSync(ARTIFACT_PATH, 'utf8'));
+
 // Test configuration
 const CONFIG = {
   rpcUrl: 'https://base-sepolia-rpc.publicnode.com',
   privateKey: process.env.DEPLOYER_PRIVATE_KEY || '',
   contracts: {
-    whiteProtocol: '0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0',
-    assetRegistry: '0x7B4eD77809d1F54C6b8aE1d743b086471D488253'
+    whiteProtocol: artifact.contracts.WhiteProtocol,
+    assetRegistry: artifact.contracts.AssetRegistry
   },
   circuits: {
     deposit: '../../../circuits/deposit/build',

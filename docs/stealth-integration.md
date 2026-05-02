@@ -5,7 +5,7 @@
 | Parameter | Value |
 |-----------|-------|
 | Solana Devnet Program ID | `C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW` |
-| Base Sepolia Contract | `0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0` |
+| Base Sepolia Contract | `0x396e539bCDeAF48ab9526A13c6E688CBA69C059a` |
 | Devnet Relayer | `https://relayer-devnet.thewhiteprotocol.com` |
 
 ## For Wallet Developers

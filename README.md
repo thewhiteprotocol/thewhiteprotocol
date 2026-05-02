@@ -55,11 +55,11 @@ The protocol supports shielded pools for multiple token mints (SPL on Solana, ER
 
 | Contract | Address |
 |----------|---------|
-| WhiteProtocol | `0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0` |
-| AssetRegistry | `0x568aD2F600011E343a4EC53F8C7b9b8eDC6173b4` |
-| DepositVerifier | `0x050BC2E5A356F07Ce9abce3db411e5F1Cf0cb731` |
-| WithdrawVerifier | `0x71cF7510652b11e22972CAc1798a12b4bCb8d8CD` |
-| MerkleBatchVerifier | `0xd3A9efF3666fD71f3257ac26ff74f20afb7719C7` |
+| WhiteProtocol | `0x396e539bCDeAF48ab9526A13c6E688CBA69C059a` |
+| AssetRegistry | `0xc2508F03c42B11b79ef4aA979b9FfA7f62D003B7` |
+| DepositVerifier | `0xD566bdec3263476B453DBFE7AAE1c6E2123E90C5` |
+| WithdrawVerifier | `0x8Bb36a8F6ccE6439899eB5f025E8bF532c938233` |
+| MerkleBatchVerifier | `0x818E535D774F329dfE9Cdf8C95F8ff7Ee85c822B` |
 
 **Supported Assets**
 
@@ -312,8 +312,8 @@ cd chains/evm && forge test
 **Solana Explorer:** [View Program on Solana Explorer](https://explorer.solana.com/address/C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW?cluster=devnet)
 
 **Base Sepolia:**
-- [WhiteProtocol](https://sepolia.basescan.org/address/0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0)
-- [AssetRegistry](https://sepolia.basescan.org/address/0x568aD2F600011E343a4EC53F8C7b9b8eDC6173b4)
+- [WhiteProtocol](https://sepolia.basescan.org/address/0x396e539bCDeAF48ab9526A13c6E688CBA69C059a)
+- [AssetRegistry](https://sepolia.basescan.org/address/0xc2508F03c42B11b79ef4aA979b9FfA7f62D003B7)
 
 ## Security Considerations
 

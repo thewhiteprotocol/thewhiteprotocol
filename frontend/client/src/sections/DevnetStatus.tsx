@@ -94,23 +94,23 @@ export function DevnetStatus() {
               <div>
                 <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Protocol Contract</p>
                 <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] overflow-x-auto">
-                  <code className="text-sm font-mono text-zinc-300">0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0</code>
+                  <code className="text-sm font-mono text-zinc-300">0x396e539bCDeAF48ab9526A13c6E688CBA69C059a</code>
                 </div>
               </div>
               <div>
                 <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Asset Registry</p>
                 <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] overflow-x-auto">
-                  <code className="text-sm font-mono text-zinc-300">0x568aD2F600011E343a4EC53F8C7b9b8eDC6173b4</code>
+                  <code className="text-sm font-mono text-zinc-300">0xc2508F03c42B11b79ef4aA979b9FfA7f62D003B7</code>
                 </div>
               </div>
               <div>
                 <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Batch Verifier</p>
                 <div className="p-4 rounded-xl bg-black/20 border border-white/[0.06] overflow-x-auto">
-                  <code className="text-sm font-mono text-zinc-300">0xd3A9efF3666fD71f3257ac26ff74f20afb7719C7</code>
+                  <code className="text-sm font-mono text-zinc-300">0x818E535D774F329dfE9Cdf8C95F8ff7Ee85c822B</code>
                 </div>
               </div>
             </div>
-            <a href="https://sepolia.basescan.org/address/0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0" target="_blank" rel="noopener noreferrer" className="mt-6 w-full px-6 py-4 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] active:bg-white/[0.08] transition-all flex items-center justify-center gap-2 text-zinc-300 font-bold">
+            <a href="https://sepolia.basescan.org/address/0x396e539bCDeAF48ab9526A13c6E688CBA69C059a" target="_blank" rel="noopener noreferrer" className="mt-6 w-full px-6 py-4 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.06] active:bg-white/[0.08] transition-all flex items-center justify-center gap-2 text-zinc-300 font-bold">
               <ExternalLink size={16} /> View on BaseScan
             </a>
           </div>

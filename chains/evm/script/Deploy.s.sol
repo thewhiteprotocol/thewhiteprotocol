@@ -28,6 +28,7 @@ contract Deploy is Script {
     bool public s_usdcPresent;
     address public s_usdt;
     bool public s_usdtPresent;
+    uint32 public s_domainId;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -85,6 +86,7 @@ contract Deploy is Script {
     function _deployCore(uint256 deployerPrivateKey, address deployer, string memory network) internal {
         string memory networksJson = vm.readFile("configs/networks.json");
         uint32 domainId = uint32(vm.parseJsonUint(networksJson, string.concat(".", network, ".domainId")));
+        s_domainId = domainId;
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -276,6 +278,10 @@ contract Deploy is Script {
 
         address[] memory relayers = new address[](1);
         relayers[0] = deployer;
+        vm.serializeUint(root, "domainId", uint256(s_domainId));
+        vm.serializeString(root, "domainIdHex", _toHex(s_domainId));
+        vm.serializeUint(root, "assetIdVersion", uint256(2));
+        vm.serializeString(root, "assetIdFormula", "white:asset_id:v2");
         string memory finalJson = vm.serializeAddress(root, "relayers", relayers);
 
         vm.writeJson(finalJson, deploymentPath);
@@ -366,6 +372,16 @@ contract Deploy is Script {
             i++;
         }
         return str;
+    }
+
+    function _toHex(uint32 value) internal pure returns (string memory) {
+        bytes memory hexChars = "0123456789abcdef";
+        bytes memory buf = new bytes(8);
+        for (uint256 i = 0; i < 8; i++) {
+            buf[7 - i] = hexChars[value & 0xf];
+            value >>= 4;
+        }
+        return string.concat("0x", string(buf));
     }
 
     function _toISOString(uint256 timestamp)
