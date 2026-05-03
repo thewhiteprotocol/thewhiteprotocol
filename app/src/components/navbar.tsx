@@ -12,7 +12,7 @@ function ChainSelector() {
 
   return (
     <div className="flex items-center gap-1 rounded-lg bg-white/[0.03] border border-white/10 p-1">
-      {(["solana", "base", "bsc"] as SupportedChain[]).map((chain) => {
+      {(["solana", "base", "bsc", "ethereum"] as SupportedChain[]).map((chain) => {
         const isActive = activeChain === chain;
         return (
           <button

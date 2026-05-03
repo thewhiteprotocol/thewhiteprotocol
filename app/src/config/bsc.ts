@@ -1,19 +1,19 @@
 import { bscTestnet } from "wagmi/chains";
 
 export const BSC_PROTOCOL_ADDRESS = (process.env.NEXT_PUBLIC_BSC_PROTOCOL_ADDRESS ||
-  "") as `0x${string}`;
+  "0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B") as `0x${string}`;
 
 export const BSC_ASSET_REGISTRY_ADDRESS = (process.env.NEXT_PUBLIC_BSC_ASSET_REGISTRY_ADDRESS ||
-  "") as `0x${string}`;
+  "0x66c1741f1f85f7Bb04286B7a26E870a8D3e52Eee") as `0x${string}`;
 
 export const BSC_DEPOSIT_VERIFIER_ADDRESS = (process.env.NEXT_PUBLIC_BSC_DEPOSIT_VERIFIER_ADDRESS ||
-  "") as `0x${string}`;
+  "0x20Ac5c909E68DA414204309f077c25B70F3eD441") as `0x${string}`;
 
 export const BSC_WITHDRAW_VERIFIER_ADDRESS = (process.env.NEXT_PUBLIC_BSC_WITHDRAW_VERIFIER_ADDRESS ||
-  "") as `0x${string}`;
+  "0x86CD177aCEc02cAF9cC27874bb0AC6Bb90FA61b6") as `0x${string}`;
 
 export const BSC_MERKLE_BATCH_VERIFIER_ADDRESS = (process.env.NEXT_PUBLIC_BSC_MERKLE_BATCH_VERIFIER_ADDRESS ||
-  "") as `0x${string}`;
+  "0x0eb44c154DF83876fB44042e822e3373Fbf57d95") as `0x${string}`;
 
 export const WBNB_ADDRESS = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd" as `0x${string}`;
 export const USDT_ADDRESS = "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd" as `0x${string}`;

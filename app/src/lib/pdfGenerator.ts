@@ -102,7 +102,7 @@ function renderInvoiceHTML(invoice: Invoice): HTMLElement {
         <div style="font-weight:600;margin-bottom:8px">Pay Privately</div>
         <div style="color:#6b7280;font-size:14px;margin-bottom:12px">Scan or visit the link to pay via The White Protocol</div>
         <div style="font-size:12px;color:#6b7280;word-break:break-all">${invoice.paymentLink}</div>
-        <div style="margin-top:12px;font-size:12px;color:#6b7280">Network: ${invoice.chain === "base" ? "Base Sepolia" : invoice.chain === "bsc" ? "BSC Testnet" : "Solana Devnet"} | Asset: ${invoice.asset}</div>
+        <div style="margin-top:12px;font-size:12px;color:#6b7280">Network: ${invoice.chain === "base" ? "Base Sepolia" : invoice.chain === "bsc" ? "BNB Chain Testnet" : "Solana Devnet"} | Asset: ${invoice.asset}</div>
       </div>
 
       <div style="text-align:center;color:#9ca3af;font-size:12px">

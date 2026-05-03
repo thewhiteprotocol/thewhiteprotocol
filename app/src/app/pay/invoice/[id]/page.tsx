@@ -119,7 +119,7 @@ export default function PayInvoicePage() {
                   {invoice.total.toFixed(2)} {invoice.asset}
                 </div>
                 <div className="text-xs text-zinc-500">
-                  on {invoice.chain === "base" ? "Base Sepolia" : invoice.chain === "bsc" ? "BSC Testnet" : "Solana Devnet"}
+                  on {invoice.chain === "base" ? "Base Sepolia" : invoice.chain === "bsc" ? "BNB Chain Testnet" : "Solana Devnet"}
                 </div>
               </div>
             </div>

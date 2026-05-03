@@ -1929,6 +1929,12 @@ export async function main(): Promise<void> {
     baseRpcUrl: process.env.BASE_RPC_URL || 'https://sepolia.base.org',
     baseProtocolAddress: process.env.BASE_PROTOCOL_ADDRESS || '0x396e539bCDeAF48ab9526A13c6E688CBA69C059a',
     baseDeployerPrivateKey: process.env.BASE_DEPLOYER_PRIVATE_KEY,
+    bscRpcUrl: process.env.BSC_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com',
+    bscProtocolAddress: process.env.BSC_PROTOCOL_ADDRESS || '0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B',
+    bscDeployerPrivateKey: process.env.BSC_DEPLOYER_PRIVATE_KEY,
+    ethRpcUrl: process.env.ETH_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
+    ethProtocolAddress: process.env.ETH_PROTOCOL_ADDRESS || '0x5813d68a130C451420C670F5aA4a7D68F438101A',
+    ethDeployerPrivateKey: process.env.ETH_DEPLOYER_PRIVATE_KEY,
     authorityKeypair: process.env.AUTHORITY_KEYPAIR
       ? Keypair.fromSecretKey(parseAuthorityKeypair())
       : undefined,

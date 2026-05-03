@@ -26,7 +26,7 @@
     "blockTimeSeconds": 12,
     "finalityConfirmations": 3,
     "isTestnet": true,
-    "isLive": false,
+    "isLive": true,
     "deploymentFile": "deployments/ethereum-sepolia.json"
   },
   "polygon-amoy": {
@@ -73,7 +73,7 @@
     "blockTimeSeconds": 3,
     "finalityConfirmations": 5,
     "isTestnet": true,
-    "isLive": false,
+    "isLive": true,
     "deploymentFile": "deployments/bsc-testnet.json"
   },
   "base-mainnet": {

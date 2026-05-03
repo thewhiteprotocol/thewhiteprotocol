@@ -21,6 +21,14 @@
     "test:e2e:base:repeat": "NETWORK=base-sepolia tsx test/e2e-base-full.ts && NETWORK=base-sepolia tsx test/e2e-base-full.ts",
     "test:e2e:bsc:testnet:full": "NETWORK=bsc-testnet tsx test/e2e-base-full.ts",
     "test:e2e:bsc:testnet:repeat": "NETWORK=bsc-testnet tsx test/e2e-base-full.ts && NETWORK=bsc-testnet tsx test/e2e-base-full.ts",
+    "test:e2e:bnb:testnet:full": "NETWORK=bsc-testnet tsx test/e2e-base-full.ts",
+    "test:e2e:bnb:testnet:repeat": "NETWORK=bsc-testnet tsx test/e2e-base-full.ts && NETWORK=bsc-testnet tsx test/e2e-base-full.ts",
+    "test:e2e:ethereum:sepolia:full": "NETWORK=ethereum-sepolia tsx test/e2e-base-full.ts",
+    "test:e2e:ethereum:sepolia:repeat": "NETWORK=ethereum-sepolia tsx test/e2e-base-full.ts && NETWORK=ethereum-sepolia tsx test/e2e-base-full.ts",
+    "test:e2e:eth:sepolia:full": "NETWORK=ethereum-sepolia tsx test/e2e-base-full.ts",
+    "test:e2e:eth:sepolia:repeat": "NETWORK=ethereum-sepolia tsx test/e2e-base-full.ts && NETWORK=ethereum-sepolia tsx test/e2e-base-full.ts",
+    "test:e2e:polygon:amoy:full": "NETWORK=polygon-amoy tsx test/e2e-base-full.ts",
+    "test:e2e:polygon:amoy:repeat": "NETWORK=polygon-amoy tsx test/e2e-base-full.ts && NETWORK=polygon-amoy tsx test/e2e-base-full.ts",
     "verify:base-sepolia": "echo 'Run with BASESCAN_API_KEY env var set'; forge verify-contract --chain-id 84532 --compiler-version v0.8.20+commit.a1b79de6 0x396e539bCDeAF48ab9526A13c6E688CBA69C059a WhiteProtocol --watch"
   },
   "dependencies": {

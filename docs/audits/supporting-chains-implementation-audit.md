@@ -23,7 +23,7 @@
 
 - "Multi-chain production protocol" — only Base Sepolia testnet is live.
 - "Cross-chain bridge live" — bridge contracts exist but LayerZero CPIs are stubbed on Solana; no E2E bridge test exists.
-- "BSC support" — no deployment, no funded wallet, E2E script uses `assetId: BigInt(0)` placeholder (`chains/evm/test/e2e/e2e-bsc-testnet.ts:397`).
+- ~~"BSC support"~~ — **BNB Chain Testnet is now deployed and E2E-proven** (PR-006/006B).
 - "Polygon / zkEVM support" — config only, zero deployments.
 - "Private transfer / JoinSplit" — Solana instructions return `NotImplemented`.
 
@@ -43,10 +43,10 @@
 |-------|:-----------:|:-----------------:|:-----------------:|:----------------:|:-----:|:---------------:|:----------------:|:----------------:|:------:|:-----------------:|
 | **Solana Devnet** | ✅ | ✅ White Protocol + Bridge skeleton | ✅ Anchor.toml | ✅ `C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW` | ⚠️ Partial | ⚠️ Stubbed | ✅ `frontend/` + `app/` | ✅ Solana SDK | **PARTIAL** | ❌ No |
 | **Base Sepolia** | ✅ | ✅ Full EVM suite | ✅ `networks.json` | ✅ `0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0` | ✅ 50 Foundry + TS E2E | ✅ Live | ✅ `app/` | ✅ Core SDK | **COMPLETE** | ❌ Testnet only |
-| **Ethereum Sepolia** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ⚠️ Config only | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ No |
+| **Ethereum Sepolia** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ✅ `0x5813d68a130C451420C670F5aA4a7D68F438101A` | ✅ Foundry + TS E2E | ✅ Configured | ✅ `app/` | ✅ Core SDK | **COMPLETE** | ❌ Testnet only |
 | **Polygon Amoy** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ⚠️ Config only | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ No |
 | **Polygon zkEVM Cardona** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ⚠️ Config only | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ No |
-| **BSC Testnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ⚠️ E2E script only | ⚠️ Config only | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ No |
+| **BNB Chain Testnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ✅ `0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B` | ✅ Foundry + TS E2E | ✅ Configured | ✅ `app/` | ✅ Core SDK | **COMPLETE** | ❌ Testnet only |
 | **Base Mainnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ❌ Blocked | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ Blocked |
 | **Ethereum Mainnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ❌ Blocked | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ Blocked |
 | **Polygon Mainnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ❌ Blocked | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ Blocked |

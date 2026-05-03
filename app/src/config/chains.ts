@@ -1,6 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 
-export type SupportedChain = "solana" | "base" | "bsc";
+export type SupportedChain = "solana" | "base" | "bsc" | "ethereum";
 
 export interface ChainConfig {
   id: SupportedChain;
@@ -34,18 +34,29 @@ export const BASE_SEPOLIA: ChainConfig = {
 
 export const BSC_TESTNET: ChainConfig = {
   id: "bsc",
-  name: "BSC Testnet",
-  displayName: "BSC",
+  name: "BNB Chain Testnet",
+  displayName: "BNB Chain",
   icon: "/icons/bsc.svg",
   isTestnet: true,
-  rpcUrl: process.env.NEXT_PUBLIC_BSC_TESTNET_RPC_URL || "https://data-seed-prebsc-1-s1.binance.org:8545",
+  rpcUrl: process.env.NEXT_PUBLIC_BSC_TESTNET_RPC_URL || "https://bsc-testnet-rpc.publicnode.com",
   blockExplorerUrl: "https://testnet.bscscan.com",
+};
+
+export const ETHEREUM_SEPOLIA: ChainConfig = {
+  id: "ethereum",
+  name: "Ethereum Sepolia",
+  displayName: "Ethereum",
+  icon: "/icons/ethereum.svg",
+  isTestnet: true,
+  rpcUrl: process.env.NEXT_PUBLIC_ETH_SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
+  blockExplorerUrl: "https://sepolia.etherscan.io",
 };
 
 export const CHAINS: Record<SupportedChain, ChainConfig> = {
   solana: SOLANA_DEVNET,
   base: BASE_SEPOLIA,
   bsc: BSC_TESTNET,
+  ethereum: ETHEREUM_SEPOLIA,
 };
 
-export const SUPPORTED_CHAINS: SupportedChain[] = ["solana", "base", "bsc"];
+export const SUPPORTED_CHAINS: SupportedChain[] = ["solana", "base", "bsc", "ethereum"];
