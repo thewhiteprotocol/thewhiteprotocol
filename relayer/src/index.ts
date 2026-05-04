@@ -23,6 +23,20 @@ import { EvmAdapter } from './chains/evm';
 import { getEvmChainContexts, getDeployerPrivateKey } from './config';
 import { loadRelayerState, saveRelayerState } from './state-store';
 import * as path from 'path';
+import {
+  findMerkleTreePda,
+  findAssetVaultPda,
+  findVaultTokenAccountPda,
+  findSpentNullifierPda,
+  findRelayerRegistryPda,
+  findRelayerNodePda,
+  findYieldRegistryPda,
+  findPendingBufferPda,
+  findWithdrawVkPda,
+  findWithdrawV2VkPda,
+  findMerkleBatchVkPda,
+} from './solana-pdas';
+import { validateSolanaRelayerFee } from './solana-fee-validator';
 import { CircuitBreaker } from './circuit-breaker';
 import { withRetry } from './retry';
 import { NullifierCache } from './cache/nullifier-cache';
@@ -571,6 +585,19 @@ export class RelayerService {
       throw new Error(`Amount above maximum: ${this.config.maxWithdrawalAmount}`);
     }
     
+    // 2b. Validate relayer fee against on-chain registry
+    const feeValidation = await validateSolanaRelayerFee(
+      this.connection,
+      this.config.poolConfig,
+      this.config.programId,
+      this.config.walletKeypair.publicKey,
+      this.config.feeBps
+    );
+    if (!feeValidation.ok) {
+      logger.error('Solana relayer fee validation failed', { error: feeValidation.error });
+      throw new Error(`Relayer fee validation failed: ${feeValidation.error}`);
+    }
+    
     // 3. Check asset is supported BEFORE expensive proof verification
     if (!this.isSupportedAsset(request.assetId, request.mint)) {
       throw new Error(`Asset ${request.assetId} not supported by this relayer`);
@@ -680,6 +707,19 @@ export class RelayerService {
     }
     if (amount > this.config.maxWithdrawalAmount) {
       throw new Error(`Amount above maximum: ${this.config.maxWithdrawalAmount}`);
+    }
+    
+    // Validate relayer fee against on-chain registry
+    const feeValidation = await validateSolanaRelayerFee(
+      this.connection,
+      this.config.poolConfig,
+      this.config.programId,
+      this.config.walletKeypair.publicKey,
+      this.config.feeBps
+    );
+    if (!feeValidation.ok) {
+      logger.error('Solana relayer fee validation failed', { error: feeValidation.error });
+      throw new Error(`Relayer fee validation failed: ${feeValidation.error}`);
     }
     
     // Check asset is supported
@@ -1125,14 +1165,7 @@ export class RelayerService {
    * Check if nullifier has been spent on-chain
    */
   private async checkNullifierSpent(nullifierHash: Uint8Array): Promise<boolean> {
-    const [nullifierPda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('nullifier'),
-        this.config.poolConfig.toBuffer(),
-        Buffer.from(nullifierHash),
-      ],
-      this.config.programId,
-    );
+    const [nullifierPda] = findSpentNullifierPda(this.config.poolConfig, nullifierHash, this.config.programId);
     
     // Check local cache first
     const cached = await this.nullifierCache.isNullifierUsed(this.config.poolConfig, nullifierHash);
@@ -1197,62 +1230,20 @@ export class RelayerService {
    */
   private async submitWithdrawal(params: SubmitWithdrawalParams): Promise<string> {
     // Derive PDAs
-    const [merkleTree] = PublicKey.findProgramAddressSync(
-      [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    
-    const [assetVault] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('vault'),
-        this.config.poolConfig.toBuffer(),
-        Buffer.from(params.assetId),
-      ],
-      this.config.programId
-    );
-    
-    const [vkAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('vk_withdraw'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    
-    const [nullifierPda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('nullifier'),
-        this.config.poolConfig.toBuffer(),
-        Buffer.from(params.nullifierHash),
-      ],
-      this.config.programId
-    );
-    
-    const [relayerRegistry] = PublicKey.findProgramAddressSync(
-      [Buffer.from('relayer_registry'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    
-    const [yieldRegistry] = PublicKey.findProgramAddressSync(
-      [Buffer.from('yield_registry'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    
-    const [relayerNode] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('relayer'),
-        relayerRegistry.toBuffer(),
-        this.config.walletKeypair.publicKey.toBuffer(),
-      ],
-      this.config.programId
-    );
+    const [merkleTree] = findMerkleTreePda(this.config.poolConfig, this.config.programId);
+    const [assetVault] = findAssetVaultPda(this.config.poolConfig, params.assetId, this.config.programId);
+    const [vkAccount] = findWithdrawVkPda(this.config.poolConfig, this.config.programId);
+    const [nullifierPda] = findSpentNullifierPda(this.config.poolConfig, params.nullifierHash, this.config.programId);
+    const [relayerRegistry] = findRelayerRegistryPda(this.config.poolConfig, this.config.programId);
+    const [yieldRegistry] = findYieldRegistryPda(this.config.poolConfig, this.config.programId);
+    const [relayerNode] = findRelayerNodePda(relayerRegistry, this.config.walletKeypair.publicKey, this.config.programId);
     const relayerNodeInfo = await this.connection.getAccountInfo(relayerNode);
     const relayerNodeAccount = (relayerNodeInfo && relayerNodeInfo.owner.equals(this.config.programId))
       ? relayerNode
       : null;
     
     // Get token accounts
-    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('vault_token'), assetVault.toBuffer()],
-      this.config.programId
-    );
+    const [vaultTokenAccount] = findVaultTokenAccountPda(assetVault, this.config.programId);
     const recipientTokenAccount = getAssociatedTokenAddressSync(params.mint, params.recipient);
     const relayerTokenAccount = getAssociatedTokenAddressSync(
       params.mint,
@@ -1407,66 +1398,19 @@ export class RelayerService {
     mint: PublicKey;
   }): Promise<string> {
     // Derive PDAs
-    const [merkleTree] = PublicKey.findProgramAddressSync(
-      [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    
-    const [assetVault] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('vault'),
-        this.config.poolConfig.toBuffer(),
-        Buffer.from(params.assetId),
-      ],
-      this.config.programId
-    );
-    
-    const [vkAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('vk_withdraw_v2'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    
-    const [nullifierPda0] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('nullifier'),
-        this.config.poolConfig.toBuffer(),
-        Buffer.from(params.nullifierHash),
-      ],
-      this.config.programId
-    );
-    
-    const [relayerRegistry] = PublicKey.findProgramAddressSync(
-      [Buffer.from('relayer_registry'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    
-    const [yieldRegistry] = PublicKey.findProgramAddressSync(
-      [Buffer.from('yield_registry'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    
-    const [relayerNode] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('relayer'),
-        relayerRegistry.toBuffer(),
-        this.config.walletKeypair.publicKey.toBuffer(),
-      ],
-      this.config.programId
-    );
+    const [merkleTree] = findMerkleTreePda(this.config.poolConfig, this.config.programId);
+    const [assetVault] = findAssetVaultPda(this.config.poolConfig, params.assetId, this.config.programId);
+    const [vkAccount] = findWithdrawV2VkPda(this.config.poolConfig, this.config.programId);
+    const [nullifierPda0] = findSpentNullifierPda(this.config.poolConfig, params.nullifierHash, this.config.programId);
+    const [relayerRegistry] = findRelayerRegistryPda(this.config.poolConfig, this.config.programId);
+    const [yieldRegistry] = findYieldRegistryPda(this.config.poolConfig, this.config.programId);
+    const [relayerNode] = findRelayerNodePda(relayerRegistry, this.config.walletKeypair.publicKey, this.config.programId);
     const relayerNodeInfo = await this.connection.getAccountInfo(relayerNode);
     const relayerNodeAccount = (relayerNodeInfo && relayerNodeInfo.owner.equals(this.config.programId))
       ? relayerNode
       : null;
-    
-    const [pendingBuffer] = PublicKey.findProgramAddressSync(
-      [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    
-    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('vault_token'), assetVault.toBuffer()],
-      this.config.programId
-    );
+    const [pendingBuffer] = findPendingBufferPda(this.config.poolConfig, this.config.programId);
+    const [vaultTokenAccount] = findVaultTokenAccountPda(assetVault, this.config.programId);
     
     const recipientTokenAccount = getAssociatedTokenAddressSync(params.mint, params.recipient, false);
     const relayerTokenAccount = getAssociatedTokenAddressSync(
@@ -1496,14 +1440,7 @@ export class RelayerService {
     // Determine optional accounts
     const hasNullifier1 = params.nullifierHash1.some(b => b !== 0);
     const nullifierPda1 = hasNullifier1
-      ? PublicKey.findProgramAddressSync(
-          [
-            Buffer.from('nullifier'),
-            this.config.poolConfig.toBuffer(),
-            Buffer.from(params.nullifierHash1),
-          ],
-          this.config.programId
-        )[0]
+      ? findSpentNullifierPda(this.config.poolConfig, params.nullifierHash1, this.config.programId)[0]
       : null;
     
     // Build instruction via Anchor
@@ -1674,18 +1611,9 @@ export class RelayerService {
       relayerPublicKey: this.config.walletKeypair.publicKey.toBase58(),
     });
 
-    const [merkleTreePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('merkle_tree'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    const [pendingBufferPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('pending'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
-    const [vkPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('vk_merkle_batch'), this.config.poolConfig.toBuffer()],
-      this.config.programId
-    );
+    const [merkleTreePda] = findMerkleTreePda(this.config.poolConfig, this.config.programId);
+    const [pendingBufferPda] = findPendingBufferPda(this.config.poolConfig, this.config.programId);
+    const [vkPda] = findMerkleBatchVkPda(this.config.poolConfig, this.config.programId);
 
     this.sequencer = new Sequencer({
       connection: this.connection,

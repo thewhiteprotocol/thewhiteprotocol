@@ -52,6 +52,9 @@ services:
       # Protocol settings
       - key: FEE_BPS
         value: "50"
+      # Solana Relayer Registry (optional dev/test override)
+      # - key: RELAYER_ALLOW_MISSING_SOLANA_REGISTRY
+      #   value: "false"
       - key: WITHDRAW_VK_PATH
         value: ./circuits/build/withdraw_vk.json
       - key: WITHDRAW_V2_VK_PATH
