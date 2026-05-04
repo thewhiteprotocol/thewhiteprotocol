@@ -1,6 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 
-export type SupportedChain = "solana" | "base" | "bsc" | "ethereum";
+export type SupportedChain = "solana" | "base" | "bsc" | "ethereum" | "polygon";
 
 export interface ChainConfig {
   id: SupportedChain;
@@ -52,11 +52,22 @@ export const ETHEREUM_SEPOLIA: ChainConfig = {
   blockExplorerUrl: "https://sepolia.etherscan.io",
 };
 
+export const POLYGON_AMOY: ChainConfig = {
+  id: "polygon",
+  name: "Polygon Amoy",
+  displayName: "Polygon",
+  icon: "/icons/polygon.svg",
+  isTestnet: true,
+  rpcUrl: process.env.NEXT_PUBLIC_POLYGON_AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
+  blockExplorerUrl: "https://amoy.polygonscan.com",
+};
+
 export const CHAINS: Record<SupportedChain, ChainConfig> = {
   solana: SOLANA_DEVNET,
   base: BASE_SEPOLIA,
   bsc: BSC_TESTNET,
   ethereum: ETHEREUM_SEPOLIA,
+  polygon: POLYGON_AMOY,
 };
 
-export const SUPPORTED_CHAINS: SupportedChain[] = ["solana", "base", "bsc", "ethereum"];
+export const SUPPORTED_CHAINS: SupportedChain[] = ["solana", "base", "bsc", "ethereum", "polygon"];

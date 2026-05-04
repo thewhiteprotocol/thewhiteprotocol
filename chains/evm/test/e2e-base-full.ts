@@ -250,7 +250,8 @@ async function settleSingleDeposit(
     expectedNewRoot,
     startIndex,
     1,
-    commitmentsHash
+    commitmentsHash,
+    getGasOverrides()
   );
 
   await tx.wait();
@@ -263,6 +264,17 @@ async function settleSingleDeposit(
   console.log('  On-chain root verified ✓');
 
   return { txHash: tx.hash, newRoot: expectedNewRoot, newTreeState };
+}
+
+function getGasOverrides(): object {
+  // Polygon Amoy requires a minimum tip cap of ~25 gwei
+  if (NETWORK === 'polygon-amoy') {
+    return {
+      maxPriorityFeePerGas: ethers.utils.parseUnits('25', 'gwei'),
+      maxFeePerGas: ethers.utils.parseUnits('50', 'gwei'),
+    };
+  }
+  return {};
 }
 
 async function main() {
@@ -375,7 +387,7 @@ async function main() {
       testCommitment,
       depositAmount,
       ethers.constants.AddressZero,
-      { value: depositAmount }
+      { value: depositAmount, ...getGasOverrides() }
     );
 
     await tx.wait();
@@ -482,7 +494,8 @@ async function main() {
       ethers.constants.AddressZero,
       withdrawAmount,
       0,
-      ethers.constants.AddressZero
+      ethers.constants.AddressZero,
+      getGasOverrides()
     );
 
     const receipt = await tx.wait();
@@ -563,7 +576,8 @@ async function main() {
         ethers.constants.AddressZero,
         withdrawAmount,
         0,
-        ethers.constants.AddressZero
+        ethers.constants.AddressZero,
+        getGasOverrides()
       );
 
       throw new Error('Second withdraw succeeded - should have reverted');

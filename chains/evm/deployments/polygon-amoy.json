@@ -1,0 +1,31 @@
+{
+  "assetIdFormula": "white:asset_id:v2",
+  "assetIdVersion": 2,
+  "chainId": 80002,
+  "contracts": {
+    "AssetRegistry": "0x66c1741f1f85f7Bb04286B7a26E870a8D3e52Eee",
+    "DepositVerifier": "0x20Ac5c909E68DA414204309f077c25B70F3eD441",
+    "MerkleBatchVerifier": "0x0eb44c154DF83876fB44042e822e3373Fbf57d95",
+    "WhiteProtocol": "0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B",
+    "WithdrawVerifier": "0x86CD177aCEc02cAF9cC27874bb0AC6Bb90FA61b6",
+    "WrappedNative9": "0x7814604B3C3ecc7eBd7E61391353f609FDB47637"
+  },
+  "deployedAt": "2026-05-04T09:27:27Z",
+  "deployer": "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c",
+  "domainId": 33554436,
+  "domainIdHex": "0x02000004",
+  "merkleState": {
+    "emptyRoot": "0x2134e76ac5d21aab186c2be1dd8f84ee880a1e46eaf712f9d371b6df22191f3e",
+    "nextLeafIndex": 0
+  },
+  "network": "polygon-amoy",
+  "relayers": [
+    "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c"
+  ],
+  "supportedAssets": {
+    "native": "0x0000000000000000000000000000000000000000",
+    "usdc": null,
+    "usdt": null,
+    "wrappedNative": "0x7814604B3C3ecc7eBd7E61391353f609FDB47637"
+  }
+}

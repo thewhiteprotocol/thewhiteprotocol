@@ -40,6 +40,10 @@ services:
         value: https://ethereum-sepolia-rpc.publicnode.com
       - key: ETH_PROTOCOL_ADDRESS
         value: 0x5813d68a130C451420C670F5aA4a7D68F438101A
+      - key: POLYGON_AMOY_RPC_URL
+        value: https://rpc-amoy.polygon.technology
+      - key: POLYGON_AMOY_PROTOCOL_ADDRESS
+        value: 0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B
       - key: FEE_BPS
         value: "50"
       - key: WITHDRAW_VK_PATH
