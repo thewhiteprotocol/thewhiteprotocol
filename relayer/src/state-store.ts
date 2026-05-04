@@ -143,6 +143,14 @@ export interface BasePendingState {
   nextLeafIndex: number;
   lastScannedBlock: string;
   lastSyncedAt: number;
+  inFlight?: {
+    txHash: string;
+    startIndex: number;
+    batchSize: number;
+    submittedAt: number;
+    expectedNextIndex: number;
+    commitments: string[];
+  } | null;
 }
 
 export function loadBaseMerkleState(): BaseMerkleTreeState | null {

@@ -43,6 +43,7 @@ export interface DeploymentJson {
     emptyRoot: string;
     nextLeafIndex: number;
   };
+  deploymentBlock?: number;
 }
 
 export interface EvmChainContext {

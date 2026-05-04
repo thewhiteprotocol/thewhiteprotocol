@@ -1,6 +1,6 @@
 /**
  * Generic EVM chain adapter for The White Protocol relayer
- * Supports Base, Ethereum, Polygon
+ * Supports Base, Ethereum, Polygon, BSC
  */
 
 import { createPublicClient, createWalletClient, http, parseAbi, Chain } from 'viem';
@@ -15,6 +15,8 @@ import {
   bscTestnet,
   bsc,
 } from 'viem/chains';
+import { withRetry } from '../retry';
+import { CircuitBreaker } from '../circuit-breaker';
 
 const CHAIN_MAP: Record<number, Chain> = {
   84532: baseSepolia,
@@ -45,6 +47,23 @@ const abi = parseAbi([
   'event StealthWithdrawal(bytes ephemeralPubkey, address indexed destination, uint256 blockNumber)',
 ]);
 
+const SETTLEMENT_NON_RETRYABLE = [
+  'insufficient funds',
+  'revert',
+  'invalid proof',
+  'execution reverted',
+  'nonce too low',
+];
+
+const WITHDRAWAL_NON_RETRYABLE = [
+  'insufficient funds',
+  'revert',
+  'invalid proof',
+  'execution reverted',
+  'nullifier already spent',
+  'nonce too low',
+];
+
 export interface EvmConfig {
   chainId: number;
   rpcEndpoint: string;
@@ -59,6 +78,8 @@ export class EvmAdapter {
   private account;
   public readonly chainId: number;
   public readonly chainName: string;
+  private settlementBreaker: CircuitBreaker;
+  private withdrawalBreaker: CircuitBreaker;
 
   constructor(public readonly name: string, config: EvmConfig) {
     this.chainId = config.chainId;
@@ -81,6 +102,8 @@ export class EvmAdapter {
       chain,
       transport: http(config.rpcEndpoint),
     });
+    this.settlementBreaker = new CircuitBreaker(`${name}-settlement`, 5, 2, 60000);
+    this.withdrawalBreaker = new CircuitBreaker(`${name}-withdrawal`, 5, 2, 60000);
   }
 
   getAddress(): `0x${string}` {
@@ -89,6 +112,24 @@ export class EvmAdapter {
 
   async getBalance(): Promise<bigint> {
     return this.publicClient.getBalance({ address: this.account.address });
+  }
+
+  private async getGasOverrides(functionName: string, args: any[]): Promise<{ gas?: bigint }> {
+    if (this.chainId !== 97 && this.chainId !== 80002) {
+      return {};
+    }
+    try {
+      const gas = await this.publicClient.estimateContractGas({
+        address: this.contractAddress,
+        abi,
+        functionName: functionName as any,
+        args: args as any,
+        account: this.account,
+      });
+      return { gas: (gas * 130n) / 100n };
+    } catch {
+      return { gas: this.chainId === 97 ? 2000000n : 1500000n };
+    }
   }
 
   async submitWithdrawal(
@@ -109,14 +150,25 @@ export class EvmAdapter {
       ? [proofDataHex, nullifierHash, root, recipient, tokenAddr, amount, fee, this.account.address, ephemeralPubkey]
       : [proofDataHex, nullifierHash, root, recipient, tokenAddr, amount, fee, this.account.address];
 
-    const hash = await this.walletClient.writeContract({
-      address: this.contractAddress,
-      abi,
-      functionName,
-      args,
-    });
+    const gasOverrides = await this.getGasOverrides(functionName, args);
 
-    return hash;
+    return this.withdrawalBreaker.execute(() =>
+      withRetry(
+        () =>
+          this.walletClient.writeContract({
+            address: this.contractAddress,
+            abi,
+            functionName,
+            args,
+            ...gasOverrides,
+          }),
+        {
+          maxAttempts: 3,
+          baseDelayMs: 1000,
+          nonRetryablePatterns: WITHDRAWAL_NON_RETRYABLE,
+        }
+      )
+    );
   }
 
   async isSpent(nullifierHash: bigint | string): Promise<boolean> {
@@ -183,13 +235,28 @@ export class EvmAdapter {
     batchSize: number,
     commitmentsHash: bigint
   ): Promise<`0x${string}`> {
-    const hash = await this.walletClient.writeContract({
-      address: this.contractAddress,
-      abi,
-      functionName: 'settleBatch',
-      args: [proofDataHex, oldRoot, newRoot, BigInt(startIndex), BigInt(batchSize), commitmentsHash],
-    });
-    return hash;
+    const functionName = 'settleBatch';
+    const args = [proofDataHex, oldRoot, newRoot, BigInt(startIndex), BigInt(batchSize), commitmentsHash];
+
+    const gasOverrides = await this.getGasOverrides(functionName, args);
+
+    return this.settlementBreaker.execute(() =>
+      withRetry(
+        () =>
+          this.walletClient.writeContract({
+            address: this.contractAddress,
+            abi,
+            functionName,
+            args,
+            ...gasOverrides,
+          }),
+        {
+          maxAttempts: 3,
+          baseDelayMs: 1000,
+          nonRetryablePatterns: SETTLEMENT_NON_RETRYABLE,
+        }
+      )
+    );
   }
 
   private async getEventsPaginated<T>(

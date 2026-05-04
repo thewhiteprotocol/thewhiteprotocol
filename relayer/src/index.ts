@@ -210,6 +210,9 @@ export class RelayerService {
   /** EVM chain adapters keyed by network name */
   private evmAdapters = new Map<string, EvmAdapter>();
   
+  /** Deployment blocks per EVM chain (from deployment artifacts) */
+  private evmDeploymentBlocks = new Map<string, bigint>();
+  
   /** API extensions (merkle tree, proof generation) */
   private apiExtensions?: RelayerApiExtensions;
 
@@ -268,6 +271,8 @@ export class RelayerService {
           privateKey: deployerKey as `0x${string}`,
         });
         this.evmAdapters.set(ctx.name, adapter);
+        const deploymentBlock = (ctx.deployment as any).deploymentBlock;
+        this.evmDeploymentBlocks.set(ctx.name, deploymentBlock ? BigInt(deploymentBlock) : 0n);
         logger.info('EVM adapter initialized', {
           network: ctx.name,
           chainId: ctx.config.chainId,
@@ -1291,7 +1296,7 @@ export class RelayerService {
       yieldRegistry,
     };
 
-    if (params.ephemeralPubkey && params.ephemeralPubkey.length === 32) {
+    if (params.ephemeralPubkey && params.ephemeralPubkey.length === 33) {
       ix = await this.program.methods
         .withdrawMaspStealth(
           Buffer.from(params.proofData),
@@ -1613,14 +1618,9 @@ export class RelayerService {
       return;
     }
 
-    const deploymentBlocks = new Map<string, bigint>();
-    for (const [name, adapter] of this.evmAdapters) {
-      deploymentBlocks.set(name, 0n);
-    }
-
     this.evmSequencer = new MultiChainSequencer({
       adapters: this.evmAdapters,
-      deploymentBlocks,
+      deploymentBlocks: this.evmDeploymentBlocks,
       apiExtensions: this.apiExtensions,
       treeDepth: this.config.treeDepth,
       logger,

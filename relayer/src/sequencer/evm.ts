@@ -27,6 +27,16 @@ export interface EvmSequencerConfig {
 }
 
 const MAX_BATCH_SIZE = 1;
+const SETTLEMENT_TIMEOUT_MS = 120000;
+
+interface InFlightSettlement {
+  txHash: string;
+  startIndex: number;
+  batchSize: number;
+  submittedAt: number;
+  expectedNextIndex: number;
+  commitments: bigint[];
+}
 
 export class EvmSequencer {
   private running = false;
@@ -39,6 +49,7 @@ export class EvmSequencer {
   private lastScannedBlock: bigint = 0n;
   private pendingCommitments: bigint[] = [];
   private nextLeafIndex: number = 0;
+  private inFlight: InFlightSettlement | null = null;
 
   constructor(private config: EvmSequencerConfig) {
     this.merkleTree = new ServerMerkleTree(config.treeDepth);
@@ -54,6 +65,9 @@ export class EvmSequencer {
       pendingCount: this.pendingCommitments.length,
       treeLeafCount: this.merkleTree.getLeafCount(),
       nextLeafIndex: this.nextLeafIndex,
+      inFlight: this.inFlight
+        ? { txHash: this.inFlight.txHash, startIndex: this.inFlight.startIndex, elapsedMs: Date.now() - this.inFlight.submittedAt }
+        : null,
     };
   }
 
@@ -90,6 +104,45 @@ export class EvmSequencer {
 
   private async tick(): Promise<void> {
     await this.syncTreeFromEvents();
+
+    // Resolve in-flight settlement
+    if (this.inFlight) {
+      const poolState = await this.config.adapter.getPoolState();
+      if (Number(poolState.nextLeafIndex) >= this.inFlight.expectedNextIndex) {
+        this.config.logger.info(
+          `[${this.config.chainName}] In-flight settlement confirmed`,
+          {
+            txHash: this.inFlight.txHash,
+            startIndex: this.inFlight.startIndex,
+            batchSize: this.inFlight.batchSize,
+          }
+        );
+        this.settleCount++;
+        this.lastSettleAt = Date.now();
+        this.lastError = null;
+        this.nextLeafIndex = Number(poolState.nextLeafIndex);
+        this.inFlight = null;
+        this.persistState();
+      } else if (Date.now() - this.inFlight.submittedAt < SETTLEMENT_TIMEOUT_MS) {
+        this.config.logger.info(
+          `[${this.config.chainName}] Settlement in-flight, skipping tick`,
+          {
+            txHash: this.inFlight.txHash,
+            elapsedMs: Date.now() - this.inFlight.submittedAt,
+          }
+        );
+        return;
+      } else {
+        this.config.logger.warn(
+          `[${this.config.chainName}] Settlement timed out, allowing retry`,
+          {
+            txHash: this.inFlight.txHash,
+            elapsedMs: Date.now() - this.inFlight.submittedAt,
+          }
+        );
+        this.inFlight = null;
+      }
+    }
 
     const pending = await this.config.adapter.getPendingDeposits();
     this.pendingCommitments = pending;
@@ -149,28 +202,22 @@ export class EvmSequencer {
       commitmentsHash
     );
 
-    for (let i = 0; i < batchSize; i++) {
-      this.merkleTree.insertAt(startIndex + i, commitments[i]);
-      appendEvmSettledCommitment(this.config.chainName, {
-        commitment: commitments[i].toString(),
-        leafIndex: startIndex + i,
-        settledAt: Date.now(),
-        signature: txHash,
-      });
-    }
+    this.inFlight = {
+      txHash,
+      startIndex,
+      batchSize,
+      submittedAt: Date.now(),
+      expectedNextIndex: startIndex + batchSize,
+      commitments,
+    };
 
-    this.settleCount++;
-    this.lastSettleAt = Date.now();
-    this.lastError = null;
-    this.nextLeafIndex = startIndex + batchSize;
-    this.persistState();
-
-    this.config.logger.info(`[${this.config.chainName}] EVM sequencer: batch settled`, {
+    this.config.logger.info(`[${this.config.chainName}] EVM sequencer: settlement submitted`, {
       txHash,
       batchSize,
       startIndex,
-      settleCount: this.settleCount,
     });
+
+    this.persistState();
   }
 
   private async syncTreeFromEvents(): Promise<void> {
@@ -256,6 +303,20 @@ export class EvmSequencer {
       this.pendingCommitments = pendingState.pendingCommitments.map(c => BigInt(c));
       this.nextLeafIndex = pendingState.nextLeafIndex;
       this.lastScannedBlock = BigInt(pendingState.lastScannedBlock || '0');
+      if (pendingState.inFlight) {
+        const age = Date.now() - pendingState.inFlight.submittedAt;
+        if (age < SETTLEMENT_TIMEOUT_MS) {
+          this.inFlight = {
+            ...pendingState.inFlight,
+            commitments: pendingState.inFlight.commitments.map(c => BigInt(c)),
+          };
+        } else {
+          this.config.logger.warn(
+            `[${this.config.chainName}] Discarding stale in-flight settlement from state`,
+            { txHash: pendingState.inFlight.txHash, ageMs: age }
+          );
+        }
+      }
     }
   }
 
@@ -269,6 +330,16 @@ export class EvmSequencer {
         nextLeafIndex: this.nextLeafIndex,
         lastScannedBlock: this.lastScannedBlock.toString(),
         lastSyncedAt: Date.now(),
+        inFlight: this.inFlight
+          ? {
+              txHash: this.inFlight.txHash,
+              startIndex: this.inFlight.startIndex,
+              batchSize: this.inFlight.batchSize,
+              submittedAt: this.inFlight.submittedAt,
+              expectedNextIndex: this.inFlight.expectedNextIndex,
+              commitments: this.inFlight.commitments.map(c => c.toString()),
+            }
+          : null,
       });
     } catch (err: any) {
       this.config.logger.warn(`[${this.config.chainName}] EVM sequencer: failed to persist state`, { error: err.message });

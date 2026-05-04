@@ -31,5 +31,6 @@
   "domainIdHex": "0x02000002",
   "assetIdFormula": "white:asset_id:v2",
   "verifiedE2E": true,
-  "notes": "Active Base Sepolia testnet deployment with v2 domain-separated asset IDs"
+  "notes": "Active Base Sepolia testnet deployment with v2 domain-separated asset IDs",
+  "deploymentBlock": 40978628
 }
