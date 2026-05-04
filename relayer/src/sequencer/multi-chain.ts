@@ -69,7 +69,7 @@ export class MultiChainSequencer {
       84532: 10000,   // Base Sepolia: 2s * 5
       11155111: 60000, // Ethereum Sepolia: 12s * 5
       80002: 10000,   // Polygon Amoy: 2s * 5
-      2442: 30000,    // Polygon zkEVM Cardona: 6s * 5
+
     };
     return intervals[chainId] || 30000;
   }

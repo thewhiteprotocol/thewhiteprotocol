@@ -98,3 +98,4 @@ withdraw-circuit.tar.gz
 .keys/relayer-e5jr.json
 devnet-deployer.json
 program-keypair.json
+DEPLOYER_KEYS_BACKUP.txt

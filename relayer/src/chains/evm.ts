@@ -1,6 +1,6 @@
 /**
  * Generic EVM chain adapter for The White Protocol relayer
- * Supports Base, Ethereum, Polygon, Polygon zkEVM
+ * Supports Base, Ethereum, Polygon
  */
 
 import { createPublicClient, createWalletClient, http, parseAbi, Chain } from 'viem';
@@ -9,11 +9,9 @@ import {
   baseSepolia,
   sepolia,
   polygonAmoy,
-  polygonZkEvmCardona,
   base,
   mainnet,
   polygon,
-  polygonZkEvm,
   bscTestnet,
   bsc,
 } from 'viem/chains';
@@ -22,11 +20,9 @@ const CHAIN_MAP: Record<number, Chain> = {
   84532: baseSepolia,
   11155111: sepolia,
   80002: polygonAmoy,
-  2442: polygonZkEvmCardona,
   8453: base,
   1: mainnet,
   137: polygon,
-  1101: polygonZkEvm,
   97: bscTestnet,
   56: bsc,
 };

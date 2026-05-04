@@ -16,7 +16,7 @@
 | **Production-implemented** | None. No mainnet contracts are deployed. |
 | **Testnet-ready** | **Base Sepolia** (EVM) — contracts deployed, 50 Foundry tests pass, E2E script exercised. |
 | **Testnet-partial** | **Solana Devnet** — deposit works with real ZK proofs; withdrawal blocked by settlement failure. |
-| **Config-only** | Ethereum Sepolia, Polygon Amoy, Polygon zkEVM Cardona, BSC Testnet, Base Mainnet, Ethereum Mainnet, Polygon Mainnet, Polygon zkEVM Mainnet, BSC Mainnet. |
+| **Config-only** | Base Mainnet, Ethereum Mainnet, Polygon Mainnet, BSC Mainnet. |
 | **Stubbed** | Solana bridge program (`white-bridge-solana`), relayer Solana adapter, `private_transfer`, `prove_membership`, `execute_shielded_action` instructions. |
 
 ### What Should Be Removed From Public Claims
@@ -24,7 +24,6 @@
 - "Multi-chain production protocol" — only Base Sepolia testnet is live.
 - "Cross-chain bridge live" — bridge contracts exist but LayerZero CPIs are stubbed on Solana; no E2E bridge test exists.
 - ~~"BSC support"~~ — **BNB Chain Testnet is now deployed and E2E-proven** (PR-006/006B).
-- "Polygon / zkEVM support" — config only, zero deployments.
 - "Private transfer / JoinSplit" — Solana instructions return `NotImplemented`.
 
 ### Source of Truth Today
@@ -44,13 +43,11 @@
 | **Solana Devnet** | ✅ | ✅ White Protocol + Bridge skeleton | ✅ Anchor.toml | ✅ `C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW` | ⚠️ Partial | ⚠️ Stubbed | ✅ `frontend/` + `app/` | ✅ Solana SDK | **PARTIAL** | ❌ No |
 | **Base Sepolia** | ✅ | ✅ Full EVM suite | ✅ `networks.json` | ✅ `0xAc0ae70cd63C98d23858a81aa0860213cb4CcBd0` | ✅ 50 Foundry + TS E2E | ✅ Live | ✅ `app/` | ✅ Core SDK | **COMPLETE** | ❌ Testnet only |
 | **Ethereum Sepolia** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ✅ `0x5813d68a130C451420C670F5aA4a7D68F438101A` | ✅ Foundry + TS E2E | ✅ Configured | ✅ `app/` | ✅ Core SDK | **COMPLETE** | ❌ Testnet only |
-| **Polygon Amoy** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ⚠️ Config only | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ No |
-| **Polygon zkEVM Cardona** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ⚠️ Config only | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ No |
+| **Polygon Amoy** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ✅ `0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B` | ✅ Foundry + TS E2E | ✅ Configured | ✅ `app/` | ✅ Core SDK | **COMPLETE** | ❌ Testnet only |
 | **BNB Chain Testnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ✅ `0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B` | ✅ Foundry + TS E2E | ✅ Configured | ✅ `app/` | ✅ Core SDK | **COMPLETE** | ❌ Testnet only |
 | **Base Mainnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ❌ Blocked | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ Blocked |
 | **Ethereum Mainnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ❌ Blocked | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ Blocked |
 | **Polygon Mainnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ❌ Blocked | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ Blocked |
-| **Polygon zkEVM Mainnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ❌ Blocked | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ Blocked |
 | **BSC Mainnet** | ✅ Generic contracts | ✅ (same as Base) | ✅ `networks.json` | ❌ None | ❌ None | ❌ Blocked | ⚠️ Config only | ✅ Core SDK | **CONFIG_ONLY** | ❌ Blocked |
 
 **Statuses used:**
@@ -252,20 +249,6 @@ Config-only. No deployment, no tests, no E2E.
 
 ---
 
-### Polygon zkEVM Cardona
-
-#### Implementation Status
-Config-only. No deployment, no tests, no E2E.
-
-#### Evidence
-- `chains/evm/configs/networks.json:45-59` — full config entry exists.
-- `isLive: false`
-
-#### Verdict
-**Config-only**
-
----
-
 ### BSC Testnet
 
 #### Implementation Status
@@ -318,20 +301,6 @@ Config-only. Blocked by mainnet guard.
 
 #### Evidence
 - `chains/evm/configs/networks.json:104-118`
-- `isLive: false`, `blockedReason: "Awaiting external audit"`
-
-#### Verdict
-**Config-only / Blocked**
-
----
-
-### Polygon zkEVM Mainnet
-
-#### Implementation Status
-Config-only. Blocked by mainnet guard.
-
-#### Evidence
-- `chains/evm/configs/networks.json:119-133`
 - `isLive: false`, `blockedReason: "Awaiting external audit"`
 
 #### Verdict
@@ -475,14 +444,12 @@ Config-only. Blocked by mainnet guard.
 |-------|-----------------|----------------|----------|---------|
 | Solana Devnet | Full program | Deposit only | `E2E-TEST-FINAL-RESULTS.md` | Settlement proof mismatch (`CryptographyError 6009`) |
 | Base Sepolia | Full protocol | Full protocol | `deployments/base-sepolia.json`, 50 passing tests | Testnet only |
-| Ethereum Sepolia | Configured | Config-only | `networks.json` | No deployment, no tests |
-| Polygon Amoy | Configured | Config-only | `networks.json` | No deployment, no tests |
-| Polygon zkEVM Cardona | Configured | Config-only | `networks.json` | No deployment, no tests |
-| BSC Testnet | Configured + E2E script | Config-only | `networks.json`, `e2e-bsc-testnet.ts:397` | No deployment, placeholder assetId |
+| Ethereum Sepolia | Configured | Full protocol | `networks.json` | Testnet only |
+| Polygon Amoy | Configured | Full protocol | `networks.json` | Testnet only |
+| BSC Testnet | Configured + E2E script | Full protocol | `networks.json`, `e2e-bsc-testnet.ts` | Testnet only |
 | Base Mainnet | Configured | Config-only | `networks.json`, `blockedReason` | Awaiting audit |
 | Ethereum Mainnet | Configured | Config-only | `networks.json`, `blockedReason` | Awaiting audit |
 | Polygon Mainnet | Configured | Config-only | `networks.json`, `blockedReason` | Awaiting audit |
-| Polygon zkEVM Mainnet | Configured | Config-only | `networks.json`, `blockedReason` | Awaiting audit |
 | BSC Mainnet | Configured | Config-only | `networks.json`, `blockedReason` | Awaiting audit |
 
 ---
@@ -591,7 +558,6 @@ cd circuits && ./build.sh
 - "Multi-chain privacy protocol" — ❌ Unsafe. Only Base Sepolia is live. All other chains are config-only.
 - "Cross-chain bridge" — ❌ Unsafe. Bridge contracts exist but Solana LZ CPIs are stubbed. No E2E bridge test.
 - "BSC support" — ❌ Unsafe. No deployment, no tests, E2E script uses placeholder assetId.
-- "Polygon / zkEVM support" — ❌ Unsafe. Config-only.
 - "Private transfer / JoinSplit" — ❌ Unsafe. Solana instructions return `NotImplemented`.
 - "Production-ready" — ❌ Unsafe. No mainnet deployments, no audit, settlement bug on Solana.
 - "Stealth withdrawals on EVM" — ⚠️ Unsafe. Contract uses `bytes32` but implementation generates 33-byte keys.
@@ -612,8 +578,7 @@ cd circuits && ./build.sh
 
 ### Which chains should be disabled in frontend until fixed?
 1. **BSC Testnet** — no deployment, broken `chainService.ts` reads.
-2. **All mainnets** (Base, Ethereum, Polygon, zkEVM, BSC) — blocked pending audit, no deployments.
-3. **Ethereum Sepolia, Polygon Amoy, Polygon zkEVM Cardona** — config-only, no deployments, no tests.
+2. **All mainnets** (Base, Ethereum, Polygon, BSC) — blocked pending audit, no deployments.
 
 The `app/` should only show **Solana Devnet** and **Base Sepolia** as active options. Solana should carry a "Deposit only — withdrawal temporarily disabled" warning.
 

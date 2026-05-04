@@ -61,7 +61,7 @@ function resolveRpcUrl(config: any): string {
     'bsc-testnet': 'https://bsc-testnet-rpc.publicnode.com',
     'ethereum-sepolia': 'https://ethereum-sepolia-rpc.publicnode.com',
     'polygon-amoy': 'https://rpc-amoy.polygon.technology',
-    'polygon-zkevm-cardona': 'https://rpc.cardona.zkevm-rpc.com',
+
   };
   if (fallbacks[NETWORK]) {
     console.log(`  Using public fallback RPC for ${NETWORK}`);

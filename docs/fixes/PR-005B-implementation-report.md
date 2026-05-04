@@ -17,12 +17,10 @@ Implemented the v2 asset ID formula with protocol-scoped domain separation for a
 | Base Sepolia | `0x02000002` | 33554434 | EVM |
 | Ethereum Sepolia | `0x02000003` | 33554435 | EVM |
 | Polygon Amoy | `0x02000004` | 33554436 | EVM |
-| Polygon zkEVM Cardona | `0x02000005` | 33554437 | EVM |
 | BSC Testnet | `0x02000006` | 33554438 | EVM |
 | Base Mainnet | `0x02000007` | 33554439 | EVM |
 | Ethereum Mainnet | `0x02000008` | 33554440 | EVM |
 | Polygon Mainnet | `0x02000009` | 33554441 | EVM |
-| Polygon zkEVM Mainnet | `0x0200000a` | 33554442 | EVM |
 | BSC Mainnet | `0x0200000b` | 33554443 | EVM |
 
 Structure: `uint32` — high byte = chain family (`0x01` = Solana, `0x02` = EVM), low 3 bytes = network ID.
