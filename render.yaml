@@ -16,10 +16,9 @@ services:
         value: "3000"
       - key: STATE_DIR
         value: /app/data
+      # Solana Devnet
       - key: RPC_ENDPOINT
         value: https://api.devnet.solana.com
-      - key: BASE_RPC_URL
-        value: https://sepolia.base.org
       - key: PROGRAM_ID
         value: C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW
       - key: POOL_CONFIG
@@ -30,20 +29,27 @@ services:
         value: 7MzDFCdPEog6orC42jCXBz53zhqysQVq5vb5J7R1DAyw
       - key: WSOL_VAULT
         value: 629JMEcz1u4AjyahByEcQtyGF3TwDnBPY7nHhaLVB9PS
+      # Base Sepolia
+      - key: BASE_SEPOLIA_RPC_URL
+        value: https://sepolia.base.org
       - key: BASE_PROTOCOL_ADDRESS
         value: 0x396e539bCDeAF48ab9526A13c6E688CBA69C059a
-      - key: BSC_RPC_URL
-        value: https://bsc-testnet-rpc.publicnode.com
-      - key: BSC_PROTOCOL_ADDRESS
-        value: 0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B
-      - key: ETH_RPC_URL
+      # Ethereum Sepolia
+      - key: ETHEREUM_SEPOLIA_RPC_URL
         value: https://ethereum-sepolia-rpc.publicnode.com
       - key: ETH_PROTOCOL_ADDRESS
         value: 0x5813d68a130C451420C670F5aA4a7D68F438101A
+      # BNB Chain Testnet
+      - key: BSC_TESTNET_RPC_URL
+        value: https://bsc-testnet-rpc.publicnode.com
+      - key: BSC_PROTOCOL_ADDRESS
+        value: 0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B
+      # Polygon Amoy
       - key: POLYGON_AMOY_RPC_URL
         value: https://rpc-amoy.polygon.technology
       - key: POLYGON_AMOY_PROTOCOL_ADDRESS
         value: 0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B
+      # Protocol settings
       - key: FEE_BPS
         value: "50"
       - key: WITHDRAW_VK_PATH
@@ -62,9 +68,25 @@ services:
         value: So11111111111111111111111111111111111111112
       - key: CORS_ORIGIN
         value: https://app.thewhiteprotocol.com
+      # Stealth address scanner (Solana + Base only)
+      - key: STEALTH_SCANNER_POLL_INTERVAL_MS
+        value: "5000"
+      - key: STEALTH_SCANNER_BATCH_SIZE
+        value: "100"
+      - key: STEALTH_SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: STEALTH_BASE_RPC_URL
+        value: https://sepolia.base.org
+      - key: STEALTH_META_ADDRESS_VERSION
+        value: "1"
       # Secrets — set these in Render dashboard, not here
       # - RELAYER_KEYPAIR
       # - AUTHORITY_KEYPAIR (optional; falls back to RELAYER_KEYPAIR)
-      # - BASE_DEPLOYER_PRIVATE_KEY
+      # - SEQUENCER_WALLET
       # - SEQUENCER_AUTH_TOKEN
+      # - BASE_DEPLOYER_PRIVATE_KEY
+      # - ETH_DEPLOYER_PRIVATE_KEY
+      # - BSC_DEPLOYER_PRIVATE_KEY
+      # - POLYGON_AMOY_DEPLOYER_PRIVATE_KEY
+      # - EVM_DEPLOYER_PRIVATE_KEY (shared fallback)
       # - WALLETCONNECT_PROJECT_ID (if needed)

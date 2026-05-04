@@ -20,7 +20,7 @@ import * as fs from 'fs';
 import * as snarkjs from 'snarkjs';
 import { logger } from './logger';
 import { EvmAdapter } from './chains/evm';
-import { getEvmChainContexts } from './config';
+import { getEvmChainContexts, getDeployerPrivateKey } from './config';
 import { loadRelayerState, saveRelayerState } from './state-store';
 import * as path from 'path';
 import { CircuitBreaker } from './circuit-breaker';
@@ -91,12 +91,6 @@ interface RelayerConfig {
   circuitsPath: string;
   /** Merkle tree depth */
   treeDepth: number;
-  /** Base RPC endpoint */
-  baseRpcUrl?: string;
-  /** Base protocol contract address */
-  baseProtocolAddress?: string;
-  /** Base deployer private key */
-  baseDeployerPrivateKey?: string;
 }
 
 /** Withdrawal request interface */
@@ -258,26 +252,30 @@ export class RelayerService {
     this.program = null as any; // Will be initialized in start()
     
     // Setup EVM adapters for all live networks if deployer key is configured
-    if (config.baseDeployerPrivateKey) {
-      try {
-        const contexts = getEvmChainContexts();
-        for (const ctx of contexts) {
-          const adapter = new EvmAdapter(ctx.name, {
-            chainId: ctx.config.chainId,
-            rpcEndpoint: ctx.rpcUrl,
-            contractAddress: ctx.deployment.contracts.WhiteProtocol as `0x${string}`,
-            privateKey: config.baseDeployerPrivateKey as `0x${string}`,
-          });
-          this.evmAdapters.set(ctx.name, adapter);
-          logger.info('EVM adapter initialized', {
-            network: ctx.name,
-            chainId: ctx.config.chainId,
-            address: adapter.getAddress(),
-          });
+    try {
+      const contexts = getEvmChainContexts();
+      for (const ctx of contexts) {
+        const deployerKey = getDeployerPrivateKey(ctx.name);
+        if (!deployerKey) {
+          logger.warn(`No deployer private key for "${ctx.name}". Skipping EVM adapter. ` +
+            `Set ${ctx.name.toUpperCase().replace(/-/g, '_')}_DEPLOYER_PRIVATE_KEY or EVM_DEPLOYER_PRIVATE_KEY.`);
+          continue;
         }
-      } catch (err: any) {
-        logger.warn('Failed to initialize some EVM adapters', { error: err.message });
+        const adapter = new EvmAdapter(ctx.name, {
+          chainId: ctx.config.chainId,
+          rpcEndpoint: ctx.rpcUrl,
+          contractAddress: ctx.deployment.contracts.WhiteProtocol as `0x${string}`,
+          privateKey: deployerKey as `0x${string}`,
+        });
+        this.evmAdapters.set(ctx.name, adapter);
+        logger.info('EVM adapter initialized', {
+          network: ctx.name,
+          chainId: ctx.config.chainId,
+          address: adapter.getAddress(),
+        });
       }
+    } catch (err: any) {
+      logger.warn('Failed to initialize some EVM adapters', { error: err.message });
     }
     
     // Setup Express app
@@ -1926,15 +1924,6 @@ export async function main(): Promise<void> {
     withdrawV2VkPath: process.env.WITHDRAW_V2_VK_PATH || './circuits/build/withdraw_v2_vk.json',
     circuitsPath: process.env.CIRCUITS_PATH || "../circuits/build",
     treeDepth: parseInt(process.env.TREE_DEPTH || "20", 10),
-    baseRpcUrl: process.env.BASE_RPC_URL || 'https://sepolia.base.org',
-    baseProtocolAddress: process.env.BASE_PROTOCOL_ADDRESS || '0x396e539bCDeAF48ab9526A13c6E688CBA69C059a',
-    baseDeployerPrivateKey: process.env.BASE_DEPLOYER_PRIVATE_KEY,
-    bscRpcUrl: process.env.BSC_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com',
-    bscProtocolAddress: process.env.BSC_PROTOCOL_ADDRESS || '0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B',
-    bscDeployerPrivateKey: process.env.BSC_DEPLOYER_PRIVATE_KEY,
-    ethRpcUrl: process.env.ETH_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
-    ethProtocolAddress: process.env.ETH_PROTOCOL_ADDRESS || '0x5813d68a130C451420C670F5aA4a7D68F438101A',
-    ethDeployerPrivateKey: process.env.ETH_DEPLOYER_PRIVATE_KEY,
     authorityKeypair: process.env.AUTHORITY_KEYPAIR
       ? Keypair.fromSecretKey(parseAuthorityKeypair())
       : undefined,

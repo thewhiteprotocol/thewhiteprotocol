@@ -60,7 +60,7 @@ export class SolanaAdapter {
 }
 
 class AnchorWallet {
-  constructor(private payer: Keypair) {}
+  constructor(readonly payer: Keypair) {}
   
   get publicKey(): PublicKey {
     return this.payer.publicKey;
