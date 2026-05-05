@@ -20,7 +20,7 @@ import * as fs from 'fs';
 import * as snarkjs from 'snarkjs';
 import { logger } from './logger';
 import { EvmAdapter } from './chains/evm';
-import { getEvmChainContexts, getDeployerPrivateKey } from './config';
+import { getEvmChainContexts, getDeployerPrivateKey, loadDeployment } from './config';
 import { loadRelayerState, saveRelayerState } from './state-store';
 import * as path from 'path';
 import {
@@ -41,6 +41,20 @@ import { CircuitBreaker } from './circuit-breaker';
 import { withRetry } from './retry';
 import { NullifierCache } from './cache/nullifier-cache';
 import { metrics } from './metrics';
+import { isValidCompressedSecp256k1Pubkey, shouldUseEvmStealthWithdrawal } from './evm-stealth';
+import { createBridgeStatusRouter } from './bridge/status-api';
+import { BridgeStateStore } from './bridge/state';
+import {
+  validateChainParameter,
+  resolveChain,
+  buildQuote,
+  buildEvmAssetsForChain,
+  getLiveChainEntries,
+  createApiError,
+  createChainMissingError,
+  createUnsupportedChainError,
+  createChainNotLiveError,
+} from './chain-registry';
 import {
   Connection,
   Keypair,
@@ -230,6 +244,9 @@ export class RelayerService {
   /** API extensions (merkle tree, proof generation) */
   private apiExtensions?: RelayerApiExtensions;
 
+  /** Bridge message state store (for status API) */
+  private bridgeStateStore?: BridgeStateStore;
+
   /** Solana settlement sequencer */
   private sequencer?: Sequencer;
   
@@ -297,6 +314,13 @@ export class RelayerService {
       logger.warn('Failed to initialize some EVM adapters', { error: err.message });
     }
     
+    // Setup bridge state store if STATE_DIR is configured
+    const stateDir = process.env.STATE_DIR;
+    if (stateDir) {
+      this.bridgeStateStore = new BridgeStateStore(stateDir);
+      logger.info('Bridge state store initialized', { stateDir });
+    }
+
     // Setup Express app
     this.app = express();
     this.setupMiddleware();
@@ -451,6 +475,14 @@ export class RelayerService {
     // Health check
     this.app.get('/health', (req: Request, res: Response) => {
       const mem = process.memoryUsage();
+      const liveChains = getLiveChainEntries().map(e => ({
+        chainKey: e.chainKey,
+        family: e.family,
+        chainId: e.chainId,
+        domainId: e.domainId,
+        assetIdVersion: e.assetIdVersion,
+        isLive: e.isLive,
+      }));
       res.json({
         status: 'ok',
         timestamp: Date.now(),
@@ -464,6 +496,7 @@ export class RelayerService {
           rss: Math.round(mem.rss / 1024 / 1024),
           heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
         },
+        liveChains,
       });
     });
     
@@ -476,56 +509,122 @@ export class RelayerService {
     this.app.get('/status', async (req: Request, res: Response) => {
       try {
         const status = await this.getStatus();
-        res.json(status);
+        const liveChains = getLiveChainEntries().map(e => ({
+          chainKey: e.chainKey,
+          family: e.family,
+          chainId: e.chainId,
+          domainId: e.domainId,
+          assetIdVersion: e.assetIdVersion,
+          displayName: e.displayName,
+          nativeSymbol: e.nativeSymbol,
+          isLive: e.isLive,
+          protocolAddress: e.family === 'evm'
+            ? this.evmAdapters.get(e.chainKey)?.getAddress()
+            : this.config.programId.toBase58(),
+        }));
+        res.json({ ...status, liveChains });
       } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json(createApiError('INTERNAL_ERROR', error.message));
       }
     });
     
     // Fee quote
     this.app.get('/quote', (req: Request, res: Response) => {
+      const chainInput = req.query.chain as string | undefined;
+      const chainResult = validateChainParameter(chainInput);
+      if (!chainResult.ok) {
+        return res.status(400).json(createApiError(chainResult.error!.code, chainResult.error!.message));
+      }
+
       const amount = BigInt(req.query.amount as string || '0');
-      const fee = this.calculateFee(amount);
-      res.json({
-        amount: amount.toString(),
-        fee: fee.toString(),
-        feeBps: this.config.feeBps,
-        netAmount: (amount - fee).toString(),
-        relayer: {
-          solana: this.config.walletKeypair.publicKey.toBase58(),
-          evm: Object.fromEntries(
-            Array.from(this.evmAdapters.entries()).map(([name, adapter]) => [name, adapter.getAddress()])
-          ),
-        },
-      });
+      const relayerAddresses = {
+        solana: this.config.walletKeypair.publicKey.toBase58(),
+        evm: Object.fromEntries(
+          Array.from(this.evmAdapters.entries()).map(([name, adapter]) => [name, adapter.getAddress()])
+        ),
+      };
+
+      const quote = buildQuote(amount, this.config.feeBps, chainResult.entry!, relayerAddresses);
+      res.json(quote);
     });
     
     // Submit withdrawal
     this.app.post('/withdraw', async (req: Request, res: Response) => {
       try {
-        const result = await this.processWithdrawal(req.body as WithdrawRequest);
+        const body = req.body as WithdrawRequest;
+        const chainResult = validateChainParameter(body.chain);
+        if (!chainResult.ok) {
+          return res.status(400).json(
+            createApiError(chainResult.error!.code, chainResult.error!.message, {
+              supportedChains: getLiveChainEntries().map(e => e.chainKey),
+            })
+          );
+        }
+
+        const result = await this.processWithdrawal(body, chainResult.chainKey!, chainResult.entry!);
         res.json(result);
       } catch (error: any) {
         logger.error('Withdrawal request failed', { error: error.message });
         metrics.recordWithdrawal(false);
-        res.status(400).json({
-          success: false,
-          error: error.message,
-        });
+        res.status(400).json(createApiError('WITHDRAWAL_FAILED', error.message));
       }
     });
     
     // Supported assets
     this.app.get('/assets', async (req: Request, res: Response) => {
-      res.json({
-        assets: Array.from(this.supportedAssets),
-      });
+      const chainInput = req.query.chain as string | undefined;
+
+      if (chainInput) {
+        const chainResult = validateChainParameter(chainInput);
+        if (!chainResult.ok) {
+          return res.status(400).json(createApiError(chainResult.error!.code, chainResult.error!.message));
+        }
+        const assets = this.getAssetsForChain(chainResult.chainKey!, chainResult.entry!);
+        return res.json({ chainKey: chainResult.chainKey, assets });
+      }
+
+      // Return grouped assets for all live chains
+      const grouped: Record<string, any[]> = {};
+      for (const entry of getLiveChainEntries()) {
+        grouped[entry.chainKey] = this.getAssetsForChain(entry.chainKey, entry);
+      }
+      res.json({ grouped });
     });
     
+    // Bridge status API (read-only)
+    if (this.bridgeStateStore) {
+      const bridgeRoutes = this.parseBridgeRoutes();
+      this.app.use(
+        createBridgeStatusRouter({
+          stateStore: this.bridgeStateStore,
+          routes: bridgeRoutes,
+        })
+      );
+      logger.info('Bridge status API mounted');
+    }
+
     // Error handler
     this.app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
       logger.error('Unhandled error', { error: err.message, stack: err.stack });
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json(createApiError('INTERNAL_ERROR', 'Internal server error'));
+    });
+  }
+
+  /**
+   * Parse bridge route configuration from environment.
+   * Expected format: BRIDGE_ROUTES=source:dest:version,source2:dest2:version2
+   */
+  private parseBridgeRoutes(): Array<{ source: string; destination: string; enabled: boolean; signerSetVersion: number }> {
+    const raw = process.env.BRIDGE_ROUTES || '';
+    if (!raw) return [];
+    return raw.split(',').map((segment) => {
+      const [source, destination, versionStr] = segment.split(':');
+      return {
+        source: source || 'unknown',
+        destination: destination || 'unknown',
+        enabled: true,
+        signerSetVersion: parseInt(versionStr || '1', 10),
+      };
     });
   }
   
@@ -554,15 +653,14 @@ export class RelayerService {
   /**
    * Process a withdrawal request
    */
-  async processWithdrawal(request: WithdrawRequest): Promise<WithdrawResponse> {
+  async processWithdrawal(request: WithdrawRequest, chainKey: string, chainEntry: import('./chain-registry').ChainEntry): Promise<WithdrawResponse> {
     // 1. Validate request format
-    this.validateWithdrawRequest(request);
-    
-    if (request.chain !== 'solana') {
-      const network = request.chain === 'base' ? 'base-sepolia' : (request.chain || 'base-sepolia');
-      return this.processBaseWithdrawal(request, network);
+    this.validateWithdrawRequest(request, chainEntry.family);
+
+    if (chainEntry.family === 'solana') {
+      return this.processSolanaWithdrawal(request);
     }
-    return this.processSolanaWithdrawal(request);
+    return this.processBaseWithdrawal(request, chainKey);
   }
   
   /**
@@ -1055,7 +1153,7 @@ export class RelayerService {
   /**
    * Validate withdrawal request format
    */
-  private validateWithdrawRequest(request: WithdrawRequest): void {
+  private validateWithdrawRequest(request: WithdrawRequest, family: 'solana' | 'evm'): void {
     // Validate lengths and presence
     if (!request.proofData || request.proofData.length !== 512) {
       throw new Error('Invalid proof data length (must be 256 bytes hex)');
@@ -1069,8 +1167,8 @@ export class RelayerService {
     if (!request.recipient) {
       throw new Error('Missing recipient');
     }
-    
-    if (request.chain === 'base') {
+
+    if (family === 'evm') {
       // Validate recipient is a valid Ethereum address
       if (!/^0x[a-fA-F0-9]{40}$/.test(request.recipient)) {
         throw new Error('Invalid recipient Ethereum address');
@@ -1085,11 +1183,11 @@ export class RelayerService {
       } catch {
         throw new Error('Invalid recipient public key');
       }
-      
+
       if (!request.mint) {
         throw new Error('Missing mint');
       }
-      
+
       // Validate mint is a valid Solana public key
       try {
         new PublicKey(request.mint);
@@ -1099,17 +1197,8 @@ export class RelayerService {
     }
     
     // Validate ephemeral pubkey if provided (33 bytes compressed secp256k1 = 66 hex chars)
-    if (request.ephemeralPubkey) {
-      if (!/^[0-9a-fA-F]{66}$/.test(request.ephemeralPubkey)) {
-        throw new Error('Invalid ephemeral pubkey: must be 66 hex characters (33-byte compressed secp256k1)');
-      }
-      const prefix = parseInt(request.ephemeralPubkey.slice(0, 2), 16);
-      if (prefix !== 0x02 && prefix !== 0x03) {
-        throw new Error('Invalid ephemeral pubkey: must start with 0x02 or 0x03');
-      }
-      if (request.ephemeralPubkey === '0'.repeat(66)) {
-        throw new Error('Invalid ephemeral pubkey: all zeros');
-      }
+    if (request.ephemeralPubkey && !isValidCompressedSecp256k1Pubkey(request.ephemeralPubkey)) {
+      throw new Error('Invalid ephemeral pubkey: must be 66 hex characters (33-byte compressed secp256k1) starting with 0x02 or 0x03');
     }
     
     if (!request.amount || !/^\d+$/.test(request.amount) || request.amount.length > 30) {
@@ -1544,6 +1633,32 @@ export class RelayerService {
       // Backward compatibility for older persisted state that lowercased base58 mints.
       this.supportedAssets.has(mint.toLowerCase())
     );
+  }
+
+  /**
+   * Get structured asset list for a specific chain
+   */
+  private getAssetsForChain(chainKey: string, entry: import('./chain-registry').ChainEntry): any[] {
+    if (entry.family === 'solana') {
+      // Solana assets come from supportedAssets config for now
+      return Array.from(this.supportedAssets).map(assetId => ({
+        chainKey,
+        domainId: entry.domainId,
+        assetIdVersion: entry.assetIdVersion,
+        assetId,
+        address: assetId,
+        symbol: assetId.length === 64 ? 'UNKNOWN' : assetId,
+        decimals: 9,
+        isNative: false,
+      }));
+    }
+
+    try {
+      const deployment = loadDeployment(chainKey);
+      return buildEvmAssetsForChain(chainKey, deployment, entry);
+    } catch {
+      return [];
+    }
   }
   
   /**

@@ -338,6 +338,75 @@ pub enum WhiteProtocolError {
 
     #[msg("Commitment already exists in pending buffer or Merkle tree")]
     CommitmentAlreadyExists,
+
+    // ========================================================================
+    // Bridge V1 Errors
+    // ========================================================================
+    #[msg("Bridge v1 config not initialized")]
+    BridgeV1NotInitialized,
+
+    #[msg("Bridge v1 config already initialized")]
+    BridgeV1AlreadyInitialized,
+
+    #[msg("Invalid bridge signer set")]
+    InvalidBridgeSignerSet,
+
+    #[msg("Signer set version mismatch")]
+    SignerSetVersionMismatch,
+
+    #[msg("Threshold not met: insufficient valid signatures")]
+    ThresholdNotMet,
+
+    #[msg("Signatures not sorted by signer address")]
+    SignaturesNotSorted,
+
+    #[msg("Invalid signer: recovered address not in signer set")]
+    InvalidSigner,
+
+    #[msg("Message already consumed")]
+    MessageAlreadyConsumed,
+
+    #[msg("Message is frozen")]
+    MessageIsFrozen,
+
+    #[msg("Bridge route not enabled")]
+    BridgeRouteNotEnabled,
+
+    #[msg("Bridge route is paused")]
+    BridgeRoutePaused,
+
+    #[msg("Bridge asset not supported")]
+    BridgeAssetNotSupported,
+
+    #[msg("Bridge max message amount exceeded")]
+    BridgeMaxAmountExceeded,
+
+    #[msg("Bridge daily cap exceeded")]
+    BridgeDailyCapExceeded,
+
+    #[msg("Bridge global daily cap exceeded")]
+    BridgeGlobalCapExceeded,
+
+    #[msg("Bridge deadline expired")]
+    BridgeDeadlineExpired,
+
+    #[msg("Bridge invalid nonce")]
+    BridgeInvalidNonce,
+
+    #[msg("Bridge message hash already recorded")]
+    BridgeMessageHashAlreadyRecorded,
+
+    #[msg("Invalid signature count")]
+    InvalidSignatureCount,
+
+    #[msg("Zero signer not allowed")]
+    ZeroSigner,
+
+    #[msg("Duplicate signer in set")]
+    DuplicateSignerInSet,
+
+    #[msg("Signer set too large")]
+    SignerSetTooLarge,
 }
 
 impl WhiteProtocolError {

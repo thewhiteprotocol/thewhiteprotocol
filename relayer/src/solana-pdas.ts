@@ -1,9 +1,26 @@
 /**
  * Solana PDA derivation helpers for the relayer.
  *
- * These mirror the SDK's pda.ts signatures so that future migration to
- * @whiteprotocol/sdk is a drop-in replacement. Seeds are kept identical
- * to the deployed devnet program.
+ * ⚠️ SDK COMPATIBILITY WARNING:
+ * These helpers intentionally do NOT delegate to @whiteprotocol/sdk because
+ * the SDK's PDA seeds target a future program revision (v2 seeds) that is
+ * incompatible with the currently deployed devnet program.
+ *
+ * Seed discrepancies (SDK vs deployed program):
+ *   - PoolConfig:      "pool_v2"        vs "white_pool"
+ *   - MerkleTree:      "merkle_tree_v2" vs "merkle_tree"
+ *   - AssetVault:      "vault_v2"       vs "vault"
+ *   - SpentNullifier:  "nullifier_v2"   vs "nullifier"
+ *   - PendingBuffer:   "pending_deposits" vs "pending"
+ *   - VK accounts:     "vk_v2" + type   vs direct "vk_{type}"
+ *
+ * The SDK also lacks ProofType.MerkleBatchUpdate, so it cannot derive the
+ * vk_merkle_batch PDA used by the batch settlement sequencer.
+ *
+ * See relayer/SDK-WIRING-AUDIT.md for the full audit.
+ *
+ * When the on-chain program is upgraded to match SDK seeds, this file can
+ * be replaced with @whiteprotocol/sdk imports after verifying parity.
  */
 
 import { PublicKey } from '@solana/web3.js';

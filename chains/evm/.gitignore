@@ -17,3 +17,6 @@ lib/
 
 # OS
 .DS_Store
+
+# Bridge signer keys (testnet only, never commit)
+.bridge-signers.env

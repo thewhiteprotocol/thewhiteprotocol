@@ -28,7 +28,11 @@
     "test:e2e:eth:sepolia:repeat": "NETWORK=ethereum-sepolia tsx test/e2e-base-full.ts && NETWORK=ethereum-sepolia tsx test/e2e-base-full.ts",
     "test:e2e:polygon:amoy:full": "NETWORK=polygon-amoy tsx test/e2e-base-full.ts",
     "test:e2e:polygon:amoy:repeat": "NETWORK=polygon-amoy tsx test/e2e-base-full.ts && NETWORK=polygon-amoy tsx test/e2e-base-full.ts",
-    "verify:base-sepolia": "echo 'Run with BASESCAN_API_KEY env var set'; forge verify-contract --chain-id 84532 --compiler-version v0.8.20+commit.a1b79de6 0x396e539bCDeAF48ab9526A13c6E688CBA69C059a WhiteProtocol --watch"
+    "verify:base-sepolia": "echo 'Run with BASESCAN_API_KEY env var set'; forge verify-contract --chain-id 84532 --compiler-version v0.8.20+commit.a1b79de6 0x396e539bCDeAF48ab9526A13c6E688CBA69C059a WhiteProtocol --watch",
+    "test:e2e:bridge:base-to-ethereum:full": "tsx test/e2e-bridge-pr010i.ts",
+    "test:e2e:bridge:ethereum-to-base:full": "tsx test/e2e-bridge-ethereum-to-base.ts",
+    "test:e2e:bridge:base-to-bnb:full": "tsx test/e2e-bridge-base-to-bnb.ts",
+    "test:e2e:bridge:base-to-polygon:full": "tsx test/e2e-bridge-base-to-polygon.ts"
   },
   "dependencies": {
     "@thewhiteprotocol/core": "file:../../packages/core"

@@ -27,5 +27,31 @@
     "usdc": null,
     "usdt": null,
     "wrappedNative": "0x7814604B3C3ecc7eBd7E61391353f609FDB47637"
+  },
+  "bridgeV1": {
+    "BridgeOutbox": "0xaEe499aeB86877645028d072b223285e333a06f1",
+    "BridgeInbox": "0x37D72f5CF9c4fCB1E7Ca17609f1CDa5B53F9BEf3",
+    "signerSetVersion": 1,
+    "threshold": 2,
+    "signers": [
+      "0x9A34F10F5b9AD7770C30A3B41d95C4Dcb0B88820",
+      "0xbd7d34e42352BCe888394263A84CF21c85608beC",
+      "0xEa4A68F39630C5145f1840D754B470a9fa5F2c19"
+    ],
+    "deployedAt": "1777936573",
+    "canonicalAssetId": "0x006a08cdb4dbaeeea66d0d98d3bc34e81c5ed7d7e7d3a4b604f9572c1a82a525",
+    "outboundAssets": [],
+    "inboundAssets": [
+      {
+        "canonicalAssetId": "0x00fb58d8ea79c42a023685014b8281e7508bd5ca5f570f336f5852a291d54a70",
+        "sourceDomain": 33554434,
+        "sourceChainId": 84532,
+        "sourceNetwork": "base-sepolia",
+        "localAsset": "0x0000000000000000000000000000000000000000",
+        "supportedAt": "2026-05-04T21:45:00Z"
+      }
+    ],
+    "verifiedE2E": true,
+    "notes": "PR-010L deployment. Base Sepolia -> Polygon Amoy full private bridge E2E passed (forward only). WhiteProtocol lacks bridgeOutV1; reverse direction not yet supported. Cross-chain canonical asset mapping and Polygon gas override (35 gwei legacy) added post-deploy."}}
   }
 }

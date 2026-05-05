@@ -590,6 +590,78 @@ mod tests {
 }
 
 /// Emitted when a batch of deposits is settled via off-chain proof
+// ========================================================================
+// BRIDGE V1 EVENTS
+// ========================================================================
+
+#[event]
+pub struct BridgeV1ConfigInitialized {
+    pub authority: Pubkey,
+    pub domain_id: u32,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BridgeSignerSetUpdated {
+    pub version: u32,
+    pub threshold: u8,
+    pub signer_count: u8,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BridgeGlobalPauseSet {
+    pub paused: bool,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BridgeRouteConfigured {
+    pub source_domain: u32,
+    pub destination_domain: u32,
+    pub enabled: bool,
+    pub paused: bool,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BridgeAssetConfigured {
+    pub canonical_asset_id: [u8; 32],
+    pub supported: bool,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BridgeMessageFrozen {
+    pub message_hash: [u8; 32],
+    pub frozen: bool,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct BridgeOutInitiated {
+    pub message_hash: [u8; 32],
+    pub source_domain: u32,
+    pub destination_domain: u32,
+    pub canonical_asset_id: [u8; 32],
+    pub amount: u128,
+    pub nonce: u64,
+    pub timestamp: i64,
+    pub encoded_message: Vec<u8>,
+}
+
+#[event]
+pub struct BridgeMintAccepted {
+    pub message_hash: [u8; 32],
+    pub source_domain: u32,
+    pub destination_domain: u32,
+    pub canonical_asset_id: [u8; 32],
+    pub amount: u128,
+    pub destination_commitment: [u8; 32],
+    pub nonce: u64,
+    pub timestamp: i64,
+}
+
 #[event]
 pub struct BatchSettledEvent {
     pub pool: Pubkey,

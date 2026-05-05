@@ -27,5 +27,31 @@
     "usdt": "0x337610d27c682E347C9cD60BD4b3b107C9d34dDd",
     "wrappedNative": "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd"
   },
-  "deploymentBlock": 105311310
+  "deploymentBlock": 105311310,
+  "bridgeV1": {
+    "BridgeOutbox": "0x7bb65ED3928Fd2143dC16475D1292833ed01a679",
+    "BridgeInbox": "0xA25649a0F7DD8285975e2eE99078bb8570713aE0",
+    "signerSetVersion": 1,
+    "threshold": 2,
+    "signers": [
+      "0x9A34F10F5b9AD7770C30A3B41d95C4Dcb0B88820",
+      "0xbd7d34e42352BCe888394263A84CF21c85608beC",
+      "0xEa4A68F39630C5145f1840D754B470a9fa5F2c19"
+    ],
+    "deployedAt": "1777935873",
+    "canonicalAssetId": "0x003c47f9788b071eb07d4801002c61a12dd3cc24d49b37b912483377b9a0d9cf",
+    "outboundAssets": [],
+    "inboundAssets": [
+      {
+        "canonicalAssetId": "0x00fb58d8ea79c42a023685014b8281e7508bd5ca5f570f336f5852a291d54a70",
+        "sourceDomain": 33554434,
+        "sourceChainId": 84532,
+        "sourceNetwork": "base-sepolia",
+        "localAsset": "0x0000000000000000000000000000000000000000",
+        "supportedAt": "2026-05-04T21:30:00Z"
+      }
+    ],
+    "verifiedE2E": true,
+    "notes": "PR-010L deployment. Base Sepolia -> BSC Testnet full private bridge E2E passed (forward only). WhiteProtocol lacks bridgeOutV1; reverse direction not yet supported. Cross-chain canonical asset mapping added post-deploy."}}
+  }
 }

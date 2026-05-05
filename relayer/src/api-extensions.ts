@@ -22,6 +22,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { keccak_256 } from '@noble/hashes/sha3';
 import { logger } from './logger';
+import {
+  validateChainParameter,
+  resolveChain,
+  getLiveChainEntries,
+  createApiError,
+} from './chain-registry';
+import {
+  computeAssetId,
+  isValidEvmAddress,
+} from './asset-id';
 import { loadMerkleTreeState, saveMerkleTreeState, loadPendingState, savePendingState, loadSettledCommitments, saveSettledCommitments } from './state-store';
 import { withRetry } from './retry';
 import { TtlCache } from './cache/ttl-cache';
@@ -566,7 +576,7 @@ function computeAssetIdV2(mint: PublicKey, domainId: number): Uint8Array {
 }
 
 /** Backward-compatible alias for computeAssetIdV1 */
-function computeAssetId(mint: PublicKey): Uint8Array {
+function computeAssetIdSolana(mint: PublicKey): Uint8Array {
   return computeAssetIdV1(mint);
 }
 
@@ -1261,29 +1271,83 @@ export class RelayerApiExtensions {
     });
     
     // =========================================================================
+    // GET /api/asset-id
+    // Chain-aware asset ID computation (v1/v2, EVM + Solana)
+    // =========================================================================
+    this.router.get('/asset-id', async (req: Request, res: Response) => {
+      try {
+        const chainInput = req.query.chain as string | undefined;
+        const token = req.query.token as string | undefined;
+        const versionParam = req.query.version as string | undefined;
+
+        const chainResult = validateChainParameter(chainInput);
+        if (!chainResult.ok) {
+          return res.status(400).json(createApiError(chainResult.error!.code, chainResult.error!.message));
+        }
+
+        if (!token || typeof token !== 'string') {
+          return res.status(400).json(createApiError('INVALID_ADDRESS', "Missing required 'token' query parameter."));
+        }
+
+        const entry = chainResult.entry!;
+        const version = versionParam ? parseInt(versionParam, 10) : entry.assetIdVersion;
+
+        if (entry.family === 'solana') {
+          if (!isValidSolanaPubkey(token)) {
+            return res.status(400).json(createApiError('INVALID_ADDRESS', `Invalid Solana mint address: ${token}`));
+          }
+        } else {
+          if (!isValidEvmAddress(token)) {
+            return res.status(400).json(createApiError('INVALID_ADDRESS', `Invalid EVM token address: ${token}`));
+          }
+        }
+
+        const result = computeAssetId(entry.family, token, version, entry.domainId);
+
+        res.json({
+          success: true,
+          assetId: result.assetId,
+          assetIdBigInt: result.assetIdBigInt,
+          formula: result.formula,
+          version: result.version,
+          domainId: result.domainId,
+          fieldSafe: result.fieldSafe,
+          chainKey: entry.chainKey,
+          chainId: entry.chainId,
+          token,
+        });
+      } catch (error: any) {
+        logger.error('asset-id failed', { error: error.message });
+        res.status(400).json(createApiError('INVALID_ASSET_ID', error.message));
+      }
+    });
+
+    // =========================================================================
     // POST /api/compute-asset-id
-    // Compute asset ID from mint address
+    // Compute asset ID from mint address (legacy Solana-only, v1)
+    // Deprecated: use GET /api/asset-id?chain=solana&token=<mint>
     // =========================================================================
     this.router.post('/compute-asset-id', this.requireAuth.bind(this), async (req: Request, res: Response) => {
       try {
         const { mint } = req.body;
-        
+
         if (!isValidSolanaPubkey(mint)) {
           return res.status(400).json({
             success: false,
             error: 'Invalid mint address',
           });
         }
-        
+
         const mintPubkey = new PublicKey(mint.trim());
-        const assetId = computeAssetId(mintPubkey);
+        const assetId = computeAssetIdSolana(mintPubkey);
         const assetIdBigInt = assetIdToBigInt(assetId);
-        
+
         res.json({
           success: true,
           assetId: assetIdBigInt.toString(),
           assetIdHex: bytesToHex(assetId),
           mint: mint,
+          note: 'Deprecated: use GET /api/asset-id?chain=solana&token=<mint>',
         });
       } catch (error: any) {
         logger.error('compute-asset-id failed', { error: error.message });

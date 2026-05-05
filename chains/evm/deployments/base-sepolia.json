@@ -1,13 +1,13 @@
 {
   "chainId": 84532,
   "contracts": {
-    "AssetRegistry": "0xc2508F03c42B11b79ef4aA979b9FfA7f62D003B7",
+    "AssetRegistry": "0x5510604D8510Bc38D21ca98bB2493eD2DA39Ca5d",
     "DepositVerifier": "0xD566bdec3263476B453DBFE7AAE1c6E2123E90C5",
     "MerkleBatchVerifier": "0x818E535D774F329dfE9Cdf8C95F8ff7Ee85c822B",
-    "WhiteProtocol": "0x396e539bCDeAF48ab9526A13c6E688CBA69C059a",
+    "WhiteProtocol": "0xb2e296a9D69e27F43d400aF2942Fb15F1b31750b",
     "WithdrawVerifier": "0x8Bb36a8F6ccE6439899eB5f025E8bF532c938233"
   },
-  "deployedAt": "2026-05-02T12:38:58Z",
+  "deployedAt": "2026-05-04T17:55:18.810Z",
   "deployer": "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c",
   "merkleState": {
     "emptyRoot": "0x2134e76ac5d21aab186c2be1dd8f84ee880a1e46eaf712f9d371b6df22191f3e",
@@ -26,11 +26,50 @@
   "domainId": 33554434,
   "assetIdVersion": 2,
   "active": true,
-  "generation": "PR-005C",
-  "previousArtifact": "deployments/base-sepolia-v1-backup.json",
+  "generation": "PR-010H",
+  "previousArtifact": "deployments/base-sepolia-pr010g-backup.json",
   "domainIdHex": "0x02000002",
   "assetIdFormula": "white:asset_id:v2",
   "verifiedE2E": true,
-  "notes": "Active Base Sepolia testnet deployment with v2 domain-separated asset IDs",
-  "deploymentBlock": 40978628
+  "notes": "PR-010H redeployment with bridgeOutV1. PR-010K verified: Ethereum Sepolia -> Base Sepolia full bridge E2E (reverse direction). PR-010L verified: Base Sepolia -> BSC Testnet and Base Sepolia -> Polygon Amoy full bridge E2E (forward direction)."}}
+  "deploymentBlock": 0,
+  "bridgeV1": {
+    "BridgeOutbox": "0x7eaFB77E2F05Bf0EbCb8F1A51B187BbcdBCb985D",
+    "BridgeInbox": "0x4D4aDB460C5C882bEcbe95d0562769ECa812D1FC",
+    "signerSetVersion": 1,
+    "threshold": 2,
+    "signers": [
+      "0x9A34F10F5b9AD7770C30A3B41d95C4Dcb0B88820",
+      "0xbd7d34e42352BCe888394263A84CF21c85608beC",
+      "0xEa4A68F39630C5145f1840D754B470a9fa5F2c19"
+    ],
+    "deployedAt": "1777917318",
+    "canonicalAssetId": "0x00fb58d8ea79c42a023685014b8281e7508bd5ca5f570f336f5852a291d54a70",
+    "outboundAssets": [
+      {
+        "canonicalAssetId": "0x00fb58d8ea79c42a023685014b8281e7508bd5ca5f570f336f5852a291d54a70",
+        "destinationDomain": 33554435,
+        "destinationChainId": 11155111,
+        "destinationNetwork": "ethereum-sepolia",
+        "localAsset": "0x0000000000000000000000000000000000000000",
+        "supportedAt": "2026-05-04T07:37:00Z"
+      },
+      {
+        "canonicalAssetId": "0x00fb58d8ea79c42a023685014b8281e7508bd5ca5f570f336f5852a291d54a70",
+        "destinationDomain": 33554438,
+        "destinationChainId": 97,
+        "destinationNetwork": "bsc-testnet",
+        "localAsset": "0x0000000000000000000000000000000000000000",
+        "supportedAt": "2026-05-04T21:10:00Z"
+      },
+      {
+        "canonicalAssetId": "0x00fb58d8ea79c42a023685014b8281e7508bd5ca5f570f336f5852a291d54a70",
+        "destinationDomain": 33554436,
+        "destinationChainId": 80002,
+        "destinationNetwork": "polygon-amoy",
+        "localAsset": "0x0000000000000000000000000000000000000000",
+        "supportedAt": "2026-05-04T21:10:00Z"
+      }
+    ]
+  }
 }

@@ -15,12 +15,15 @@ compile_error!("insecure-dev cannot be enabled in release builds - this would de
 #[cfg(all(feature = "event-debug", not(debug_assertions)))]
 compile_error!("event-debug cannot be enabled in release builds - it leaks privacy-sensitive data");
 
+pub mod bridge;
 pub mod crypto;
 pub mod error;
 pub mod events;
 pub mod instructions;
 pub mod state;
 pub mod utils;
+
+pub use bridge::BridgeMessageV1;
 
 pub use instructions::*;
 
@@ -35,6 +38,14 @@ pub(crate) use crate::instructions::admin::reset_merkle::__client_accounts_reset
 pub(crate) use crate::instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2;
 pub(crate) use crate::instructions::batch_process_deposits::__client_accounts_batch_process_deposits;
 pub(crate) use crate::instructions::bridge_mint::__client_accounts_bridge_mint;
+pub(crate) use crate::instructions::bridge_v1_accept_mint::__client_accounts_accept_bridge_v1_mint;
+pub(crate) use crate::instructions::bridge_v1_freeze_message::__client_accounts_freeze_bridge_v1_message;
+pub(crate) use crate::instructions::bridge_v1_init_config::__client_accounts_init_bridge_v1_config;
+pub(crate) use crate::instructions::bridge_v1_init_outbox::__client_accounts_init_bridge_v1_out;
+pub(crate) use crate::instructions::bridge_v1_set_asset::__client_accounts_set_bridge_v1_asset;
+pub(crate) use crate::instructions::bridge_v1_set_global_pause::__client_accounts_set_bridge_v1_global_pause;
+pub(crate) use crate::instructions::bridge_v1_set_route::__client_accounts_set_bridge_v1_route;
+pub(crate) use crate::instructions::bridge_v1_set_signer_set::__client_accounts_set_bridge_v1_signer_set;
 pub(crate) use crate::instructions::bridge_withdraw::__client_accounts_bridge_withdraw;
 pub(crate) use crate::instructions::deposit_masp::__client_accounts_deposit_masp;
 pub(crate) use crate::instructions::init_yield_registry::__client_accounts_init_yield_registry;
@@ -440,7 +451,103 @@ pub mod white_protocol {
     ) -> Result<()> {
         instructions::bridge_mint::handler(ctx, amount, commitment, asset_id)
     }
+
+    // ========================================================================
+    // Bridge V1 Instructions
+    // ========================================================================
+
+    /// Initialize global bridge v1 configuration.
+    pub fn init_bridge_v1_config(ctx: Context<InitBridgeV1Config>, domain_id: u32) -> Result<()> {
+        instructions::bridge_v1_init_config::handler(ctx, domain_id)
+    }
+
+    /// Set or update a signer set for threshold attestation.
+    pub fn set_bridge_v1_signer_set(
+        ctx: Context<SetBridgeV1SignerSet>,
+        version: u32,
+        threshold: u8,
+        signers: Vec<[u8; 20]>,
+    ) -> Result<()> {
+        instructions::bridge_v1_set_signer_set::handler(ctx, version, threshold, signers)
+    }
+
+    /// Set global pause state for bridge v1.
+    pub fn set_bridge_v1_global_pause(
+        ctx: Context<SetBridgeV1GlobalPause>,
+        paused: bool,
+    ) -> Result<()> {
+        instructions::bridge_v1_set_global_pause::handler(ctx, paused)
+    }
+
+    /// Configure a bridge route.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_bridge_v1_route(
+        ctx: Context<SetBridgeV1Route>,
+        source_domain: u32,
+        destination_domain: u32,
+        enabled: bool,
+        paused: bool,
+        max_message_amount: u128,
+        daily_inflow_cap: u128,
+        daily_outflow_cap: u128,
+    ) -> Result<()> {
+        instructions::bridge_v1_set_route::handler(
+            ctx,
+            source_domain,
+            destination_domain,
+            enabled,
+            paused,
+            max_message_amount,
+            daily_inflow_cap,
+            daily_outflow_cap,
+        )
+    }
+
+    /// Configure a bridge asset.
+    pub fn set_bridge_v1_asset(
+        ctx: Context<SetBridgeV1Asset>,
+        canonical_asset_id: [u8; 32],
+        supported: bool,
+        max_message_amount: u128,
+        daily_cap: u128,
+    ) -> Result<()> {
+        instructions::bridge_v1_set_asset::handler(
+            ctx,
+            canonical_asset_id,
+            supported,
+            max_message_amount,
+            daily_cap,
+        )
+    }
+
+    /// Freeze or unfreeze a specific bridge message.
+    pub fn freeze_bridge_v1_message(
+        ctx: Context<FreezeBridgeV1Message>,
+        message_hash: [u8; 32],
+        frozen: bool,
+    ) -> Result<()> {
+        instructions::bridge_v1_freeze_message::handler(ctx, message_hash, frozen)
+    }
+
+    /// Initialize a bridge out message on the source chain.
+    pub fn init_bridge_v1_out(
+        ctx: Context<InitBridgeV1Out>,
+        message: BridgeMessageV1,
+    ) -> Result<()> {
+        instructions::bridge_v1_init_outbox::handler(ctx, message)
+    }
+
+    /// Accept a bridge mint on the destination chain with threshold signatures.
+    pub fn accept_bridge_v1_mint(
+        ctx: Context<AcceptBridgeV1Mint>,
+        message: BridgeMessageV1,
+        signatures: Vec<[u8; 65]>,
+        signer_set_version: u32,
+    ) -> Result<()> {
+        instructions::bridge_v1_accept_mint::handler(ctx, message, signatures, signer_set_version)
+    }
 }
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProofType {
     Deposit = 0,
@@ -477,6 +584,7 @@ pub enum ShieldedActionType {
 pub use error::WhiteProtocolError;
 pub use events::*;
 pub use state::{
-    AssetVault, ComplianceConfig, MerkleTree, PoolConfig, RelayerNode, RelayerRegistry,
-    SpentNullifier, VerificationKeyAccount,
+    AssetVault, BridgeAssetConfig, BridgeRouteConfig, BridgeSignerSet, BridgeV1Config,
+    ComplianceConfig, ConsumedBridgeMessage, FrozenBridgeMessage, MerkleTree, PoolConfig,
+    RelayerNode, RelayerRegistry, SpentNullifier, VerificationKeyAccount,
 };

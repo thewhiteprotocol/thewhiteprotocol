@@ -199,7 +199,8 @@ export async function validateSolanaRelayerFee(
     };
   }
 
-  const node = await fetchRelayerNode(connection, registry.pool, operator, programId);
+  const [registryPda] = findRelayerRegistryPda(poolConfig, programId);
+  const node = await fetchRelayerNode(connection, registryPda, operator, programId);
 
   if (node) {
     if (!node.isActive) {

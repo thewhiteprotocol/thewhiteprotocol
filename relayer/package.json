@@ -9,6 +9,9 @@
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "test": "jest",
+    "test:unit": "jest --testPathPatterns='__tests__'",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "validate:config": "tsx src/validate-config.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -31,8 +34,11 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.11.0",
     "@types/snarkjs": "^0.7.8",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },

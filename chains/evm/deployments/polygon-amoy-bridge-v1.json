@@ -1,0 +1,16 @@
+{
+  "BridgeInbox": "0x37D72f5CF9c4fCB1E7Ca17609f1CDa5B53F9BEf3",
+  "BridgeOutbox": "0xaEe499aeB86877645028d072b223285e333a06f1",
+  "chainId": 80002,
+  "deployedAt": "1777936573",
+  "domainId": 33554436,
+  "domainIdHex": "0x02000004",
+  "network": "polygon-amoy",
+  "signerSetVersion": 1,
+  "signers": [
+    "0x9A34F10F5b9AD7770C30A3B41d95C4Dcb0B88820",
+    "0xbd7d34e42352BCe888394263A84CF21c85608beC",
+    "0xEa4A68F39630C5145f1840D754B470a9fa5F2c19"
+  ],
+  "threshold": 2
+}

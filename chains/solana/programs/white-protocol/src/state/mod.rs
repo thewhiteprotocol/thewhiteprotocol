@@ -1,6 +1,12 @@
 pub mod asset_vault;
 pub mod batcher_role;
+pub mod bridge_asset_config;
 pub mod bridge_config;
+pub mod bridge_consumed_message;
+pub mod bridge_frozen_message;
+pub mod bridge_route_config;
+pub mod bridge_signer_set;
+pub mod bridge_v1_config;
 pub mod commitment_index;
 pub mod compliance;
 pub mod merkle_tree;
@@ -12,7 +18,13 @@ pub mod verification_key;
 
 pub use asset_vault::AssetVault;
 pub use batcher_role::BatcherRole;
+pub use bridge_asset_config::BridgeAssetConfig;
 pub use bridge_config::BridgeConfig;
+pub use bridge_consumed_message::ConsumedBridgeMessage;
+pub use bridge_frozen_message::FrozenBridgeMessage;
+pub use bridge_route_config::BridgeRouteConfig;
+pub use bridge_signer_set::BridgeSignerSet;
+pub use bridge_v1_config::BridgeV1Config;
 pub use commitment_index::CommitmentIndex;
 pub use compliance::ComplianceConfig;
 pub use merkle_tree::MerkleTree;

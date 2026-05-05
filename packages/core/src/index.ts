@@ -77,5 +77,21 @@ export {
 // Stealth addresses
 export * from './stealth/index.js';
 
+// Bridge message format
+export {
+  BridgeMessageType,
+  BRIDGE_MESSAGE_DOMAIN_SEPARATOR,
+  BRIDGE_MESSAGE_ENCODED_LENGTH,
+  encodeBridgeMessageV1,
+  hashBridgeMessageV1,
+  hashEncodedBridgeMessageV1,
+  validateBridgeMessageV1,
+  assertValidBridgeMessageV1,
+} from './bridge-message.js';
+export type {
+  BridgeMessageV1,
+  BridgeMessageValidationError,
+} from './bridge-message.js';
+
 // Version
 export const VERSION = '1.0.0';

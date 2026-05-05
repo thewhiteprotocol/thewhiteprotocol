@@ -1,0 +1,16 @@
+{
+  "BridgeInbox": "0xA25649a0F7DD8285975e2eE99078bb8570713aE0",
+  "BridgeOutbox": "0x7bb65ED3928Fd2143dC16475D1292833ed01a679",
+  "chainId": 97,
+  "deployedAt": "1777935873",
+  "domainId": 33554438,
+  "domainIdHex": "0x02000006",
+  "network": "bsc-testnet",
+  "signerSetVersion": 1,
+  "signers": [
+    "0x9A34F10F5b9AD7770C30A3B41d95C4Dcb0B88820",
+    "0xbd7d34e42352BCe888394263A84CF21c85608beC",
+    "0xEa4A68F39630C5145f1840D754B470a9fa5F2c19"
+  ],
+  "threshold": 2
+}

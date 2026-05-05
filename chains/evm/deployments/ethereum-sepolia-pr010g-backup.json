@@ -1,0 +1,60 @@
+{
+  "assetIdFormula": "white:asset_id:v2",
+  "assetIdVersion": 2,
+  "chainId": 11155111,
+  "contracts": {
+    "AssetRegistry": "0xE8efDE51cA7B4b0dAD84e5a7296Baac87A09029B",
+    "DepositVerifier": "0x0eb44c154DF83876fB44042e822e3373Fbf57d95",
+    "MerkleBatchVerifier": "0x0Bb7ED4A34558A44FDc8bCC7c9560948a082bc9E",
+    "WhiteProtocol": "0x1f074FE06C9b4feF45fE67beb89a3986e05318A4",
+    "WithdrawVerifier": "0x66c1741f1f85f7Bb04286B7a26E870a8D3e52Eee"
+  },
+  "deployedAt": "2026-05-04T21:31:20Z",
+  "deployer": "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c",
+  "domainId": 33554435,
+  "domainIdHex": "0x02000003",
+  "merkleState": {
+    "emptyRoot": "0x2134e76ac5d21aab186c2be1dd8f84ee880a1e46eaf712f9d371b6df22191f3e",
+    "nextLeafIndex": 0
+  },
+  "network": "ethereum-sepolia",
+  "relayers": [
+    "0x2ABd0D224775Fb9140c04f12c3838Af95847A97c"
+  ],
+  "supportedAssets": {
+    "native": "0x0000000000000000000000000000000000000000",
+    "usdc": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    "usdt": null,
+    "wrappedNative": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+  },
+  "deploymentBlock": 10783744,
+  "bridgeV1": {
+    "BridgeOutbox": "0xbcE12Cf8465387167708148dB52E1c3Aa7Dc7D79",
+    "BridgeInbox": "0x236BaE88bd55779CaFC88c90afC9E336131b3463",
+    "signerSetVersion": 1,
+    "threshold": 2,
+    "signers": [
+      "0x9A34F10F5b9AD7770C30A3B41d95C4Dcb0B88820",
+      "0xbd7d34e42352BCe888394263A84CF21c85608beC",
+      "0xEa4A68F39630C5145f1840D754B470a9fa5F2c19"
+    ],
+    "deployedAt": "1777915464",
+    "canonicalAssetId": "0x00edb10e06c7047f8f59c54c5cfe2ecdf404186ba5af05b8eb07827446d4a013",
+    "inboundAssets": [
+      {
+        "canonicalAssetId": "0x00fb58d8ea79c42a023685014b8281e7508bd5ca5f570f336f5852a291d54a70",
+        "sourceDomain": 33554434,
+        "sourceChainId": 84532,
+        "sourceNetwork": "base-sepolia",
+        "localAsset": "0x0000000000000000000000000000000000000000",
+        "supportedAt": "2026-05-04T07:37:00Z",
+        "txHashes": {
+          "supportAsset": "0x353f3c4cfc68ba41578f35973778e058919afc1c5c86e803eeaa6aba8ea6817a",
+          "setLocalAsset": "0xc77d63ed2d6969f419664723473a2a8e689a303c02e808ac79e7df71f2010164"
+        }
+      }
+    ]
+  },
+  "generation": "PR-010K",
+  "notes": "PR-010K: WhiteProtocol redeployed (0x1f074F...) and BridgeOutbox redeployed (0xbcE12C...) for reverse-direction E2E. BridgeInbox reused and wired to new WP."
+}

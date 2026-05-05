@@ -8,6 +8,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./MerkleTreeWithHistory.sol";
 import "./AssetRegistry.sol";
 import "./IVerifiers.sol";
+import "./libraries/BridgeMessageLib.sol";
+import "./interfaces/IBridgeOutbox.sol";
 
 /**
  * @title WhiteProtocol
@@ -40,8 +42,12 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
 
     // Bridge hooks
     address public bridge;
+    address public bridgeOutbox;
     mapping(address => uint256) public bridgeOutgoing;
     mapping(address => uint256) public bridgeIncoming;
+
+    // Commitments inserted via bridgeMint (prevents duplicate bridge commitments)
+    mapping(uint256 => bool) public bridgeCommitments;
 
     // Protocol domain ID (uint32: high byte = chain family, low 3 bytes = network ID)
     uint32 public domainId;
@@ -84,12 +90,21 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
     event RelayerRemoved(address indexed relayer);
 
     event BridgeSet(address indexed bridge);
+    event BridgeOutboxSet(address indexed bridgeOutbox);
     event BridgeWithdraw(bytes32 indexed nullifierHash, address indexed asset, uint256 amount, bytes32 extDataHash);
     event BridgeMint(address indexed asset, uint256 amount, bytes32 indexed newCommitment);
+    event BridgeOut(bytes32 indexed nullifierHash, address indexed asset, uint256 amount, bytes32 messageHash);
 
     error OnlyBridge();
     error BridgeNotSet();
+    error BridgeOutboxNotSet();
     error NullifierUsed();
+    error CommitmentAlreadyInserted();
+    error AssetMismatch();
+    error InvalidSourceDomain();
+    error InvalidDestinationDomain();
+    error SameDomain();
+    error ZeroCommitment();
 
     modifier onlyBridge() {
         if (msg.sender != bridge) revert OnlyBridge();
@@ -112,6 +127,11 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
     function setBridge(address _bridge) external onlyOwner {
         bridge = _bridge;
         emit BridgeSet(_bridge);
+    }
+
+    function setBridgeOutbox(address _bridgeOutbox) external onlyOwner {
+        bridgeOutbox = _bridgeOutbox;
+        emit BridgeOutboxSet(_bridgeOutbox);
     }
 
     /**
@@ -175,12 +195,85 @@ contract WhiteProtocol is MerkleTreeWithHistory, ReentrancyGuard, Ownable {
         address asset,
         uint256 amount,
         bytes32 newCommitment
-    ) external onlyBridge nonReentrant {
+    ) external nonReentrant {
         if (bridge == address(0)) revert BridgeNotSet();
+        if (msg.sender != bridge) revert OnlyBridge();
         if (!assetRegistry.isSupported(asset)) revert("Asset not supported");
+        uint256 commitmentUint = uint256(newCommitment);
+        if (bridgeCommitments[commitmentUint]) revert CommitmentAlreadyInserted();
+        bridgeCommitments[commitmentUint] = true;
         bridgeIncoming[asset] += amount;
-        insert(uint256(newCommitment));
+        insert(commitmentUint);
         emit BridgeMint(asset, amount, newCommitment);
+    }
+
+    /**
+     * @notice Bridge out V1 — atomic note spend + bridge message emission.
+     * @dev Verifies a withdraw proof, marks the nullifier spent, and atomically
+     *      calls BridgeOutbox.initBridgeOutFromProtocol to emit the outbound message.
+     *      On-chain parameter binding enforces that the proof and message agree on
+     *      nullifier, amount, and asset. The withdraw circuit's publicDataHash is
+     *      unconstrained in v1; on-chain binding is the security mechanism.
+     * @param proof Groth16 withdraw proof (256 bytes)
+     * @param message Bridge message describing the outbound transfer
+     * @param asset Local token address (must match message.sourceLocalAssetId)
+     */
+    function bridgeOutV1(
+        bytes calldata proof,
+        BridgeMessageLib.BridgeMessageV1 calldata message,
+        address asset
+    ) external nonReentrant {
+        if (bridgeOutbox == address(0)) revert BridgeOutboxNotSet();
+        if (message.sourceDomain != domainId) revert InvalidSourceDomain();
+        if (message.destinationDomain == message.sourceDomain) revert SameDomain();
+        if (message.destinationDomain == 0) revert InvalidDestinationDomain();
+        if (message.destinationCommitment == bytes32(0)) revert ZeroCommitment();
+        if (message.amount == 0) revert("Amount zero");
+        if (spentNullifiers[uint256(message.sourceNullifierHash)]) revert NullifierUsed();
+        if (!assetRegistry.isSupported(asset)) revert("Asset not supported");
+        if (assetRegistry.getAssetId(asset) != message.sourceLocalAssetId) revert AssetMismatch();
+
+        // Verify withdraw proof
+        uint256[8] memory p = _parseProof(proof);
+
+        bytes32 messageHash = BridgeMessageLib.hashMessage(message);
+
+        // BN254 scalar field prime — public signals must be < r for Groth16 verifier
+        uint256 bn254ScalarField = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+        uint256 publicDataHash = uint256(messageHash) % bn254ScalarField;
+
+        // Public inputs: [root, nullifierHash, assetId, recipient, amount, relayer, relayerFee, publicDataHash]
+        uint256[8] memory pubSignals = [
+            getLastRoot(),
+            uint256(message.sourceNullifierHash),
+            uint256(message.sourceLocalAssetId),
+            uint256(uint160(bridgeOutbox)), // recipient = bridgeOutbox
+            message.amount,
+            uint256(0),                        // relayer
+            uint256(0),                        // relayerFee
+            publicDataHash                     // publicDataHash binds proof to message (field-safe)
+        ];
+
+        require(
+            withdrawVerifier.verifyProof(
+                [p[0], p[1]],
+                [[p[2], p[3]], [p[4], p[5]]],
+                [p[6], p[7]],
+                pubSignals
+            ),
+            "Invalid withdraw proof"
+        );
+
+        // Mark nullifier as spent (prevents double-spend)
+        spentNullifiers[uint256(message.sourceNullifierHash)] = true;
+
+        // Update bridge accounting (funds remain in vault as outbound liability)
+        bridgeOutgoing[asset] += message.amount;
+
+        // Atomically emit the bridge-out message via the outbox
+        IBridgeOutbox(bridgeOutbox).initBridgeOutFromProtocol(message);
+
+        emit BridgeOut(message.sourceNullifierHash, asset, message.amount, messageHash);
     }
 
     /**
