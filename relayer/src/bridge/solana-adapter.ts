@@ -9,7 +9,7 @@
  */
 
 import { PublicKey, SystemProgram } from '@solana/web3.js';
-import type { BridgeMessageV1 } from '@thewhiteprotocol/core';
+import { hashBridgeMessageV1, type BridgeMessageV1 } from '@thewhiteprotocol/core';
 import type {
   BridgeEventObservation,
   BridgeDestinationAdapter,
@@ -17,15 +17,16 @@ import type {
 
 /** Program ID for white-protocol (devnet). */
 export const WHITE_PROTOCOL_PROGRAM_ID = new PublicKey(
-  'C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW'
+  'DAoezX29ingBicFfrqboD7xBeLro2b6RL77dhEbXivVD'
 );
 
 /** Seed prefixes matching the Rust program. */
 export const SEEDS = {
   bridgeV1Config: Buffer.from('bridge_v1_config'),
   bridgeSignerSet: Buffer.from('bridge_signer_set'),
-  consumedMessage: Buffer.from('consumed_msg'),
-  frozenMessage: Buffer.from('frozen_msg'),
+  consumedMessage: Buffer.from('bridge_consumed'),
+  frozenMessage: Buffer.from('bridge_frozen'),
+  outboundMessage: Buffer.from('bridge_outbound'),
   bridgeRoute: Buffer.from('bridge_route'),
   bridgeAsset: Buffer.from('bridge_asset'),
   pending: Buffer.from('pending'),
@@ -73,6 +74,18 @@ export function deriveFrozenMessagePDA(
 ): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
     [SEEDS.frozenMessage, messageHash],
+    programId
+  );
+  return pda;
+}
+
+export function deriveOutboundMessagePDA(
+  bridgeV1Config: PublicKey,
+  messageHash: Uint8Array,
+  programId: PublicKey = WHITE_PROTOCOL_PROGRAM_ID
+): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [SEEDS.outboundMessage, bridgeV1Config.toBuffer(), messageHash],
     programId
   );
   return pda;
@@ -152,7 +165,7 @@ export function buildAcceptBridgeV1MintAccounts(
   poolConfig: PublicKey,
   programId: PublicKey = WHITE_PROTOCOL_PROGRAM_ID
 ): AcceptBridgeV1MintAccounts {
-  const messageHashBytes = hexToBytes(message.sourceNullifierHash);
+  const messageHashBytes = hexToBytes(hashBridgeMessageV1(message));
 
   return {
     caller: poolConfig, // placeholder — caller must be a signer

@@ -101,7 +101,38 @@ export interface BridgeFinalityConfig {
   confirmations: number;
   /** Maximum age (seconds) before message is considered expired */
   maxAgeSeconds: number;
+  /** Human-readable finality rationale */
+  reason?: string;
+  /** Production recommendation for this chain */
+  productionRecommendation?: string;
 }
+
+// =============================================================================
+// Route Asset Config
+// =============================================================================
+
+export interface BridgeRouteAssetConfig {
+  /** Canonical asset ID (64-char hex, no 0x prefix) */
+  canonicalAssetId: string;
+  /** Source token decimals */
+  sourceDecimals: number;
+  /** Destination token decimals */
+  destinationDecimals: number;
+  /** Amount normalization mode */
+  normalizationMode: 'exact-decimal' | 'fixed-rate';
+  /** Fixed-rate numerator (only for fixed-rate mode) */
+  rateNumerator?: bigint;
+  /** Fixed-rate denominator (only for fixed-rate mode) */
+  rateDenominator?: bigint;
+  /** Max message amount in destination-local units */
+  maxMessageAmount: bigint;
+  /** Daily cap in destination-local units */
+  dailyCap: bigint;
+  /** Whether maxMessageAmount/dailyCap are source- or destination-local units */
+  capAmountUnits?: 'source' | 'destination';
+}
+
+export type BridgeRouteStatus = 'live' | 'test-only' | 'disabled' | 'manual-review';
 
 // =============================================================================
 // Route Config
@@ -114,8 +145,67 @@ export interface BridgeRouteConfig {
   destination: string;
   /** Whether this route is enabled */
   enabled: boolean;
+  /** Operational status for watcher/policy decisions */
+  status?: BridgeRouteStatus;
   /** Signer set version to use */
   signerSetVersion: number;
+  /** Per-asset configuration for this route */
+  assets?: BridgeRouteAssetConfig[];
+  /** Optional fast-path threshold in destination-local units */
+  maxFastPathAmount?: bigint;
+  /** Optional manual-review threshold in destination-local units */
+  manualReviewAmount?: bigint;
+}
+
+// =============================================================================
+// Bridge Event Policy
+// =============================================================================
+
+export type BridgeChainFamily = 'evm' | 'solana';
+
+export type BridgeSourceEventKind =
+  | 'evm_bridge_out_v1'
+  | 'evm_bridge_outbox_bridge_out_initiated'
+  | 'evm_bridge_outbox_direct'
+  | 'solana_bridge_out_v1_with_proof'
+  | 'solana_init_bridge_v1_out'
+  | 'unknown';
+
+export type BridgePolicyAction =
+  | 'accept'
+  | 'reject'
+  | 'delay'
+  | 'manual_review'
+  | 'freeze'
+  | 'alert'
+  | 'ignore';
+
+export type BridgeRiskSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
+
+export interface BridgeChainPolicyConfig {
+  chainKey: string;
+  family: BridgeChainFamily;
+  domainId: number;
+  chainId?: number;
+  bridgeOutboxAddress?: string;
+  bridgeInboxAddress?: string;
+  whiteProtocolAddress?: string;
+  solanaProgramId?: string;
+  finality: BridgeFinalityConfig;
+}
+
+export interface BridgePolicyDecision {
+  accepted: boolean;
+  action: BridgePolicyAction;
+  severity: BridgeRiskSeverity;
+  reasons: string[];
+}
+
+export interface BridgeRiskFinding {
+  code: string;
+  message: string;
+  severity: BridgeRiskSeverity;
+  recommendedAction: BridgePolicyAction;
 }
 
 // =============================================================================
@@ -131,6 +221,18 @@ export interface BridgeEventObservation {
   encodedMessage: string;
   txHash: string;
   blockNumber: number;
+  /** Explicit source event kind for production policy filtering */
+  sourceEventKind?: BridgeSourceEventKind;
+  /** Contract/program address that emitted the source event */
+  sourceAddress?: string;
+  /** Optional source chain key when emitted by a multi-chain watcher */
+  sourceChain?: string;
+  /** Optional observed confirmations for policy-only checks */
+  confirmations?: number;
+  /** Optional marker that the source tx was fetched and succeeded */
+  sourceTxSucceeded?: boolean;
+  /** Optional marker from Solana source watcher proving source-bound instruction path */
+  sourceBoundProofMarker?: 'bridge_out_v1_with_proof';
 }
 
 export interface BridgeSourceAdapter {

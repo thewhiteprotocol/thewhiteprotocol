@@ -11,19 +11,40 @@
 
 import {
   BridgeMessageStatus,
+  type BridgeEventObservation,
   type BridgeMessageState,
   type BridgeRelayerConfig,
   type BridgeSourceAdapter,
   type BridgeDestinationAdapter,
+  type BridgeRouteAssetConfig,
 } from './types';
 import { BridgeSignerService } from './signer';
 import { BridgeStateStore } from './state';
 import { logger } from '../logger';
+import {
+  buildDestinationBridgeMintMessageFromSourceBridgeOut,
+  hashBridgeMessageV1,
+  type BridgeMessageV1,
+} from '@thewhiteprotocol/core';
+import {
+  shouldRelayerSign,
+  summarizePolicyDecision,
+  validateBridgeSourceEvent,
+} from './policy';
 
 export { BridgeSignerService, BridgeStateStore };
 export * from './types';
 export * from './evm-adapter';
 export * from './solana-adapter';
+export * from './base-to-solana-route';
+export * from './policy';
+export * from './watcher';
+export * from './watcher-store';
+export * from './watcher-daemon';
+export * from './watcher-smoke';
+export * from './watcher-smoke-fixtures';
+export * from './freeze-actions';
+export * from './alerts';
 
 function hexToUint8Array(hex: string): Uint8Array {
   const clean = hex.replace(/^0x/, '');
@@ -32,6 +53,22 @@ function hexToUint8Array(hex: string): Uint8Array {
     bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
   }
   return bytes;
+}
+
+function assertDestinationAmountWithinCaps(
+  amount: bigint,
+  assetConfig: BridgeRouteAssetConfig
+): void {
+  if (assetConfig.maxMessageAmount > 0n && amount > assetConfig.maxMessageAmount) {
+    throw new Error(
+      `destination amount ${amount} exceeds max message amount ${assetConfig.maxMessageAmount}`
+    );
+  }
+  if (assetConfig.dailyCap > 0n && amount > assetConfig.dailyCap) {
+    throw new Error(
+      `destination amount ${amount} exceeds daily cap ${assetConfig.dailyCap}`
+    );
+  }
 }
 
 export class BridgeRelayerService {
@@ -51,54 +88,140 @@ export class BridgeRelayerService {
    * Returns true if the message was handled (new or already tracked).
    */
   async processEvent(
-    event: {
-      messageHash: string;
-      destinationDomain: number;
-      canonicalAssetId: string;
-      amount: bigint;
-      nonce: number;
-      encodedMessage: string;
-      txHash: string;
-      blockNumber: number;
-    },
+    event: BridgeEventObservation,
     sourceAdapter: BridgeSourceAdapter,
     destinationAdapter: BridgeDestinationAdapter,
     route: { source: string; destination: string; signerSetVersion: number }
   ): Promise<boolean> {
-    const messageHash = event.messageHash.toLowerCase();
-
-    // Idempotency: already tracked?
-    if (this.state.has(messageHash)) {
-      logger.info(`Bridge message already tracked: ${messageHash}`);
-      return true;
-    }
-
-    // Idempotency: already consumed on destination?
-    const consumed = await destinationAdapter.isMessageConsumed(messageHash);
-    if (consumed) {
-      logger.info(`Bridge message already consumed on destination: ${messageHash}`);
-      return true;
-    }
+    const sourceMessageHash = event.messageHash.toLowerCase();
 
     // Decode the full message from encoded bytes
     const { decodeBridgeMessageV1 } = await import('./evm-adapter');
     const encodedBytes = hexToUint8Array(event.encodedMessage);
-    const message = decodeBridgeMessageV1(encodedBytes);
+    const sourceMessage = decodeBridgeMessageV1(encodedBytes);
+
+    const policyDecision = validateBridgeSourceEvent({
+      event,
+      message: sourceMessage,
+      sourceChain: route.source,
+      destinationChain: route.destination,
+      context: {
+        routes: this.config.routes,
+        finality: this.config.finality,
+      },
+    });
+    if (!shouldRelayerSign(policyDecision)) {
+      logger.warn(
+        `Bridge event rejected by production policy for ${sourceMessageHash}: ${summarizePolicyDecision(policyDecision)}`
+      );
+      if (policyDecision.reasons.some((reason) => reason.startsWith('expired_deadline'))) {
+        this.state.set({
+          messageHash: sourceMessageHash,
+          sourceChain: route.source,
+          destinationChain: route.destination,
+          sourceDomain: sourceMessage.sourceDomain,
+          destinationDomain: sourceMessage.destinationDomain,
+          sourceTxHash: event.txHash,
+          sourceBlockNumber: event.blockNumber,
+          sourceFinalityBlock: sourceMessage.sourceFinalityBlock,
+          nonce: sourceMessage.nonce,
+          destinationCommitment: sourceMessage.destinationCommitment,
+          canonicalAssetId: sourceMessage.canonicalAssetId,
+          amount: sourceMessage.amount.toString(),
+          signatures: [],
+          status: BridgeMessageStatus.EXPIRED,
+          attempts: 0,
+          lastError: summarizePolicyDecision(policyDecision),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          message: sourceMessage,
+        });
+      }
+      return false;
+    }
 
     // Validate destination domain matches
-    if (message.destinationDomain !== event.destinationDomain) {
+    if (sourceMessage.destinationDomain !== event.destinationDomain) {
       logger.warn(
-        `Destination domain mismatch for ${messageHash}: event=${event.destinationDomain}, decoded=${message.destinationDomain}`
+        `Destination domain mismatch for ${sourceMessageHash}: event=${event.destinationDomain}, decoded=${sourceMessage.destinationDomain}`
       );
       return false;
+    }
+
+    // Determine if message transformation is needed (cross-family bridge)
+    const routeConfig = this.config.routes.find(
+      (r) => r.source === route.source && r.destination === route.destination
+    );
+    let message: BridgeMessageV1 = sourceMessage;
+    let destinationMessageHash = sourceMessageHash;
+
+    if (routeConfig && !routeConfig.enabled) {
+      logger.warn(`Bridge route disabled: ${route.source} -> ${route.destination}`);
+      return false;
+    }
+
+    if (routeConfig?.assets && routeConfig.assets.length > 0) {
+      const assetConfig = routeConfig.assets.find(
+        (a) => a.canonicalAssetId.toLowerCase() === sourceMessage.canonicalAssetId.toLowerCase()
+      );
+      if (!assetConfig) {
+        logger.error(
+          `No asset normalization config for ${sourceMessageHash}: canonicalAssetId=${sourceMessage.canonicalAssetId}`
+        );
+        return false;
+      }
+
+      try {
+        message = buildDestinationBridgeMintMessageFromSourceBridgeOut({
+          sourceMessage,
+          destinationDomain: sourceMessage.destinationDomain,
+          destinationChainId: sourceMessage.destinationChainId,
+          destinationLocalAssetId: sourceMessage.destinationLocalAssetId,
+          destinationCommitment: sourceMessage.destinationCommitment,
+          sourceDecimals: assetConfig.sourceDecimals,
+          destinationDecimals: assetConfig.destinationDecimals,
+          normalizationMode: assetConfig.normalizationMode,
+          rateNumerator: assetConfig.rateNumerator,
+          rateDenominator: assetConfig.rateDenominator,
+        });
+        assertDestinationAmountWithinCaps(message.amount, assetConfig);
+        destinationMessageHash = hashBridgeMessageV1(message).toLowerCase();
+        logger.info(
+          `Transformed BridgeOut→BridgeMint for ${sourceMessageHash}: ` +
+          `sourceAmount=${sourceMessage.amount} -> destAmount=${message.amount}, ` +
+          `newHash=${destinationMessageHash}`
+        );
+      } catch (err: any) {
+        logger.error(`Message transformation failed for ${sourceMessageHash}: ${err.message}`);
+        return false;
+      }
+    }
+
+    // Idempotency: already tracked by destination hash?
+    if (this.state.has(destinationMessageHash)) {
+      logger.info(`Bridge message already tracked: ${destinationMessageHash}`);
+      return true;
+    }
+
+    // Preserve compatibility with pre-normalization source-hash state entries.
+    if (destinationMessageHash !== sourceMessageHash && this.state.has(sourceMessageHash)) {
+      logger.info(`Bridge source message already tracked: ${sourceMessageHash}`);
+      return true;
+    }
+
+    // Idempotency: already consumed on destination?
+    const consumed = await destinationAdapter.isMessageConsumed(destinationMessageHash);
+    if (consumed) {
+      logger.info(`Bridge message already consumed on destination: ${destinationMessageHash}`);
+      return true;
     }
 
     // Check expiry
     const nowSeconds = Math.floor(Date.now() / 1000);
     if (message.deadline < nowSeconds) {
-      logger.warn(`Bridge message expired: ${messageHash}, deadline=${message.deadline}`);
+      logger.warn(`Bridge message expired: ${destinationMessageHash}, deadline=${message.deadline}`);
       const expiredState: BridgeMessageState = {
-        messageHash,
+        messageHash: destinationMessageHash,
         sourceChain: route.source,
         destinationChain: route.destination,
         sourceDomain: message.sourceDomain,
@@ -123,7 +246,7 @@ export class BridgeRelayerService {
 
     // Create initial state
     const state: BridgeMessageState = {
-      messageHash,
+      messageHash: destinationMessageHash,
       sourceChain: route.source,
       destinationChain: route.destination,
       sourceDomain: message.sourceDomain,
@@ -148,31 +271,31 @@ export class BridgeRelayerService {
     const finalityConfig = this.config.finality[route.source];
     if (!finalityConfig) {
       logger.error(`No finality config for chain: ${route.source}`);
-      this.state.update(messageHash, { status: BridgeMessageStatus.FAILED, lastError: 'Missing finality config' });
+      this.state.update(destinationMessageHash, { status: BridgeMessageStatus.FAILED, lastError: 'Missing finality config' });
       return false;
     }
 
-    this.state.update(messageHash, { status: BridgeMessageStatus.FINALITY_WAIT });
+    this.state.update(destinationMessageHash, { status: BridgeMessageStatus.FINALITY_WAIT });
     const isFinal = await sourceAdapter.isFinalized(event.txHash, finalityConfig.confirmations);
     if (!isFinal) {
-      logger.info(`Bridge message not yet finalized: ${messageHash}`);
-      this.state.update(messageHash, { status: BridgeMessageStatus.FINALITY_WAIT });
+      logger.info(`Bridge message not yet finalized: ${destinationMessageHash}`);
+      this.state.update(destinationMessageHash, { status: BridgeMessageStatus.FINALITY_WAIT });
       return false;
     }
 
     // Sign
-    this.state.update(messageHash, { status: BridgeMessageStatus.READY_TO_ATTEST });
+    this.state.update(destinationMessageHash, { status: BridgeMessageStatus.READY_TO_ATTEST });
     const allSignatures = await this.signer.signMessage(message);
     const thresholdSigs = this.signer.takeThreshold(allSignatures);
     this.signer.validateSignatureOrder(thresholdSigs);
 
-    this.state.update(messageHash, {
+    this.state.update(destinationMessageHash, {
       status: BridgeMessageStatus.SIGNED,
       signatures: thresholdSigs,
     });
 
     // Submit
-    this.state.update(messageHash, { status: BridgeMessageStatus.SUBMITTED, attempts: state.attempts + 1 });
+    this.state.update(destinationMessageHash, { status: BridgeMessageStatus.SUBMITTED, attempts: state.attempts + 1 });
     try {
       const rawSigs = this.signer.extractRawSignatures(thresholdSigs);
       const txHash = await destinationAdapter.submitAcceptBridgeMint(
@@ -180,15 +303,15 @@ export class BridgeRelayerService {
         rawSigs,
         route.signerSetVersion
       );
-      this.state.update(messageHash, {
+      this.state.update(destinationMessageHash, {
         status: BridgeMessageStatus.CONFIRMED,
         submitTxHash: txHash,
       });
-      logger.info(`Bridge message confirmed: ${messageHash}, tx=${txHash}`);
+      logger.info(`Bridge message confirmed: ${destinationMessageHash}, tx=${txHash}`);
       return true;
     } catch (err: any) {
-      logger.error(`Bridge submission failed: ${messageHash}, error=${err.message}`);
-      this.state.update(messageHash, {
+      logger.error(`Bridge submission failed: ${destinationMessageHash}, error=${err.message}`);
+      this.state.update(destinationMessageHash, {
         status: BridgeMessageStatus.FAILED,
         lastError: err.message,
         attempts: state.attempts + 1,

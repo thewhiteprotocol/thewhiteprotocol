@@ -55,6 +55,32 @@ services:
       # Solana Relayer Registry (optional dev/test override)
       # - key: RELAYER_ALLOW_MISSING_SOLANA_REGISTRY
       #   value: "false"
+      # Hosted watcher dry-run rollout:
+      # - set BRIDGE_WATCHER_ENABLED=true only after operator token is configured
+      # - keep BRIDGE_WATCHER_DRY_RUN=true and BRIDGE_WATCHER_AUTO_FREEZE=false
+      # - set BRIDGE_OPERATOR_API_TOKEN and optional BRIDGE_ALERT_WEBHOOK_URL as secrets
+      - key: BRIDGE_WATCHER_ENABLED
+        value: "false"
+      - key: BRIDGE_WATCHER_DRY_RUN
+        value: "true"
+      - key: BRIDGE_WATCHER_AUTO_FREEZE
+        value: "false"
+      - key: BRIDGE_WATCHER_INTERVAL_MS
+        value: "30000"
+      - key: BRIDGE_WATCHER_FINDINGS_PATH
+        value: /app/data/bridge-watcher-findings.json
+      - key: BRIDGE_WATCHER_MAX_FINDINGS_PER_TICK
+        value: "100"
+      - key: BRIDGE_WATCHER_FINDING_RETENTION_DAYS
+        value: "30"
+      - key: BRIDGE_WATCHER_MIN_SEVERITY_TO_FREEZE
+        value: critical
+      - key: BRIDGE_ALERT_MIN_SEVERITY
+        value: high
+      - key: BRIDGE_ALERT_DRY_RUN
+        value: "true"
+      - key: BRIDGE_ALERT_LOG
+        value: "false"
       - key: WITHDRAW_VK_PATH
         value: ./circuits/build/withdraw_vk.json
       - key: WITHDRAW_V2_VK_PATH
@@ -87,6 +113,8 @@ services:
       # - AUTHORITY_KEYPAIR (optional; falls back to RELAYER_KEYPAIR)
       # - SEQUENCER_WALLET
       # - SEQUENCER_AUTH_TOKEN
+      # - BRIDGE_OPERATOR_API_TOKEN
+      # - BRIDGE_ALERT_WEBHOOK_URL
       # - BASE_DEPLOYER_PRIVATE_KEY
       # - ETH_DEPLOYER_PRIVATE_KEY
       # - BSC_DEPLOYER_PRIVATE_KEY

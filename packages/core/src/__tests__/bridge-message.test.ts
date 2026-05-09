@@ -8,6 +8,8 @@ import {
   hashEncodedBridgeMessageV1,
   validateBridgeMessageV1,
   assertValidBridgeMessageV1,
+  parseBridgeMessageV1Json,
+  bridgeMessageV1JsonReplacer,
 } from '../bridge-message.js';
 import vectorsJson from '../../../../docs/bridge/bridge-message-vectors.json';
 
@@ -213,6 +215,61 @@ describe('bridge-message', () => {
     it('assertValidBridgeMessageV1 throws on invalid', () => {
       const msg = { ...makeValidMessage(), amount: 0n };
       expect(() => assertValidBridgeMessageV1(msg)).toThrow('Invalid BridgeMessageV1');
+    });
+  });
+
+  describe('JSON parsing', () => {
+    it('parses decimal string integers without precision loss and normalizes bytes32 as 0x-prefixed hex', () => {
+      const json = JSON.parse(JSON.stringify(makeValidMessage(), bridgeMessageV1JsonReplacer));
+      json.sourceChainId = '84532';
+      json.destinationChainId = '0';
+      json.amount = '1000000000000000';
+      json.sourceLeafIndex = '24';
+      json.sourceBlockNumber = '41116285';
+      json.sourceFinalityBlock = '41116295';
+      json.nonce = '3';
+      json.deadline = '1778004486';
+      json.relayerFee = '0';
+      json.canonicalAssetId = '0x' + json.canonicalAssetId;
+
+      const parsed = parseBridgeMessageV1Json(json);
+
+      expect(parsed.sourceChainId).toBe(84532);
+      expect(parsed.destinationChainId).toBe(0);
+      expect(parsed.amount).toBe(1_000_000_000_000_000n);
+      expect(parsed.sourceLeafIndex).toBe(24);
+      expect(parsed.sourceBlockNumber).toBe(41116285);
+      expect(parsed.sourceFinalityBlock).toBe(41116295);
+      expect(parsed.nonce).toBe(3);
+      expect(parsed.deadline).toBe(1778004486);
+      expect(parsed.relayerFee).toBe(0n);
+      expect(parsed.canonicalAssetId).toMatch(/^0x[0-9a-f]{64}$/);
+      expect(hashBridgeMessageV1(parsed)).toMatch(/^0x[0-9a-f]{64}$/);
+    });
+
+    it('accepts JSON numbers only when they are safe integers', () => {
+      const json = JSON.parse(JSON.stringify(makeValidMessage(), bridgeMessageV1JsonReplacer));
+      json.sourceLeafIndex = 24;
+
+      const parsed = parseBridgeMessageV1Json(json);
+      expect(parsed.sourceLeafIndex).toBe(24);
+
+      json.sourceLeafIndex = Number.MAX_SAFE_INTEGER + 1;
+      expect(() => parseBridgeMessageV1Json(json)).toThrow('safe integer');
+    });
+
+    it('rejects unsafe decimal strings that cannot fit the current BridgeMessageV1 number fields', () => {
+      const json = JSON.parse(JSON.stringify(makeValidMessage(), bridgeMessageV1JsonReplacer));
+      json.sourceBlockNumber = '9007199254740992';
+
+      expect(() => parseBridgeMessageV1Json(json)).toThrow('Number.MAX_SAFE_INTEGER');
+    });
+
+    it('rejects malformed decimal strings', () => {
+      const json = JSON.parse(JSON.stringify(makeValidMessage(), bridgeMessageV1JsonReplacer));
+      json.nonce = '1.5';
+
+      expect(() => parseBridgeMessageV1Json(json)).toThrow('decimal integer string');
     });
   });
 });

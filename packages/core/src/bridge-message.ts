@@ -66,6 +66,32 @@ export interface BridgeMessageValidationError {
   message: string;
 }
 
+const BRIDGE_MESSAGE_BYTES32_FIELDS = [
+  'canonicalAssetId',
+  'sourceLocalAssetId',
+  'destinationLocalAssetId',
+  'sourceNullifierHash',
+  'destinationCommitment',
+  'sourceRoot',
+  'sourceTxHash',
+  'recipientStealthMetadataHash',
+  'memoHash',
+  'reserved0',
+  'reserved1',
+] as const;
+
+const BRIDGE_MESSAGE_UINT64_JSON_FIELDS = [
+  'sourceChainId',
+  'destinationChainId',
+  'sourceLeafIndex',
+  'sourceBlockNumber',
+  'sourceFinalityBlock',
+  'nonce',
+  'deadline',
+] as const;
+
+const BRIDGE_MESSAGE_UINT128_JSON_FIELDS = ['amount', 'relayerFee'] as const;
+
 // =============================================================================
 // HELPERS
 // =============================================================================
@@ -132,6 +158,91 @@ function normalizeBytes32(input: string): string {
     throw new Error(`bytes32 must be exactly 64 hex chars, got ${clean.length}: ${input}`);
   }
   return clean;
+}
+
+function normalizeBytes32ForJson(input: unknown, field: string): string {
+  if (typeof input !== 'string') {
+    throw new Error(`${field} must be a bytes32 hex string`);
+  }
+  return '0x' + normalizeBytes32(input);
+}
+
+function parseJsonIntegerToBigInt(value: unknown, field: string): bigint {
+  if (typeof value === 'bigint') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    if (!/^(0|[1-9][0-9]*)$/.test(value)) {
+      throw new Error(`${field} must be a non-negative decimal integer string`);
+    }
+    return BigInt(value);
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value)) {
+      throw new Error(`${field} must be a safe integer when encoded as a JSON number`);
+    }
+    if (value < 0) {
+      throw new Error(`${field} must be non-negative`);
+    }
+    return BigInt(value);
+  }
+
+  throw new Error(`${field} must be a bigint, decimal string, or safe integer`);
+}
+
+function parseJsonIntegerToSafeNumber(value: unknown, field: string): number {
+  const parsed = parseJsonIntegerToBigInt(value, field);
+  if (parsed > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error(`${field} exceeds Number.MAX_SAFE_INTEGER`);
+  }
+  return Number(parsed);
+}
+
+/**
+ * Normalize a JSON-loaded BridgeMessageV1 without precision loss.
+ *
+ * JSON cannot represent bigint values directly, so live bridge state files store
+ * uint64/uint128 fields as decimal strings. This helper parses all consensus
+ * integer fields through bigint first, rejects unsafe JSON numbers, and returns
+ * a BridgeMessageV1 object ready for canonical hashing/transformation.
+ *
+ * bytes32 fields are normalized to 0x-prefixed, lowercase 32-byte hex strings.
+ */
+export function parseBridgeMessageV1Json(input: unknown): BridgeMessageV1 {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error('BridgeMessageV1 JSON must be an object');
+  }
+
+  const raw = input as Record<string, unknown>;
+  const message: any = {
+    protocolVersion: parseJsonIntegerToSafeNumber(raw.protocolVersion, 'protocolVersion'),
+    messageType: parseJsonIntegerToSafeNumber(raw.messageType, 'messageType'),
+    sourceDomain: parseJsonIntegerToSafeNumber(raw.sourceDomain, 'sourceDomain'),
+    destinationDomain: parseJsonIntegerToSafeNumber(raw.destinationDomain, 'destinationDomain'),
+  };
+
+  for (const field of BRIDGE_MESSAGE_UINT64_JSON_FIELDS) {
+    message[field] = parseJsonIntegerToSafeNumber(raw[field], field);
+  }
+
+  for (const field of BRIDGE_MESSAGE_UINT128_JSON_FIELDS) {
+    message[field] = parseJsonIntegerToBigInt(raw[field], field);
+  }
+
+  for (const field of BRIDGE_MESSAGE_BYTES32_FIELDS) {
+    message[field] = normalizeBytes32ForJson(raw[field], field);
+  }
+
+  return message as BridgeMessageV1;
+}
+
+/**
+ * JSON.stringify replacer for BridgeMessageV1 objects containing bigint fields.
+ */
+export function bridgeMessageV1JsonReplacer(_key: string, value: unknown): unknown {
+  return typeof value === 'bigint' ? value.toString() : value;
 }
 
 // =============================================================================

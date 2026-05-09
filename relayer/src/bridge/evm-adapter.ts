@@ -174,6 +174,9 @@ export class EvmSourceAdapter implements BridgeSourceAdapter {
         encodedMessage: args.encodedMessage,
         txHash: log.transactionHash ?? '0x',
         blockNumber: Number(log.blockNumber ?? 0n),
+        sourceEventKind: 'evm_bridge_outbox_bridge_out_initiated',
+        sourceAddress: this.outboxAddress,
+        sourceTxSucceeded: true,
       };
     }
   }

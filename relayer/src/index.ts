@@ -45,6 +45,15 @@ import { isValidCompressedSecp256k1Pubkey, shouldUseEvmStealthWithdrawal } from 
 import { createBridgeStatusRouter } from './bridge/status-api';
 import { BridgeStateStore } from './bridge/state';
 import {
+  BridgeWatcherDaemon,
+  loadBridgeWatcherDaemonConfigFromEnv,
+} from './bridge/watcher-daemon';
+import { BridgeWatcherFindingStore } from './bridge/watcher-store';
+import { BridgeFreezeActionBuilder } from './bridge/freeze-actions';
+import { BridgeAlerter, loadBridgeAlertConfigFromEnv } from './bridge/alerts';
+import { DEFAULT_BRIDGE_FINALITY } from './bridge/policy';
+import type { BridgeRouteConfig } from './bridge/types';
+import {
   validateChainParameter,
   resolveChain,
   buildQuote,
@@ -247,6 +256,9 @@ export class RelayerService {
   /** Bridge message state store (for status API) */
   private bridgeStateStore?: BridgeStateStore;
 
+  /** Bridge watcher daemon (disabled by default) */
+  private bridgeWatcherDaemon?: BridgeWatcherDaemon;
+
   /** Solana settlement sequencer */
   private sequencer?: Sequencer;
   
@@ -319,6 +331,28 @@ export class RelayerService {
     if (stateDir) {
       this.bridgeStateStore = new BridgeStateStore(stateDir);
       logger.info('Bridge state store initialized', { stateDir });
+
+      const watcherConfig = loadBridgeWatcherDaemonConfigFromEnv(process.env);
+      if (watcherConfig.enabled) {
+        this.bridgeWatcherDaemon = new BridgeWatcherDaemon({
+          stateStore: this.bridgeStateStore,
+          findingStore: new BridgeWatcherFindingStore(stateDir, {
+            findingsPath: process.env.BRIDGE_WATCHER_FINDINGS_PATH,
+          }),
+          routes: this.parseBridgeRoutes(),
+          finality: DEFAULT_BRIDGE_FINALITY,
+          config: watcherConfig,
+          freezeActions: new BridgeFreezeActionBuilder(),
+          alerter: new BridgeAlerter(loadBridgeAlertConfigFromEnv(process.env)),
+        });
+        logger.info('Bridge watcher daemon initialized', {
+          dryRun: watcherConfig.dryRun,
+          autoFreeze: watcherConfig.autoFreeze,
+          intervalMs: watcherConfig.intervalMs,
+        });
+      }
+    } else if (loadBridgeWatcherDaemonConfigFromEnv(process.env).enabled) {
+      logger.warn('Bridge watcher requested but STATE_DIR is not configured; watcher not started');
     }
 
     // Setup Express app
@@ -598,6 +632,8 @@ export class RelayerService {
         createBridgeStatusRouter({
           stateStore: this.bridgeStateStore,
           routes: bridgeRoutes,
+          watcherDaemon: this.bridgeWatcherDaemon,
+          operatorApiToken: process.env.BRIDGE_OPERATOR_API_TOKEN,
         })
       );
       logger.info('Bridge status API mounted');
@@ -614,7 +650,7 @@ export class RelayerService {
    * Parse bridge route configuration from environment.
    * Expected format: BRIDGE_ROUTES=source:dest:version,source2:dest2:version2
    */
-  private parseBridgeRoutes(): Array<{ source: string; destination: string; enabled: boolean; signerSetVersion: number }> {
+  private parseBridgeRoutes(): BridgeRouteConfig[] {
     const raw = process.env.BRIDGE_ROUTES || '';
     if (!raw) return [];
     return raw.split(',').map((segment) => {
@@ -1716,6 +1752,11 @@ export class RelayerService {
         apiExtensions: true,
       });
     });
+
+    if (this.bridgeWatcherDaemon?.isEnabled()) {
+      this.bridgeWatcherDaemon.start();
+      logger.info('Bridge watcher daemon started', { ...this.bridgeWatcherDaemon.getStatus() });
+    }
     
     // Start background Solana settlement sequencer
     const authPk = this.config.authorityKeypair?.publicKey.toBase58();

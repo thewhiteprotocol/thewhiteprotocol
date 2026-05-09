@@ -87,11 +87,27 @@ export {
   hashEncodedBridgeMessageV1,
   validateBridgeMessageV1,
   assertValidBridgeMessageV1,
+  parseBridgeMessageV1Json,
+  bridgeMessageV1JsonReplacer,
 } from './bridge-message.js';
 export type {
   BridgeMessageV1,
   BridgeMessageValidationError,
 } from './bridge-message.js';
+
+// Bridge amount normalization
+export {
+  normalizeBridgeAmount,
+  validateNormalizationParams,
+  buildDestinationBridgeMintMessageFromSourceBridgeOut,
+  BridgeAmountError,
+} from './bridge-amount.js';
+export type {
+  NormalizationMode,
+  NormalizeBridgeAmountParams,
+  BridgeAmountNormalizationError,
+  BuildBridgeMintParams,
+} from './bridge-amount.js';
 
 // Version
 export const VERSION = '1.0.0';
