@@ -38,7 +38,7 @@ export interface Invoice {
   total: number;
 
   asset: string; // 'ETH', 'SOL', 'USDC', 'WETH'
-  chain: "solana" | "base" | "bsc" | "bsc";
+  chain: "solana" | "base" | "bsc" | "ethereum" | "polygon";
 
   commitment: string;
   secret: string;

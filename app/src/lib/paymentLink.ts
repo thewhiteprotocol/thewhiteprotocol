@@ -9,7 +9,7 @@ export interface PaymentRequest {
   commitment: string;
   amount?: string;
   asset: string;
-  chain: "solana" | "base" | "bsc" | "bsc";
+  chain: "solana" | "base" | "bsc" | "ethereum" | "polygon";
   encryptedNote?: string;
   /** Optional ephemeral pubkey for stealth withdrawals (hex string) */
   ephemeralPubkey?: string;
@@ -30,7 +30,7 @@ const APP_ORIGIN = typeof window !== "undefined" ? window.location.origin : "htt
 export async function createPaymentRequest(
   amount: string | undefined,
   asset: string,
-  chain: "solana" | "base" | "bsc"
+  chain: "solana" | "base" | "bsc" | "ethereum" | "polygon"
 ): Promise<PaymentLinkResult> {
   const secret = randomFieldElement();
   const nullifier = randomFieldElement();
@@ -118,7 +118,7 @@ export function parsePaymentParams(params: URLSearchParams): PaymentRequest | nu
   };
 }
 
-function getAssetConfig(symbol: string, chain: "solana" | "base" | "bsc") {
+function getAssetConfig(symbol: string, chain: "solana" | "base" | "bsc" | "ethereum" | "polygon") {
   return SUPPORTED_ASSETS.find((a) => a.symbol === symbol && (a.chain === chain || a.chain === "both"));
 }
 

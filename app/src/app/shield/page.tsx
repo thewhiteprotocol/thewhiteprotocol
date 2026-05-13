@@ -189,7 +189,7 @@ function DepositTab({
   onDeposit,
   onNoteUpdated,
 }: {
-  activeChain: "solana" | "base" | "bsc";
+  activeChain: "solana" | "base" | "bsc" | "ethereum" | "polygon";
   solanaWallet: any;
   evmWalletClient: any;
   onDeposit: (note: StoredNote) => void;
@@ -563,7 +563,7 @@ function WithdrawTab({
   loadingNotes,
   onWithdraw,
 }: {
-  activeChain: "solana" | "base" | "bsc";
+  activeChain: "solana" | "base" | "bsc" | "ethereum" | "polygon";
   solanaWallet: any;
   evmWalletClient: any;
   notes: StoredNote[];

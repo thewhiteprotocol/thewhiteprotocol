@@ -37,7 +37,7 @@ export async function getRelayerQuote(amount: string): Promise<RelayerQuote> {
 }
 
 export interface RelayedWithdrawalParams {
-  chain: "solana" | "base" | "bsc";
+  chain: "solana" | "base" | "bsc" | "ethereum" | "polygon";
   proofData: string; // hex string, 512 chars = 256 bytes
   merkleRoot: string; // hex string, 64 chars = 32 bytes
   nullifierHash: string; // hex string, 64 chars = 32 bytes
@@ -48,7 +48,7 @@ export interface RelayedWithdrawalParams {
 }
 
 export interface RelayedWithdrawalV2Params {
-  chain: "solana" | "base" | "bsc";
+  chain: "solana" | "base" | "bsc" | "ethereum" | "polygon";
   proofData: string; // hex string, 512 chars = 256 bytes
   merkleRoot: string; // hex string, 64 chars = 32 bytes
   nullifierHash: string; // hex string, 64 chars = 32 bytes

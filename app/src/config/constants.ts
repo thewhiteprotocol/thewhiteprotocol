@@ -83,7 +83,7 @@ export const SUPPORTED_ASSETS: AssetConfig[] = [
   },
 ];
 
-export const getAssetsForChain = (chain: "solana" | "base" | "bsc") => {
+export const getAssetsForChain = (chain: "solana" | "base" | "bsc" | "ethereum" | "polygon") => {
   return SUPPORTED_ASSETS.filter((a) => a.chain === chain || a.chain === "both");
 };
 

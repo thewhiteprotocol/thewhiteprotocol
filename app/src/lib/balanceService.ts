@@ -85,9 +85,9 @@ const ASSET_DECIMALS: Record<string, number> = {
   USDT: 18,
 };
 
-export async function getTotalBalanceUsd(notes: StoredNote[]): Promise<{ total: number; breakdown: Array<{ asset: string; chain: "solana" | "base" | "bsc"; amount: bigint; usdValue: number }> }> {
+export async function getTotalBalanceUsd(notes: StoredNote[]): Promise<{ total: number; breakdown: Array<{ asset: string; chain: "solana" | "base" | "bsc" | "ethereum" | "polygon"; amount: bigint; usdValue: number }> }> {
   const prices = await fetchPrices();
-  const breakdownMap = new Map<string, { asset: string; chain: "solana" | "base" | "bsc"; amount: bigint }>();
+  const breakdownMap = new Map<string, { asset: string; chain: "solana" | "base" | "bsc" | "ethereum" | "polygon"; amount: bigint }>();
 
   for (const note of notes.filter((n) => n.status !== "spent")) {
     const key = `${note.chain}:${note.asset}`;
@@ -100,7 +100,7 @@ export async function getTotalBalanceUsd(notes: StoredNote[]): Promise<{ total: 
   }
 
   let total = 0;
-  const breakdown: Array<{ asset: string; chain: "solana" | "base" | "bsc"; amount: bigint; usdValue: number }> = [];
+  const breakdown: Array<{ asset: string; chain: "solana" | "base" | "bsc" | "ethereum" | "polygon"; amount: bigint; usdValue: number }> = [];
 
   for (const entry of breakdownMap.values()) {
     const decimals = ASSET_DECIMALS[entry.asset] || 18;

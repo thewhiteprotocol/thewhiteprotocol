@@ -7,7 +7,7 @@ export interface StoredNote {
   amount: string;
   asset: string;
   assetId: string;
-  chain: "solana" | "base" | "bsc";
+  chain: "solana" | "base" | "bsc" | "ethereum" | "polygon";
   leafIndex?: number;
   timestamp: number;
   status: NoteStatus;
