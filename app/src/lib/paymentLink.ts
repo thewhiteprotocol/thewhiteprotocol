@@ -81,11 +81,11 @@ export function parsePaymentLink(url: string): PaymentRequest | null {
     const commitment = parsed.searchParams.get("c");
     const amount = parsed.searchParams.get("a") || undefined;
     const asset = parsed.searchParams.get("t");
-    const chain = parsed.searchParams.get("ch") as "solana" | "base" | "bsc" | null;
+    const chain = parsed.searchParams.get("ch") as "solana" | "base" | "bsc" | "ethereum" | "polygon" | null;
     const encryptedNote = parsed.searchParams.get("n") || "";
 
     if (!commitment || !asset || !chain) return null;
-    if (chain !== "solana" && chain !== "base" && chain !== "bsc") return null;
+    if (chain !== "solana" && chain !== "base" && chain !== "bsc" && chain !== "ethereum" && chain !== "polygon") return null;
 
     return {
       commitment,
@@ -103,11 +103,11 @@ export function parsePaymentParams(params: URLSearchParams): PaymentRequest | nu
   const commitment = params.get("c");
   const amount = params.get("a") || undefined;
   const asset = params.get("t");
-  const chain = params.get("ch") as "solana" | "base" | "bsc" | null;
+  const chain = params.get("ch") as "solana" | "base" | "bsc" | "ethereum" | "polygon" | null;
   const encryptedNote = params.get("n") || "";
 
   if (!commitment || !asset || !chain) return null;
-  if (chain !== "solana" && chain !== "base" && chain !== "bsc") return null;
+  if (chain !== "solana" && chain !== "base" && chain !== "bsc" && chain !== "ethereum" && chain !== "polygon") return null;
 
   return {
     commitment,

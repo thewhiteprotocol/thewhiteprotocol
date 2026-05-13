@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const [notes, setNotes] = useState<StoredNote[]>([]);
   const [totalUsd, setTotalUsd] = useState<number | null>(null);
   const [breakdown, setBreakdown] = useState<
-    Array<{ asset: string; chain: "solana" | "base" | "bsc"; amount: bigint; usdValue: number }>
+    Array<{ asset: string; chain: "solana" | "base" | "bsc" | "ethereum" | "polygon"; amount: bigint; usdValue: number }>
   >([]);
   const [pendingBalance, setPendingBalance] = useState<bigint>(0n);
   const [loading, setLoading] = useState(true);

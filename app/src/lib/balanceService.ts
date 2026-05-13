@@ -43,7 +43,7 @@ export async function fetchPrices(): Promise<Record<string, number>> {
 
 export function getShieldedBalance(
   notes: StoredNote[],
-  chain?: "solana" | "base" | "bsc",
+  chain?: "solana" | "base" | "bsc" | "ethereum" | "polygon",
   asset?: string
 ): bigint {
   return notes
