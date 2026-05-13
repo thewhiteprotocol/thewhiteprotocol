@@ -9,7 +9,7 @@ export function DevnetStatus() {
     <section id="devnet" className="py-24 px-4">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">Devnet Deployment</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">Testnet Deployment</h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
             The White Protocol is live on Solana Devnet and Base Sepolia for testing.
           </p>
@@ -127,8 +127,8 @@ export function DevnetStatus() {
               <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">Circuits</p>
             </div>
             <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] text-center">
-              <p className="text-2xl font-semibold text-white">466K+</p>
-              <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">Max Constraints</p>
+              <p className="text-2xl font-semibold text-white">Groth16</p>
+              <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">Proofs</p>
             </div>
             <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] text-center">
               <p className="text-2xl font-semibold text-white">20</p>
@@ -136,7 +136,7 @@ export function DevnetStatus() {
             </div>
             <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] text-center">
               <p className="text-2xl font-semibold text-white">1M</p>
-              <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">Capacity</p>
+              <p className="text-xs text-zinc-500 font-semibold uppercase mt-1">Testnet Capacity</p>
             </div>
           </div>
         </div>

@@ -1,8 +1,8 @@
-import { Github, Twitter, ExternalLink, Code, MessageCircle } from "lucide-react";
+import { Github, ExternalLink, Code, MessageCircle } from "lucide-react";
 
 const links = [
   { icon: Github, label: "GitHub", description: "View source code and contribute", href: "https://github.com/thewhiteprotocol" },
-  { icon: Twitter, label: "Twitter", description: "Follow for updates", href: "https://x.com/thewhiteprotocol" },
+  { icon: ExternalLink, label: "X", description: "Follow for updates", href: "https://x.com/thewhiteprotocol" },
   { icon: MessageCircle, label: "Telegram", description: "Join the community chat", href: "https://t.me/thewhiteprotocol" },
 ];
 
@@ -43,14 +43,14 @@ export function Links() {
         <div className="mt-12 flex justify-center">
           <div className="flex items-center gap-3 px-6 py-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
             <Code className="h-5 w-5 text-zinc-300" />
-            <span className="text-sm font-semibold text-white">100% Open Source Protocol</span>
+            <span className="text-sm font-semibold text-white">Open-source protocol</span>
           </div>
         </div>
 
         <div className="mt-16 text-center">
           <div className="inline-block p-6 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-            <p className="text-sm text-zinc-400">Built for on-chain privacy</p>
-            <p className="text-xs text-zinc-500 mt-2">2025 The White Protocol</p>
+            <p className="text-sm text-zinc-400">Open-source protocol • Local-first privacy • Built for stablecoin settlement</p>
+            <p className="text-xs text-zinc-500 mt-2">© 2026 The White Protocol</p>
           </div>
         </div>
       </div>

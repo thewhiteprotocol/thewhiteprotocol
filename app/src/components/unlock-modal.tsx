@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Shield, Loader2, Trash2 } from "lucide-react";
 
-const UNLOCK_MESSAGE = "Unlock White Protocol Shielded Wallet";
+const UNLOCK_MESSAGE = "Unlock White Protocol Local Vault";
 const STORAGE_PREFIX = "white_protocol_notes_v2";
 
 export function UnlockModal() {
@@ -62,7 +62,7 @@ export function UnlockModal() {
       window.dispatchEvent(new Event("white-protocol-notes-unlocked"));
       setOpen(false);
     } catch (err: any) {
-      setError(err.message || "Failed to unlock wallet");
+      setError(err.message || "Failed to unlock local vault");
       if (err?.message?.includes("DECRYPTION_FAILED")) {
         setHasStaleData(true);
       }
@@ -93,10 +93,10 @@ export function UnlockModal() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10">
             <Shield className="h-6 w-6 text-emerald-500" />
           </div>
-          <DialogTitle className="text-center text-xl">Unlock Shielded Wallet</DialogTitle>
+          <DialogTitle className="text-center text-xl">Unlock Local Vault</DialogTitle>
           <DialogDescription className="text-center text-zinc-400">
-            Sign a message to derive your local encryption key. This signature never leaves your
-            device.
+            Sign a message to derive your local encryption key. This unlocks encrypted private notes on this device.
+            No private note or wallet secret is sent to The White Protocol.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -117,10 +117,10 @@ export function UnlockModal() {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Unlocking...
+                Unlocking vault...
               </>
             ) : (
-              "Sign to Unlock"
+              "Sign to Unlock Vault"
             )}
           </Button>
           {hasStaleData && (
@@ -131,12 +131,11 @@ export function UnlockModal() {
               className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              Clear Local Data & Start Fresh
+              Clear Local Vault & Start Fresh
             </Button>
           )}
           <p className="text-center text-xs text-zinc-500">
-            Your notes are encrypted locally. If you clear browser data without a backup, your
-            shielded funds cannot be recovered.
+            Your private notes are encrypted locally. If you clear browser data without a backup, your shielded funds cannot be recovered.
           </p>
         </div>
       </DialogContent>

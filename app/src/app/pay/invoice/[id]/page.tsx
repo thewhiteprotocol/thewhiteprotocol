@@ -165,7 +165,7 @@ export default function PayInvoicePage() {
             )}
 
             <div className="text-center text-xs text-zinc-500">
-              Payments are processed privately using zero-knowledge proofs.
+              Payments are processed privately using zero-knowledge proofs on testnet.
             </div>
           </CardContent>
         </Card>

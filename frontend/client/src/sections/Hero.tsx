@@ -16,15 +16,13 @@ export function Hero() {
         <div className="flex justify-center mb-6">
           <div className="px-4 py-2 bg-white/[0.04] rounded-full border border-white/[0.08] flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
-            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Live on Solana Devnet + Base Sepolia</span>
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Testnet: Solana Devnet + Base Sepolia</span>
           </div>
         </div>
 
-        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 tracking-tight">The White Protocol</h1>
-        <p className="text-xl md:text-2xl text-zinc-300 font-medium mb-6">Multi-Chain Privacy Protocol</p>
+        <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 tracking-tight">Private Stablecoin Settlement</h1>
         <p className="text-lg text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-          Private transfers across Solana and Base using Groth16 zero-knowledge proofs.
-          Your secrets stay in your browser. Gasless withdrawals via our trust-minimized relayer.
+          Shield, send, withdraw, and account for stablecoins privately across public chains. Private notes stay local, ZK proofs protect transaction details, and relayers improve UX without taking custody.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
@@ -41,20 +39,20 @@ export function Hero() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-lg mx-auto">
           <div className="p-4 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-            <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">ZK Proofs</p>
-            <p className="text-sm font-bold text-white">Groth16</p>
+            <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Privacy</p>
+            <p className="text-sm font-bold text-white">ZK Proofs</p>
           </div>
           <div className="p-4 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-            <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Chains</p>
-            <p className="text-sm font-bold text-white">Solana + Base</p>
+            <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Networks</p>
+            <p className="text-sm font-bold text-white">Solana + Base Testnet</p>
           </div>
           <div className="p-4 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-            <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Security</p>
-            <p className="text-sm font-bold text-white">Client-Side</p>
+            <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Local-First</p>
+            <p className="text-sm font-bold text-white">Browser + Desktop Path</p>
           </div>
           <div className="p-4 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-            <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">License</p>
-            <p className="text-sm font-bold text-emerald-400">Open Source</p>
+            <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-1">Receipts</p>
+            <p className="text-sm font-bold text-emerald-400">Audit Exports</p>
           </div>
         </div>
       </div>

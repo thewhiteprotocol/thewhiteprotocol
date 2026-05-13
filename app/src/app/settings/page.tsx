@@ -107,7 +107,7 @@ function RelayerCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Server className="h-5 w-5 text-zinc-400" />
-          Relayer
+          Relayer &amp; Network
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -170,7 +170,7 @@ function BackupCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Download className="h-5 w-5 text-emerald-400" />
-          Backup Notes
+          Backup Private Notes
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -180,7 +180,7 @@ function BackupCard() {
         <div className="flex flex-wrap gap-2">
           <Button onClick={handleExport} disabled={busy} className="bg-emerald-600 hover:bg-emerald-700">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Export Encrypted Notes
+            Export Encrypted Backup
           </Button>
           <Button
             onClick={async () => {
@@ -200,7 +200,7 @@ function BackupCard() {
             className="border-white/10 hover:bg-white/[0.03]"
           >
             <Download className="mr-2 h-4 w-4" />
-            Download All Notes (Plaintext)
+            Download Notes (Plaintext — Advanced)
           </Button>
         </div>
       </CardContent>
@@ -349,7 +349,7 @@ function ComplianceCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <ShieldAlert className="h-5 w-5 text-amber-400" />
-          Compliance Report
+          Compliance &amp; Audit Export
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -436,7 +436,7 @@ function StealthAddressCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <ShieldAlert className="h-5 w-5 text-emerald-400" />
-          Stealth Address
+          Stealth Receiving
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -497,7 +497,7 @@ function DangerZoneCard() {
         localStorage.removeItem(key);
       }
     }
-    alert("All local note data has been cleared");
+    alert("Local vault data has been cleared");
     window.location.reload();
   }
 
@@ -509,7 +509,7 @@ function DangerZoneCard() {
       <CardContent className="space-y-4">
         <Button variant="destructive" className="w-full" onClick={clearData}>
           <Trash2 className="mr-2 h-4 w-4" />
-          Clear All Local Data
+          Clear Local Vault
         </Button>
         <p className="text-xs text-zinc-500">
           This will delete all encrypted notes from your browser. Make sure you have a backup.

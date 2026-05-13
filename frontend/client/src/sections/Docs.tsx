@@ -5,27 +5,27 @@ const docs = [
   {
     icon: Book,
     title: "Getting Started",
-    content: "The White Protocol is a multi-chain privacy protocol. Connect your wallet at app.thewhiteprotocol.com, deposit tokens into the shielded pool, and withdraw privately to any address. All user data — notes, invoices, and receipts — is encrypted with AES-GCM and stored locally in your browser.",
+    content: "The White Protocol is privacy-preserving stablecoin settlement infrastructure. Connect your wallet at app.thewhiteprotocol.com, deposit tokens into the shielded pool, and withdraw privately to any address. All user data — private notes, invoices, and receipts — is encrypted with AES-GCM and stored locally in your browser.",
   },
   {
     icon: Lock,
     title: "How Privacy Works",
-    content: "When you deposit, your tokens enter a shared pool and you receive a cryptographic note. This note proves ownership without revealing which deposit is yours. When withdrawing, a Groth16 zero-knowledge proof is generated in your browser to verify your claim without ever linking it to the original deposit.",
+    content: "When you deposit, your tokens enter a shared pool and you receive a cryptographic private note. This note proves ownership without revealing which deposit is yours. When withdrawing, a Groth16 zero-knowledge proof is generated in your browser to verify your claim without ever linking it to the original deposit.",
   },
   {
     icon: Zap,
     title: "Deposit Flow",
-    content: "1. Choose amount and token\n2. Approve token transfer in your wallet\n3. Generate commitment (client-side)\n4. Submit to the privacy pool\n5. Save your encrypted note\n\nDeposits go to a pending buffer and are batched into the Merkle tree by the sequencer.",
+    content: "1. Choose amount and token\n2. Approve token transfer in your wallet\n3. Generate commitment (client-side)\n4. Submit to the shielded pool\n5. Save your encrypted private note\n\nDeposits go to a pending buffer and are batched into the Merkle tree by the sequencer.",
   },
   {
     icon: Shield,
     title: "Withdraw Flow",
-    content: "1. Select a settled note\n2. Enter recipient address\n3. Generate ZK proof in-browser (30-60 seconds)\n4. Submit via relayer for gasless withdrawal\n5. Receive tokens privately\n\nIf the relayer is unavailable, you can still withdraw directly on-chain.",
+    content: "1. Select a settled private note\n2. Enter recipient address\n3. Generate ZK proof in-browser (30-60 seconds)\n4. Submit via relayer for gasless withdrawal\n5. Receive tokens privately\n\nIf the relayer is unavailable, you can still withdraw directly on-chain.",
   },
   {
     icon: Coins,
-    title: "Business Tier",
-    content: "Upgrade to Business to unlock:\n\n• Private invoicing with branded payment links\n• Automatic PDF receipt generation\n• Accounting exports (QuickBooks, Xero, CSV)\n• Public pay pages that settle privately\n\nPerfect for freelancers, agencies, and crypto-native businesses.",
+    title: "Business Workflows",
+    content: "The White Protocol supports:\n\n• Private invoicing with shielded payment links\n• Automatic PDF receipt generation\n• Accounting exports (QuickBooks, Xero, CSV)\n• Public pay pages that settle privately\n\nPerfect for freelancers, agencies, and crypto-native businesses.",
   },
   {
     icon: RefreshCw,

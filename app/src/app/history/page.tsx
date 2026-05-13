@@ -102,8 +102,8 @@ export default function HistoryPage() {
         className="mx-auto max-w-5xl space-y-6"
       >
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Transaction History</h1>
-          <p className="text-zinc-400">All your private transactions in one place.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Private Transaction History</h1>
+          <p className="text-zinc-400">All shielded deposits, withdrawals, private payments, invoices, and receipts in one place.</p>
         </div>
         <Card className="glass-card border-white/10">
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -125,8 +125,8 @@ export default function HistoryPage() {
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Transaction History</h1>
-          <p className="text-zinc-400">All your private transactions in one place.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Private Transaction History</h1>
+          <p className="text-zinc-400">All shielded deposits, withdrawals, private payments, invoices, and receipts in one place.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={handleExportCSV}>

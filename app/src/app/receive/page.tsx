@@ -101,8 +101,8 @@ export default function ReceivePage() {
         className="mx-auto max-w-2xl space-y-6"
       >
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">Receive Payment</h1>
-          <p className="text-zinc-400">Generate a QR code or payment link to receive funds privately.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Receive Privately</h1>
+          <p className="text-zinc-400">Generate a private payment request or stealth address.</p>
         </div>
         <Card className="glass-card border-white/10">
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -123,8 +123,8 @@ export default function ReceivePage() {
       className="mx-auto max-w-2xl space-y-6"
     >
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Receive Payment</h1>
-        <p className="text-zinc-400">Generate a QR code or payment link to receive funds privately.</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Receive Privately</h1>
+        <p className="text-zinc-400">Generate a private payment request or stealth address.</p>
       </div>
 
       <StealthAddressCard />
@@ -275,7 +275,7 @@ function StealthAddressCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-          <p className="text-xs text-zinc-500">Your Meta-Address (share this to receive stealth payments)</p>
+          <p className="text-xs text-zinc-500">Your meta-address — share this to receive private payments.</p>
           <p className="break-all font-mono text-xs text-zinc-300">{metaAddress}</p>
         </div>
         <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/[0.03]" onClick={copyMetaAddress}>

@@ -273,8 +273,8 @@ export default function ProtocolFlowVisualizer() {
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-[300px]">
-              <div className="text-lg font-bold text-white">The White Protocol Privacy Protocol Flow</div>
-              <div className="text-sm text-zinc-400">Groth16 (BN254), Poseidon Merkle, circom/snarkjs, Multi-chain verification</div>
+              <div className="text-lg font-bold text-white">The White Protocol — Private Settlement Flow</div>
+              <div className="text-sm text-zinc-400">Groth16 (BN254), Poseidon Merkle, Circom/snarkjs, Multi-chain verification</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {[
@@ -322,11 +322,11 @@ export default function ProtocolFlowVisualizer() {
             <AnimatedPath d={fromPoolPath} active={mode === "withdraw" && withdrawStep >= 5} color={COLORS.withdraw} duration={1.1 / speed} dashed />
 
             <NodeBox x={nodes.user.x} y={nodes.user.y} w={nodes.user.w} h={nodes.user.h} title="User" subtitle={mode === "deposit" ? "secret, nullifier, amount" : mode === "withdraw" ? "secret, nullifier, path" : "inputs and witness"} color={mode === "withdraw" ? COLORS.withdraw : COLORS.deposit} active={active.user} tag="INPUT" onHover={() => tip("User Inputs", "Deposit: commitment = Poseidon(secret, nullifier, amount). Withdrawal: prove membership without revealing commitment.")} onLeave={hideTip} onMove={moveTip} />
-            <NodeBox x={nodes.poseidon.x} y={nodes.poseidon.y} w={nodes.poseidon.w} h={nodes.poseidon.h} title="Poseidon Hash" subtitle={mode === "withdraw" ? `nullifier = ${fmtHash("0x2d4d9aa7...")}` : `commit = ${fmtHash(base.deposit.commitment)}`} color={mode === "withdraw" ? COLORS.withdraw : COLORS.deposit} active={active.poseidon} tag="HASH" onHover={() => tip("Poseidon Hash", "ZK-friendly hash for commitments and Merkle tree.")} onLeave={hideTip} onMove={moveTip} />
-            <NodeBox x={nodes.circuit.x} y={nodes.circuit.y} w={nodes.circuit.w} h={nodes.circuit.h} title="circom Circuit" subtitle={mode === "deposit" ? "commitment constraints" : mode === "withdraw" ? "membership constraints" : "Groth16 constraints"} color={COLORS.proof} active={active.circuit} tag="CIRCUIT" onHover={() => tip("circom Circuit", "Generates R1CS constraints for Groth16 proving.")} onLeave={hideTip} onMove={moveTip} />
-            <NodeBox x={nodes.prover.x} y={nodes.prover.y} w={nodes.prover.w} h={nodes.prover.h} title="snarkjs Prover" subtitle={mode === "withdraw" ? "withdrawal proof" : "deposit proof"} color={COLORS.proof} active={active.prover} tag="PROVE" onHover={() => tip("Groth16 Prover", "Generates proof {A,B,C} on BN254 curve.")} onLeave={hideTip} onMove={moveTip} />
-            <NodeBox x={nodes.solana.x} y={nodes.solana.y} w={nodes.solana.w} h={nodes.solana.h} title="Solana Program" subtitle="verify + update pool" color={COLORS.pool} active={active.solana} tag="VERIFY" onHover={() => tip("On-chain Verification", "Verifies Groth16 proof and updates Merkle tree or nullifier set.")} onLeave={hideTip} onMove={moveTip} />
-            <NodeBox x={nodes.spent.x} y={nodes.spent.y} w={nodes.spent.w} h={nodes.spent.h} title="Spent Nullifiers" subtitle="prevents double-spend" color={COLORS.withdraw} active={active.spent} tag="SET" onHover={() => tip("Nullifier Set", "Tracks spent notes to prevent double-spending.")} onLeave={hideTip} onMove={moveTip} />
+            <NodeBox x={nodes.poseidon.x} y={nodes.poseidon.y} w={nodes.poseidon.w} h={nodes.poseidon.h} title="Commitment Hash" subtitle={mode === "withdraw" ? `nullifier = ${fmtHash("0x2d4d9aa7...")}` : `commit = ${fmtHash(base.deposit.commitment)}`} color={mode === "withdraw" ? COLORS.withdraw : COLORS.deposit} active={active.poseidon} tag="HASH" onHover={() => tip("Commitment Hash", "ZK-friendly hash for commitments and Merkle tree.")} onLeave={hideTip} onMove={moveTip} />
+            <NodeBox x={nodes.circuit.x} y={nodes.circuit.y} w={nodes.circuit.w} h={nodes.circuit.h} title="Circom Circuit" subtitle={mode === "deposit" ? "commitment constraints" : mode === "withdraw" ? "membership constraints" : "Groth16 constraints"} color={COLORS.proof} active={active.circuit} tag="CIRCUIT" onHover={() => tip("Circom Circuit", "Generates R1CS constraints for Groth16 proving.")} onLeave={hideTip} onMove={moveTip} />
+            <NodeBox x={nodes.prover.x} y={nodes.prover.y} w={nodes.prover.w} h={nodes.prover.h} title="Local Prover" subtitle={mode === "withdraw" ? "withdrawal proof" : "deposit proof"} color={COLORS.proof} active={active.prover} tag="PROVE" onHover={() => tip("Local Prover", "Generates proof {A,B,C} on BN254 curve.")} onLeave={hideTip} onMove={moveTip} />
+            <NodeBox x={nodes.solana.x} y={nodes.solana.y} w={nodes.solana.w} h={nodes.solana.h} title="On-chain Program" subtitle="verify + update pool" color={COLORS.pool} active={active.solana} tag="VERIFY" onHover={() => tip("On-chain Verification", "Verifies Groth16 proof and updates Merkle tree or nullifier set.")} onLeave={hideTip} onMove={moveTip} />
+            <NodeBox x={nodes.spent.x} y={nodes.spent.y} w={nodes.spent.w} h={nodes.spent.h} title="Nullifier Registry" subtitle="prevents double-spend" color={COLORS.withdraw} active={active.spent} tag="SET" onHover={() => tip("Nullifier Registry", "Tracks spent notes to prevent double-spending.")} onLeave={hideTip} onMove={moveTip} />
 
             <ECPoints x={420} y={380} visible={showProof} tint={COLORS.proof} />
 
@@ -343,7 +343,7 @@ export default function ProtocolFlowVisualizer() {
 
             <motion.rect x={nodes.pool.x} y={nodes.pool.y} width={nodes.pool.w} height={nodes.pool.h} rx={22} fill={COLORS.card} stroke={active.pool ? COLORS.pool : "#c8ccd4"} strokeWidth={active.pool ? 2.5 : 1.25}
               initial={false} animate={{ filter: active.pool ? glow(COLORS.pool) : "none" }} transition={{ duration: 0.25 }} />
-            <text x={nodes.pool.x + 18} y={nodes.pool.y + 30} fill={COLORS.ink} fontFamily={MONO} fontSize={14} fontWeight="600">Shielded Pool (MASP)</text>
+            <text x={nodes.pool.x + 18} y={nodes.pool.y + 30} fill={COLORS.ink} fontFamily={MONO} fontSize={14} fontWeight="600">Shielded Pool</text>
             <text x={nodes.pool.x + 18} y={nodes.pool.y + 54} fill={COLORS.muted} fontFamily={MONO} fontSize={12}>Root: {fmtHash(root)} · Depth: {base.tree.depth} · Leaves: {commitments}</text>
             <text x={nodes.pool.x + 18} y={nodes.pool.y + 74} fill={COLORS.muted} fontFamily={MONO} fontSize={12}>TVL: {tvl.toFixed(2)} SOL · Assets: {base.pool.assets.length}</text>
 
@@ -404,7 +404,7 @@ export default function ProtocolFlowVisualizer() {
                               <g transform={`translate(${W/2}, 60)`}>
                                 <text textAnchor="middle" fill={COLORS.ink} fontFamily={MONO} fontSize={20} fontWeight="800">The White Protocol v2 SHIELDED POOL</text>
                                 <text y={20} textAnchor="middle" fill={COLORS.muted} fontFamily={MONO} fontSize={10} letterSpacing="1px">
-                                  BATCHED SETTLEMENT • YIELD BEARING • ZERO KNOWLEDGE
+                                  BATCHED SETTLEMENT • LOCAL PROOFS • ZERO KNOWLEDGE
                                 </text>
                               </g>
 

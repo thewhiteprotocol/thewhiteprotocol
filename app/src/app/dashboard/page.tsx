@@ -96,8 +96,8 @@ export default function DashboardPage() {
       className="mx-auto max-w-6xl space-y-6"
     >
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Shielded Balance Dashboard</h1>
-        <p className="text-zinc-400">Your private assets across Solana and Base.</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Shielded Stablecoin Dashboard</h1>
+        <p className="text-zinc-400">Your private stablecoin activity across supported testnet networks.</p>
       </div>
 
       {!isConnected ? (
@@ -211,7 +211,7 @@ export default function DashboardPage() {
                 <Wallet className="h-12 w-12 text-zinc-600" />
                 <h3 className="mt-4 text-lg font-medium">No shielded assets yet</h3>
                 <p className="mt-1 max-w-sm text-sm text-zinc-400">
-                  Deposit assets to get started with private payments.
+                  Deposit stablecoins to start using private payments.
                 </p>
                 <Link href="/shield" className="mt-4">
                   <Button className="bg-emerald-600 hover:bg-emerald-700">Make First Deposit</Button>

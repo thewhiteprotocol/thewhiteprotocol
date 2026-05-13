@@ -144,8 +144,8 @@ export default function ShieldPage() {
       className="mx-auto max-w-6xl space-y-8"
     >
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-white">Deposit & Withdraw</h1>
-        <p className="text-zinc-400">Shield your assets into the privacy pool or withdraw them privately.</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-white">Shield & Withdraw</h1>
+        <p className="text-zinc-400">Deposit stablecoins into the shielded pool or withdraw privately to a recipient.</p>
       </div>
 
       {!isConnected ? (
@@ -363,7 +363,7 @@ function DepositTab({
         txHash: txHash || "",
       });
       showToast("Deposit submitted successfully", "success");
-      showToast("Note file auto-downloaded. Keep it safe — it's your only recovery backup!", "info");
+      showToast("Private note downloaded. Keep it safe — it is required to withdraw.", "info");
     } catch (err: any) {
       const msg = err?.message || "Deposit failed";
       if (msg.toLowerCase().includes("already been processed") || msg.toLowerCase().includes("already processed")) {
@@ -389,7 +389,7 @@ function DepositTab({
             </div>
             <div>
               <CardTitle className="text-lg text-white">Deposit</CardTitle>
-              <CardDescription className="text-zinc-400">Shield tokens into the privacy pool</CardDescription>
+              <CardDescription className="text-zinc-400">Shield stablecoins into the privacy pool</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -481,7 +481,7 @@ function DepositTab({
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
             <div className="flex items-center gap-2 text-amber-400">
               <ShieldCheck className="h-5 w-5" />
-              <span className="font-semibold text-sm">Save Your Note — Required to Withdraw</span>
+              <span className="font-semibold text-sm">Save your private note — required to withdraw</span>
             </div>
             <p className="text-xs text-amber-200/80">
               If you lose this note, you cannot recover your funds. Back it up now.
@@ -504,7 +504,7 @@ function DepositTab({
                     }}
                   >
                     <Copy className="mr-1.5 h-3.5 w-3.5" />
-                    Copy Note
+                    Copy Private Note
                   </Button>
                   <Button
                     size="sm"

@@ -3,13 +3,13 @@ import { Menu, X } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
 const navLinks = [
-  { label: "Overview", href: "#overview" },
-  { label: "Business", href: "#business" },
+  { label: "Product", href: "#overview" },
+  { label: "Console", href: "#console" },
   { label: "Protocol", href: "#protocol-flow" },
   { label: "Architecture", href: "#architecture" },
   { label: "Docs", href: "#docs" },
   { label: "Relayer", href: "#relayer" },
-  { label: "Devnet", href: "#devnet" },
+  { label: "Testnet", href: "#devnet" },
   { label: "Links", href: "#links" },
 ];
 

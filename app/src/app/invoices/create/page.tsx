@@ -256,7 +256,7 @@ export default function CreateInvoicePage() {
       <Dialog open={!!createdInvoice} onOpenChange={() => setCreatedInvoice(null)}>
         <DialogContent className="border-white/10 bg-zinc-950 text-white sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-center text-xl">Invoice Created!</DialogTitle>
+            <DialogTitle className="text-center text-xl">Invoice created</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4 text-center">
             <p className="text-zinc-400">

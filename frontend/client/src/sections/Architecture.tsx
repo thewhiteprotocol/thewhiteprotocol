@@ -3,23 +3,23 @@ import { Shield, Lock, Cpu, Database, Globe, Zap } from "lucide-react";
 const features = [
   {
     icon: Globe,
-    title: "Multi-Chain by Design",
-    description: "Deployed on Solana Devnet and Base Sepolia. Same privacy guarantees, adapted to each chain's architecture. One app, two ecosystems.",
+    title: "Multi-Chain Settlement",
+    description: "Designed for Solana, Ethereum, Base, BNB Chain, and Polygon, with TRON on the roadmap.",
   },
   {
     icon: Lock,
-    title: "Client-Side Proof Generation",
-    description: "Your secret and nullifier never leave the browser. Groth16 ZK proofs are generated locally and only public signals are sent to the relayer.",
+    title: "Local Proof Generation",
+    description: "Proof inputs and private notes stay local in the browser today and in White Console for desktop workflows.",
   },
   {
     icon: Cpu,
-    title: "Cryptographic Stack",
-    description: "Poseidon hashes for commitments, Keccak256 for Merkle trees on Base, Groth16 on BN254. Verification keys stored and checked on-chain.",
+    title: "Cryptographic Core",
+    description: "Groth16 proofs, commitments, nullifiers, and Merkle roots protect private settlement flows.",
   },
   {
     icon: Zap,
-    title: "Gasless Relayer",
-    description: "The relayer submits withdrawal transactions and pays the gas. Users enjoy private withdrawals without holding native tokens for fees.",
+    title: "Relayer + Sequencer Network",
+    description: "Relayers improve withdrawal UX while sequencers batch settlement updates.",
   },
 ];
 
@@ -32,7 +32,7 @@ export function Architecture() {
             Architecture
           </h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            Technical foundations built for scale, security, and cross-chain interoperability.
+            Local-first privacy infrastructure for stablecoin settlement.
           </p>
         </div>
 
@@ -61,16 +61,16 @@ export function Architecture() {
 
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-8">
           <h3 className="text-xl font-semibold text-white mb-6">Technical Stack</h3>
-          
-          <div className="grid md:grid-cols-2 gap-8">
+
+          <div className="grid md:grid-cols-3 gap-8">
             <div>
               <h4 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
-                Core Features
+                Product Layer
               </h4>
               <div className="space-y-3">
                 {[
-                  "Deposit SPL or ERC-20 tokens into a privacy pool",
-                  "Send and receive privately across chains",
+                  "Shield stablecoins into a shared pool",
+                  "Send and receive private payments",
                   "Withdraw to any wallet via relayer or direct",
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
@@ -83,13 +83,31 @@ export function Architecture() {
             
             <div>
               <h4 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
-                Cryptographic Stack
+                Protocol Layer
               </h4>
               <div className="space-y-3">
                 {[
+                  "Groth16 proofs on BN254 curve",
                   "Poseidon hash for commitments",
-                  "Groth16 on BN254 curve",
                   "20-level Merkle tree (~1M capacity)",
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-500"></div>
+                    <span className="text-sm text-zinc-300">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
+                Infrastructure Layer
+              </h4>
+              <div className="space-y-3">
+                {[
+                  "Off-chain sequencer for batch settlement",
+                  "Relayer network for gasless UX",
+                  "Compliance receipts and accounting exports",
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
                     <div className="w-1.5 h-1.5 rounded-full bg-zinc-500"></div>

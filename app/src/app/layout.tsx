@@ -19,21 +19,21 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "The White Protocol | Multi-Chain Privacy",
+  title: "The White Protocol | Private Stablecoin Settlement",
   description:
-    "The White Protocol is a multi-chain privacy protocol enabling confidential transfers on Solana and Base via zero-knowledge proofs.",
-  keywords: ["privacy", "zkp", "solana", "base", "crypto", "shielded", "anonymous payments"],
+    "The White Protocol is privacy-preserving stablecoin settlement infrastructure for individuals, companies, and financial teams. Shield, send, withdraw, and account for stablecoins privately using ZK proofs on testnet.",
+  keywords: ["privacy", "zkp", "solana", "base", "crypto", "shielded", "stablecoin settlement"],
   authors: [{ name: "The White Protocol" }],
   openGraph: {
-    title: "The White Protocol | Multi-Chain Privacy",
-    description: "Private payments, shielded balances, and multi-chain ZK privacy on Solana and Base.",
+    title: "The White Protocol | Private Stablecoin Settlement",
+    description: "Private stablecoin payments, shielded balances, and multi-chain ZK settlement on Solana and Base.",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "The White Protocol | Multi-Chain Privacy",
-    description: "Private payments, shielded balances, and multi-chain ZK privacy on Solana and Base.",
+    title: "The White Protocol | Private Stablecoin Settlement",
+    description: "Private stablecoin payments, shielded balances, and multi-chain ZK settlement on Solana and Base.",
   },
 };
 

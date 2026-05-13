@@ -1,25 +1,25 @@
-import { FileText, Receipt, Download, Users, ArrowRight, Shield } from "lucide-react";
+import { FileText, Receipt, Download, Users, ArrowRight, Shield, Monitor } from "lucide-react";
 
 const features = [
   {
+    icon: Shield,
+    title: "Private Payments",
+    description: "Send and receive stablecoins privately using shielded notes and zero-knowledge proofs.",
+  },
+  {
     icon: FileText,
-    title: "Private Invoicing",
-    description: "Create branded invoices with shielded payment links. Your clients pay privately—no public transaction history.",
+    title: "Invoices & Payment Links",
+    description: "Create private payment requests that customers or counterparties can pay through The White Protocol.",
   },
   {
     icon: Receipt,
-    title: "Auto-Receipts",
-    description: "Every deposit, withdrawal, and payment automatically generates a PDF receipt for your records.",
+    title: "Receipts & Accounting Exports",
+    description: "Generate receipts, CSV exports, PDF statements, and accounting-ready records for internal reporting.",
   },
   {
-    icon: Download,
-    title: "Accounting Exports",
-    description: "Export CSVs formatted for QuickBooks, Xero, and your accountant. Save hours at tax time.",
-  },
-  {
-    icon: Shield,
-    title: "Shielded Transactions",
-    description: "Deposit, withdraw, and transfer with zero-knowledge proofs. Your balances stay private.",
+    icon: Monitor,
+    title: "White Console",
+    description: "A local desktop app layer for encrypted notes, local proof generation, compliance exports, and enterprise workflows.",
   },
 ];
 
@@ -30,13 +30,13 @@ export function ForBusiness() {
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-zinc-300 text-xs font-semibold uppercase tracking-wider mb-4">
             <Users className="w-3.5 h-3.5" />
-            For Teams
+            For Individuals, Teams & Companies
           </div>
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">
-            All Features. Free. No Tiers.
+            Private payments for users. Local controls and accounting workflows for businesses.
           </h2>
           <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-            Invoicing, receipts, exports, and shielded transactions — every tool is available to everyone. No upgrade required.
+            The White Protocol combines shielded stablecoin transfers, invoices, receipts, exports, and a desktop-console path for teams that cannot expose treasury metadata in a hosted dashboard.
           </p>
         </div>
 
@@ -55,16 +55,25 @@ export function ForBusiness() {
           ))}
         </div>
 
-        <div className="mt-12 text-center">
+        <div className="mt-12 text-center flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
             href={import.meta.env.VITE_APP_URL || "https://app.thewhiteprotocol.com"}
             className="inline-flex items-center gap-2 px-6 py-3 bg-white text-black font-semibold rounded-xl hover:bg-zinc-200 transition-all"
           >
-            Start Free
+            Launch Testnet App
             <ArrowRight className="w-4 h-4" />
           </a>
-          <p className="mt-3 text-xs text-zinc-500">Free on testnet. Mainnet coming soon.</p>
+          <button
+            onClick={() => {
+              const el = document.getElementById("console");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-white/[0.04] rounded-xl border border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06] active:bg-white/[0.08] transition-all text-zinc-300 font-semibold"
+          >
+            Explore White Console
+          </button>
         </div>
+        <p className="mt-3 text-xs text-zinc-500 text-center">Testnet only. Mainnet and enterprise deployments are on the roadmap.</p>
       </div>
     </section>
   );

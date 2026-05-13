@@ -106,8 +106,7 @@ function renderInvoiceHTML(invoice: Invoice): HTMLElement {
       </div>
 
       <div style="text-align:center;color:#9ca3af;font-size:12px">
-        Payment via The White Protocol — Private & Secure<br/>
-        Powered by zero-knowledge proofs
+        Payment via The White Protocol — Private Stablecoin Settlement
       </div>
     </div>
   `;

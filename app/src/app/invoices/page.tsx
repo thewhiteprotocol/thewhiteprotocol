@@ -75,8 +75,8 @@ export default function InvoicesPage() {
     <div className="mx-auto max-w-5xl space-y-6 py-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Invoices</h1>
-          <p className="text-sm text-zinc-400">Create and manage private payment invoices.</p>
+          <h1 className="text-2xl font-bold text-white">Private Invoices</h1>
+          <p className="text-sm text-zinc-400">Create and manage payment invoices that can be settled through The White Protocol.</p>
         </div>
         <Link href="/invoices/create">
           <Button className="bg-emerald-600 hover:bg-emerald-700">
@@ -97,7 +97,7 @@ export default function InvoicesPage() {
           />
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {(["all", "draft", "sent", "paid", "expired"] as FilterStatus[]).map((f) => (
+          {(["all", "draft", "sent", "paid", "expired", "cancelled"] as FilterStatus[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}

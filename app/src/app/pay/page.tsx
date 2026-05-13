@@ -141,8 +141,8 @@ function PaymentCard({ parsed }: { parsed: PaymentRequest }) {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
               <CheckCircle2 className="h-8 w-8 text-emerald-500" />
             </div>
-            <h3 className="mt-4 text-xl font-semibold">Payment Sent!</h3>
-            <p className="mt-1 text-sm text-zinc-400">The recipient can now claim their funds.</p>
+            <h3 className="mt-4 text-xl font-semibold">Payment Sent</h3>
+            <p className="mt-1 text-sm text-zinc-400">The recipient can now claim or receive funds privately.</p>
             {txHash && (
               <a
                 href={`${CHAINS[parsed.chain].blockExplorerUrl}/tx/${txHash}`}
@@ -167,7 +167,7 @@ function PaymentCard({ parsed }: { parsed: PaymentRequest }) {
     >
       <Card className="glass-card w-full border-white/10">
         <CardHeader>
-          <CardTitle className="text-center text-lg">Pay {parsed.asset}</CardTitle>
+          <CardTitle className="text-center text-lg">Pay with The White Protocol</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="text-center">

@@ -41,7 +41,7 @@ export default function SendPage() {
     >
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Private Payment</h1>
-        <p className="text-zinc-400">Send funds privately to any recipient.</p>
+        <p className="text-zinc-400">Send stablecoins privately to a recipient using shielded notes and zero-knowledge proofs.</p>
       </div>
 
       {!isConnected ? (
@@ -182,7 +182,7 @@ function PaymentForm() {
             </TabsTrigger>
             <TabsTrigger value="stealth" className="data-[state=active]:bg-white/10">
               <Eye className="mr-2 h-4 w-4" />
-              Stealth
+              Stealth Address
             </TabsTrigger>
           </TabsList>
 
@@ -350,8 +350,8 @@ function PaymentConfirm({ parsed, onReset }: { parsed: PaymentRequest; onReset: 
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
             <CheckCircle2 className="h-8 w-8 text-emerald-500" />
           </div>
-          <h3 className="mt-4 text-xl font-semibold">Payment Sent!</h3>
-          <p className="mt-1 text-sm text-zinc-400">The recipient can now claim their funds.</p>
+          <h3 className="mt-4 text-xl font-semibold">Payment sent</h3>
+          <p className="mt-1 text-sm text-zinc-400">The recipient can now receive funds privately.</p>
           {txHash && (
             <a
               href={`${CHAINS[parsed.chain].blockExplorerUrl}/tx/${txHash}`}
@@ -373,7 +373,7 @@ function PaymentConfirm({ parsed, onReset }: { parsed: PaymentRequest; onReset: 
   return (
     <Card className="glass-card border-white/10">
       <CardHeader>
-        <CardTitle className="text-lg">Confirm Payment</CardTitle>
+        <CardTitle className="text-lg">Confirm Private Payment</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {parsed.isMetaAddress && (
@@ -429,7 +429,7 @@ function PaymentConfirm({ parsed, onReset }: { parsed: PaymentRequest; onReset: 
             ) : (
               <>
                 <ArrowRight className="mr-2 h-4 w-4" />
-                Pay
+                Send Payment
               </>
             )}
           </Button>

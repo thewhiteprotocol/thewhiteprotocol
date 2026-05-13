@@ -321,7 +321,7 @@ export default function DepositWithdrawUI() {
       setStatus('SETTLED');
       setAmount('');
       await fetchBalances();
-      toast({ variant: "success", title: "Deposit Successful! 🎉", description: <span>Note auto-downloaded. <a href={`https://explorer.solana.com/tx/${signature}?cluster=devnet`} target="_blank" rel="noopener" className="underline text-blue-500">View TX ↗</a></span> });
+      toast({ variant: "success", title: "Deposit submitted", description: <span>Private note downloaded. Keep it safe — it is required to withdraw. <a href={`https://explorer.solana.com/tx/${signature}?cluster=devnet`} target="_blank" rel="noopener" className="underline text-blue-500">View TX ↗</a></span> });
     } catch (error: any) {
       console.error('[Deposit] Error:', error);
       setStatus('IDLE');
@@ -436,7 +436,7 @@ export default function DepositWithdrawUI() {
       setSelectedNote(null);
       setWithdrawAmount('');
       await fetchBalances();
-      toast({ variant: "success", title: "Withdrawal Successful! 🎉", description: <span>Funds received! <a href={`https://explorer.solana.com/tx/${result.signature}?cluster=devnet`} target="_blank" rel="noopener" className="underline text-blue-500">View TX ↗</a></span> });
+      toast({ variant: "success", title: "Withdrawal submitted successfully", description: <span>Funds received! <a href={`https://explorer.solana.com/tx/${result.signature}?cluster=devnet`} target="_blank" rel="noopener" className="underline text-blue-500">View TX ↗</a></span> });
     } catch (error: any) {
       console.error('[Withdraw] Error:', error);
       setStatus('IDLE');
@@ -697,12 +697,12 @@ export default function DepositWithdrawUI() {
 
         <div className="relative z-10">
           <h2 className="text-2xl font-bold text-slate-200 mb-1 text-center">
-            {activeTab === 'deposit' ? 'Shield Assets' : 'Private Withdraw'}
+            {activeTab === 'deposit' ? 'Shield Stablecoins' : 'Withdraw Privately'}
           </h2>
           <div className="flex justify-center items-center gap-2 mb-6 opacity-60">
             <Lock size={12} className="text-slate-500" />
             <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              {activeTab === 'deposit' ? 'Groth16 ZK Proof' : 'Unlinkable Transfer'}
+              {activeTab === 'deposit' ? 'Groth16 ZK Proof' : 'Private Transfer'}
             </span>
           </div>
 
@@ -739,7 +739,7 @@ export default function DepositWithdrawUI() {
                 {amount && parseFloat(amount) >= 0.001 && (
                   <div className="flex items-start gap-2 text-[11px] leading-tight text-amber-400/70">
                     <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                    <span>Note file will <strong>auto-download</strong> after deposit. Keep it safe - you need it to withdraw!</span>
+                    <span>Your private note will <strong>auto-download</strong> after deposit. Keep it safe — you need it to withdraw!</span>
                   </div>
                 )}
                 {amount && parseFloat(amount) > 0 && parseFloat(amount) < 0.001 && (
@@ -764,7 +764,7 @@ export default function DepositWithdrawUI() {
               {/* Import Note */}
               <div className="mb-4">
                 <div className="px-2 mb-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Import Note File</span>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Import Private Note</span>
                 </div>
                 <div className="relative">
                   <input type="file" accept=".json" onChange={importNote} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" disabled={isProcessing} />
@@ -779,7 +779,7 @@ export default function DepositWithdrawUI() {
               {notes.length > 0 && (
                 <div className="mb-4">
                   <div className="px-2 mb-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Note ({notes.length})</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Private Note ({notes.length})</span>
                   </div>
                   <div className="space-y-2 max-h-36 overflow-y-auto">
                     {notes.map(note => (
@@ -918,9 +918,9 @@ export default function DepositWithdrawUI() {
             {isProcessing ? (
               <><Loader2 className="animate-spin" size={20} /> Processing...</>
             ) : activeTab === 'deposit' ? (
-              <>Deposit <ArrowRight size={20} /></>
+              <>Shield <ArrowRight size={20} /></>
             ) : (
-              <>{recipient ? 'Transfer Private' : 'Withdraw'} <Send size={20} /></>
+              <>{recipient ? 'Send Privately' : 'Withdraw'} <Send size={20} /></>
             )}
           </button>
           

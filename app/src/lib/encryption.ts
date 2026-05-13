@@ -120,7 +120,7 @@ export async function decryptData<T>(store: EncryptedStore): Promise<T> {
     // Distinguish decryption failures from other errors so callers can
     // show helpful UI instead of silently showing empty history.
     throw new Error(
-      "DECRYPTION_FAILED: Unable to decrypt notes. " +
+      "DECRYPTION_FAILED: Unable to decrypt private notes. " +
       "This usually means your wallet produced a different signature than before. " +
       "Try restoring from a backup, or ensure you are using the same wallet and chain."
     );

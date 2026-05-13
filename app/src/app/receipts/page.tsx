@@ -51,7 +51,7 @@ export default function ReceiptsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Receipts</h1>
-          <p className="text-sm text-zinc-400">Auto-generated receipts from your transactions.</p>
+          <p className="text-sm text-zinc-400">Auto-generated receipts for private payments, withdrawals, and invoice payments.</p>
         </div>
       </div>
 
@@ -59,7 +59,7 @@ export default function ReceiptsPage() {
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-12 text-center">
           <ReceiptIcon className="mx-auto h-10 w-10 text-zinc-600" />
           <p className="mt-4 text-zinc-400">No receipts yet.</p>
-          <p className="text-sm text-zinc-500">Business users get automatic receipts on every transaction.</p>
+          <p className="text-sm text-zinc-500">Receipts are generated after private payments, invoice payments, and exports.</p>
         </div>
       ) : (
         <div className="space-y-3">
