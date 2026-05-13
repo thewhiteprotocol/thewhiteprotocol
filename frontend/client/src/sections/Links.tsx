@@ -1,9 +1,8 @@
-import { Github, ExternalLink, Code, MessageCircle } from "lucide-react";
+import { Github, ExternalLink, Code } from "lucide-react";
 
 const links = [
   { icon: Github, label: "GitHub", description: "View source code and contribute", href: "https://github.com/thewhiteprotocol" },
-  { icon: ExternalLink, label: "X", description: "Follow for updates", href: "https://x.com/thewhiteprotocol" },
-  { icon: MessageCircle, label: "Telegram", description: "Join the community chat", href: "https://t.me/thewhiteprotocol" },
+  { icon: ExternalLink, label: "X", description: "Follow for updates", href: "https://x.com/TheWhite_prtcl" },
 ];
 
 export function Links() {
