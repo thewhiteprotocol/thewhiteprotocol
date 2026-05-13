@@ -87,7 +87,7 @@ const CHAIN_TO_RELAYER_NETWORK: Record<string, string> = {
   bsc: "bsc-testnet",
 };
 
-export function getRelayerEvmAddress(quote: RelayerQuote, chain: "base" | "bsc"): string | null {
+export function getRelayerEvmAddress(quote: RelayerQuote, chain: "base" | "bsc" | "ethereum" | "polygon"): string | null {
   const network = CHAIN_TO_RELAYER_NETWORK[chain];
   if (!network) return null;
   const fromMap = quote.relayer.evm?.[network];
