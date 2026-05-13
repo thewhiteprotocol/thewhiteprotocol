@@ -14,7 +14,7 @@ export function Links() {
           <p className="text-lg text-zinc-400">Connect with The White Protocol community</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
           {links.map((link) => (
             <a
               key={link.label}
