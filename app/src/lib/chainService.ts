@@ -710,7 +710,7 @@ export const bscChainService = new EvmChainService({
 });
 export const solanaChainService = new SolanaChainService();
 
-export function getEvmChainService(chain: "base" | "bsc" | "solana"): EvmChainService {
+export function getEvmChainService(chain: "base" | "bsc" | "solana" | "ethereum" | "polygon"): EvmChainService {
   if (chain === "solana") throw new Error("getEvmChainService does not support solana");
   return chain === "bsc" ? bscChainService : baseChainService;
 }
