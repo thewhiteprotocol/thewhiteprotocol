@@ -8,6 +8,7 @@ import {
   type BridgeMessageV1,
 } from '@thewhiteprotocol/core';
 import type { BridgeEventObservation, BridgeRouteConfig } from './types';
+import { BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE } from './base-to-solana-route';
 
 export interface HistoricalPaperEventFixture {
   label: string;
@@ -67,23 +68,6 @@ export function loadBaseToSolanaHistoricalPaperFixture(
       confirmations: Math.max(64, Number(raw.bridgeOutFinalityBlock) - Number(raw.bridgeOutBlockNumber)),
       sourceTxSucceeded: true,
     },
-    route: {
-      source: 'base-sepolia',
-      destination: 'solana-devnet',
-      enabled: true,
-      status: 'test-only',
-      signerSetVersion: 1,
-      assets: [
-        {
-          canonicalAssetId: message.canonicalAssetId,
-          sourceDecimals: 18,
-          destinationDecimals: 9,
-          normalizationMode: 'exact-decimal',
-          maxMessageAmount: 10_000_000_000n,
-          dailyCap: 10_000_000_000n,
-          capAmountUnits: 'destination',
-        },
-      ],
-    },
+    route: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE,
   };
 }

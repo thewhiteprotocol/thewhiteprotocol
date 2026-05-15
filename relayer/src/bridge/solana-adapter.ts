@@ -13,6 +13,7 @@ import { hashBridgeMessageV1, type BridgeMessageV1 } from '@thewhiteprotocol/cor
 import type {
   BridgeEventObservation,
   BridgeDestinationAdapter,
+  BridgeSolanaDestinationConfig,
 } from './types';
 
 /** Program ID for white-protocol (devnet). */
@@ -160,38 +161,266 @@ export interface AcceptBridgeV1MintAccounts {
   commitmentIndex: PublicKey;
 }
 
+export interface AcceptBridgeV1MintAccountMetasPreview {
+  name: keyof AcceptBridgeV1MintAccounts;
+  pubkey: string;
+  isSigner: boolean;
+  isWritable: boolean;
+}
+
+export type SolanaSubmitReadinessStatus =
+  | 'ready_for_operator_approval'
+  | 'blocked_placeholder_accounts'
+  | 'blocked_hash_mismatch'
+  | 'blocked_signer_set_mismatch'
+  | 'blocked_rpc_state'
+  | 'blocked_live_submit_not_implemented';
+
+export interface SolanaSubmitReadiness {
+  readyForOperatorApproval: boolean;
+  status: SolanaSubmitReadinessStatus;
+  reasons: string[];
+  checks: Record<string, 'pass' | 'fail' | 'unknown'>;
+}
+
+export interface SolanaInstructionPreview {
+  programId: string;
+  instruction: 'accept_bridge_v1_mint';
+  accounts: Record<keyof AcceptBridgeV1MintAccounts, string>;
+  accountMetas: AcceptBridgeV1MintAccountMetasPreview[];
+  sourceMessageHash?: string;
+  destinationMessageHash: string;
+  destinationCommitment: string;
+  computeBudget: string;
+  liveSubmissionImplemented: boolean;
+  readiness: SolanaSubmitReadiness;
+}
+
+export interface SolanaAccountInfoLike {
+  executable?: boolean;
+}
+
+export interface SolanaReadOnlyAccountProvider {
+  getAccountInfo(pubkey: PublicKey): Promise<SolanaAccountInfoLike | null>;
+}
+
+const PLACEHOLDER_ACCOUNT = '11111111111111111111111111111111';
+
+function asPublicKey(value: string, field: string): PublicKey {
+  try {
+    return new PublicKey(value);
+  } catch {
+    throw new Error(`Invalid Solana account for ${field}`);
+  }
+}
+
+function deriveOrConfigured(
+  configured: string | undefined,
+  derived: PublicKey,
+  field: string
+): PublicKey {
+  return configured ? asPublicKey(configured, field) : derived;
+}
+
 export function buildAcceptBridgeV1MintAccounts(
   message: BridgeMessageV1,
   poolConfig: PublicKey,
-  programId: PublicKey = WHITE_PROTOCOL_PROGRAM_ID
+  programId: PublicKey = WHITE_PROTOCOL_PROGRAM_ID,
+  options: {
+    signerSetVersion?: number;
+    destinationConfig?: BridgeSolanaDestinationConfig;
+    messageHash?: string;
+  } = {}
 ): AcceptBridgeV1MintAccounts {
-  const messageHashBytes = hexToBytes(hashBridgeMessageV1(message));
+  const messageHashBytes = hexToBytes(options.messageHash ?? hashBridgeMessageV1(message));
+  const signerSetVersion = options.destinationConfig?.signerSetVersion ??
+    options.signerSetVersion ??
+    1;
+  const bridgeV1Config = deriveBridgeV1ConfigPDA(programId);
+  const signerSet = deriveBridgeSignerSetPDA(signerSetVersion, programId);
+  const routeConfig = deriveBridgeRoutePDA(
+    message.sourceDomain,
+    message.destinationDomain,
+    programId
+  );
+  const assetConfig = deriveBridgeAssetPDA(
+    hexToBytes(message.canonicalAssetId),
+    programId
+  );
+  const pendingBuffer = derivePendingBufferPDA(poolConfig, programId);
 
   return {
-    caller: poolConfig, // placeholder — caller must be a signer
-    bridgeV1Config: deriveBridgeV1ConfigPDA(programId),
-    signerSet: deriveBridgeSignerSetPDA(1, programId),
-    consumedMessage: deriveConsumedMessagePDA(messageHashBytes, programId),
-    routeConfig: deriveBridgeRoutePDA(
-      message.sourceDomain,
-      message.destinationDomain,
-      programId
+    caller: options.destinationConfig?.caller
+      ? asPublicKey(options.destinationConfig.caller, 'caller')
+      : poolConfig,
+    bridgeV1Config: deriveOrConfigured(
+      options.destinationConfig?.bridgeV1Config,
+      bridgeV1Config,
+      'bridgeV1Config'
     ),
-    assetConfig: deriveBridgeAssetPDA(
-      hexToBytes(message.canonicalAssetId),
-      programId
+    signerSet: deriveOrConfigured(
+      options.destinationConfig?.signerSetPda,
+      signerSet,
+      'signerSet'
+    ),
+    consumedMessage: deriveConsumedMessagePDA(messageHashBytes, programId),
+    routeConfig: deriveOrConfigured(
+      options.destinationConfig?.routeConfig,
+      routeConfig,
+      'routeConfig'
+    ),
+    assetConfig: deriveOrConfigured(
+      options.destinationConfig?.assetConfig,
+      assetConfig,
+      'assetConfig'
     ),
     frozenMessage: deriveFrozenMessagePDA(messageHashBytes, programId),
-    poolConfig,
-    merkleTree: new PublicKey('11111111111111111111111111111111'), // placeholder
-    pendingBuffer: derivePendingBufferPDA(poolConfig, programId),
-    assetVault: new PublicKey('11111111111111111111111111111111'), // placeholder
+    poolConfig: options.destinationConfig?.poolConfig
+      ? asPublicKey(options.destinationConfig.poolConfig, 'poolConfig')
+      : poolConfig,
+    merkleTree: options.destinationConfig?.merkleTree
+      ? asPublicKey(options.destinationConfig.merkleTree, 'merkleTree')
+      : SystemProgram.programId,
+    pendingBuffer: deriveOrConfigured(
+      options.destinationConfig?.pendingBuffer,
+      pendingBuffer,
+      'pendingBuffer'
+    ),
+    assetVault: options.destinationConfig?.assetVault
+      ? asPublicKey(options.destinationConfig.assetVault, 'assetVault')
+      : SystemProgram.programId,
     commitmentIndex: deriveCommitmentIndexPDA(
       poolConfig,
       hexToBytes(message.destinationCommitment),
       programId
     ),
   };
+}
+
+export function buildAcceptBridgeV1MintAccountMetas(
+  accounts: AcceptBridgeV1MintAccounts
+): AcceptBridgeV1MintAccountMetasPreview[] {
+  return [
+    { name: 'caller', pubkey: accounts.caller.toBase58(), isSigner: true, isWritable: true },
+    { name: 'bridgeV1Config', pubkey: accounts.bridgeV1Config.toBase58(), isSigner: false, isWritable: false },
+    { name: 'signerSet', pubkey: accounts.signerSet.toBase58(), isSigner: false, isWritable: false },
+    { name: 'consumedMessage', pubkey: accounts.consumedMessage.toBase58(), isSigner: false, isWritable: true },
+    { name: 'routeConfig', pubkey: accounts.routeConfig.toBase58(), isSigner: false, isWritable: false },
+    { name: 'assetConfig', pubkey: accounts.assetConfig.toBase58(), isSigner: false, isWritable: false },
+    { name: 'frozenMessage', pubkey: accounts.frozenMessage.toBase58(), isSigner: false, isWritable: false },
+    { name: 'poolConfig', pubkey: accounts.poolConfig.toBase58(), isSigner: false, isWritable: true },
+    { name: 'merkleTree', pubkey: accounts.merkleTree.toBase58(), isSigner: false, isWritable: true },
+    { name: 'pendingBuffer', pubkey: accounts.pendingBuffer.toBase58(), isSigner: false, isWritable: true },
+    { name: 'assetVault', pubkey: accounts.assetVault.toBase58(), isSigner: false, isWritable: true },
+    { name: 'commitmentIndex', pubkey: accounts.commitmentIndex.toBase58(), isSigner: false, isWritable: true },
+  ];
+}
+
+export function evaluateSolanaSubmitReadiness(input: {
+  accounts: Record<string, string>;
+  sourceMessageHash?: string;
+  destinationMessageHash: string;
+  previewMessageHash: string;
+  signerSetVersion: number;
+  expectedSignerSetVersion?: number;
+  liveSubmissionImplemented: boolean;
+}): SolanaSubmitReadiness {
+  const checks: Record<string, 'pass' | 'fail' | 'unknown'> = {};
+  const reasons: string[] = [];
+  const placeholders = Object.entries(input.accounts)
+    .filter(([name, value]) => name !== 'caller' && value === PLACEHOLDER_ACCOUNT)
+    .map(([name]) => name);
+  checks.placeholderAccounts = placeholders.length === 0 ? 'pass' : 'fail';
+  if (placeholders.length > 0) reasons.push(`placeholder_accounts:${placeholders.join(',')}`);
+
+  checks.destinationHash = input.previewMessageHash.toLowerCase() === input.destinationMessageHash.toLowerCase()
+    ? 'pass'
+    : 'fail';
+  if (checks.destinationHash === 'fail') reasons.push('preview_message_hash_mismatch');
+
+  checks.sourceHashPreserved = input.sourceMessageHash ? 'pass' : 'unknown';
+
+  checks.signerSetVersion = input.expectedSignerSetVersion === undefined ||
+    input.signerSetVersion === input.expectedSignerSetVersion
+    ? 'pass'
+    : 'fail';
+  if (checks.signerSetVersion === 'fail') reasons.push('signer_set_version_mismatch');
+
+  checks.liveSubmissionImplemented = input.liveSubmissionImplemented ? 'pass' : 'fail';
+  if (!input.liveSubmissionImplemented) reasons.push('live_submit_not_implemented');
+
+  if (checks.placeholderAccounts === 'fail') {
+    return { readyForOperatorApproval: false, status: 'blocked_placeholder_accounts', reasons, checks };
+  }
+  if (checks.destinationHash === 'fail') {
+    return { readyForOperatorApproval: false, status: 'blocked_hash_mismatch', reasons, checks };
+  }
+  if (checks.signerSetVersion === 'fail') {
+    return { readyForOperatorApproval: false, status: 'blocked_signer_set_mismatch', reasons, checks };
+  }
+  if (!input.liveSubmissionImplemented) {
+    return { readyForOperatorApproval: false, status: 'blocked_live_submit_not_implemented', reasons, checks };
+  }
+  return { readyForOperatorApproval: true, status: 'ready_for_operator_approval', reasons, checks };
+}
+
+export async function runSolanaPreSubmitReadinessChecks(
+  accounts: AcceptBridgeV1MintAccounts,
+  provider: SolanaReadOnlyAccountProvider
+): Promise<SolanaSubmitReadiness> {
+  const checks: Record<string, 'pass' | 'fail' | 'unknown'> = {};
+  const reasons: string[] = [];
+
+  async function expectExists(name: keyof AcceptBridgeV1MintAccounts): Promise<void> {
+    try {
+      const account = await provider.getAccountInfo(accounts[name]);
+      checks[`${name}Exists`] = account ? 'pass' : 'fail';
+      if (!account) reasons.push(`${name}_missing`);
+    } catch {
+      checks[`${name}Exists`] = 'unknown';
+      reasons.push(`${name}_unknown`);
+    }
+  }
+
+  async function expectAbsent(name: keyof AcceptBridgeV1MintAccounts): Promise<void> {
+    try {
+      const account = await provider.getAccountInfo(accounts[name]);
+      checks[`${name}Absent`] = account ? 'fail' : 'pass';
+      if (account) reasons.push(`${name}_already_exists`);
+    } catch {
+      checks[`${name}Absent`] = 'unknown';
+      reasons.push(`${name}_unknown`);
+    }
+  }
+
+  try {
+    const program = await provider.getAccountInfo(WHITE_PROTOCOL_PROGRAM_ID);
+    checks.programExecutable = program?.executable ? 'pass' : 'fail';
+    if (!program?.executable) reasons.push('program_not_executable');
+  } catch {
+    checks.programExecutable = 'unknown';
+    reasons.push('program_unknown');
+  }
+
+  await expectExists('bridgeV1Config');
+  await expectExists('signerSet');
+  await expectExists('routeConfig');
+  await expectExists('assetConfig');
+  await expectExists('pendingBuffer');
+  await expectExists('poolConfig');
+  await expectExists('merkleTree');
+  await expectExists('assetVault');
+  await expectAbsent('consumedMessage');
+  await expectAbsent('frozenMessage');
+  await expectAbsent('commitmentIndex');
+
+  if (Object.values(checks).includes('unknown')) {
+    return { readyForOperatorApproval: false, status: 'blocked_rpc_state', reasons, checks };
+  }
+  if (reasons.length > 0) {
+    return { readyForOperatorApproval: false, status: 'blocked_rpc_state', reasons, checks };
+  }
+  return { readyForOperatorApproval: true, status: 'ready_for_operator_approval', reasons, checks };
 }
 
 // =============================================================================

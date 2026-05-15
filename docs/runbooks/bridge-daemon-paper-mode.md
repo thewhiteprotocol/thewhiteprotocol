@@ -184,6 +184,7 @@ Paper mode records a sanitized `submissionPreview` in bridge state:
 
 - EVM: `acceptBridgeMint` target, message hash, signer set version, signature count, route, and calldata preview text.
 - Solana: `accept_bridge_v1_mint` program, PDA account preview, compute-budget placeholder, and `liveSubmissionImplemented=false`.
+- Base Sepolia -> Solana Devnet previews must use the destination BridgeMint hash as `messageHash`, preserve the source BridgeOut hash as `sourceMessageHash`, use signer set version `2`, and include deployed Solana Devnet pool/tree/vault/buffer/config accounts. Any placeholder-account, hash, or signer-set mismatch blocks operator approval.
 
 Previews contain no private keys or raw env values.
 
@@ -231,6 +232,7 @@ Stop rollout and return to `BRIDGE_DAEMON_MODE=disabled` if:
 
 - Testnet only.
 - No live Solana submit implementation in PR-011G; Solana paper preview is implemented.
+- PR-011P removes Base -> Solana preview placeholder accounts and adds readiness checks, but still does not submit or serialize a live Solana transaction.
 - Live EVM submit remains gated and is not enabled by default.
 - No mainnet support.
 - KMS/HSM/MPC signer adapters remain placeholders.

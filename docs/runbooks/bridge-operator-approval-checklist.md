@@ -82,7 +82,10 @@ Use this checklist before approving any bridge daemon message for a future live-
 12. Dry-run preview reviewed
     - Submit preview method and target are correct.
     - Preview message hash is the destination BridgeMint hash intended for live submit.
+    - Source BridgeOut hash is preserved separately as source evidence.
     - Preview signer set version matches the destination signer set.
+    - Preview contains real destination accounts, not `11111111111111111111111111111111` placeholders.
+    - Preview readiness does not report `blocked_hash_mismatch`, `blocked_signer_set_mismatch`, or `blocked_placeholder_accounts`.
     - Preview has `dryRun=true`.
     - Preview has `liveSubmissionImplemented=true` only after the live submit adapter exists.
 
@@ -99,6 +102,7 @@ Do not approve live submission if any of these are true:
 - Preview message hash differs from the destination BridgeMint hash.
 - Preview signer set version differs from the deployed destination signer set intended for submission.
 - Preview contains placeholder system accounts where live accounts are required.
+- Read-only pre-submit checks cannot confirm required account existence/absence.
 - Source event, policy, finality, watcher, signer, or route evidence is missing.
 - Any private key, RPC secret, operator token, note secret, witness, or wallet file appears in the approval artifact.
 - Watcher has an open critical finding.

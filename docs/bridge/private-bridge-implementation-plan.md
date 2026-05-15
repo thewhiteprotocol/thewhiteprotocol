@@ -576,6 +576,22 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011P: Solana Destination Submit Adapter Readiness ✅ COMPLETE
+
+**Scope:**
+- Use destination BridgeMint hash for Solana preview and destination PDAs
+- Preserve source BridgeOut hash separately for audit
+- Use Base Sepolia -> Solana Devnet signer set version `2`
+- Replace placeholder Solana accounts with deployed Devnet account config
+- Add read-only pre-submit readiness checks
+- Keep live submission disabled
+
+**Deliverable:** Base Sepolia -> Solana Devnet paper preview now uses destination hash `0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56`, signer set PDA `7Emf7vYUY9mpkzBfnzWKJ4B9PNqqrMzr5wyuUc8ap4XK`, deployed PoolConfig/MerkleTree/AssetVault/PendingBuffer accounts, destination-hash consumed/frozen PDAs, and a readiness status. `liveSubmissionImplemented=false` remains intentional because this PR does not submit or serialize a live Solana transaction.
+
+**Next:** PR-011Q should build a full Solana `accept_bridge_v1_mint` transaction dry-run without sending it.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1

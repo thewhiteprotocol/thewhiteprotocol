@@ -47,6 +47,10 @@ export interface BridgeSignature {
 export interface BridgeMessageState {
   /** Canonical keccak256 hash of the BridgeMessageV1 */
   messageHash: string;
+  /** Source BridgeOut message hash when destination normalization changes the hash. */
+  sourceMessageHash?: string;
+  /** Destination BridgeMint message hash when built from a source BridgeOut. */
+  destinationMessageHash?: string;
   /** Source chain key (e.g. 'base-sepolia') */
   sourceChain: string;
   /** Destination chain key (e.g. 'ethereum-sepolia') */
@@ -168,6 +172,20 @@ export interface BridgeRouteAssetConfig {
 
 export type BridgeRouteStatus = 'live' | 'test-only' | 'disabled' | 'manual-review';
 
+export interface BridgeSolanaDestinationConfig {
+  programId: string;
+  bridgeV1Config: string;
+  signerSetVersion: number;
+  signerSetPda?: string;
+  routeConfig: string;
+  assetConfig: string;
+  poolConfig: string;
+  merkleTree: string;
+  pendingBuffer: string;
+  assetVault: string;
+  caller?: string;
+}
+
 // =============================================================================
 // Route Config
 // =============================================================================
@@ -189,6 +207,8 @@ export interface BridgeRouteConfig {
   maxFastPathAmount?: bigint;
   /** Optional manual-review threshold in destination-local units */
   manualReviewAmount?: bigint;
+  /** Non-secret Solana destination account config for submit preview/readiness. */
+  solanaDestination?: BridgeSolanaDestinationConfig;
 }
 
 // =============================================================================

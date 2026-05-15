@@ -24,10 +24,12 @@ import {
 } from '../types';
 import {
   BridgeMessageType,
+  buildDestinationBridgeMintMessageFromSourceBridgeOut,
   encodeBridgeMessageV1,
   hashBridgeMessageV1,
   type BridgeMessageV1,
 } from '@thewhiteprotocol/core';
+import { BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE } from '../base-to-solana-route';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
@@ -146,23 +148,7 @@ function evmRoute(destination = 'ethereum-sepolia'): BridgeRouteConfig {
 }
 
 function baseToSolanaRoute(): BridgeRouteConfig {
-  const message = makeBaseToSolanaMessage();
-  return {
-    source: 'base-sepolia',
-    destination: 'solana-devnet',
-    enabled: true,
-    signerSetVersion: 1,
-    assets: [
-      {
-        canonicalAssetId: message.canonicalAssetId,
-        sourceDecimals: 18,
-        destinationDecimals: 9,
-        normalizationMode: 'exact-decimal',
-        maxMessageAmount: 10_000_000_000n,
-        dailyCap: 10_000_000_000n,
-      },
-    ],
-  };
+  return BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE;
 }
 
 function solanaRoute(): BridgeRouteConfig {
@@ -541,6 +527,18 @@ describe('BridgeDaemon', () => {
   test('Solana submit preview is created for Base to Solana paper route', async () => {
     const { daemon, stateStore } = makeDaemon({ routes: [baseToSolanaRoute()] });
     const message = makeBaseToSolanaMessage();
+    const sourceHash = hashBridgeMessageV1(message);
+    const destinationMessage = buildDestinationBridgeMintMessageFromSourceBridgeOut({
+      sourceMessage: message,
+      destinationDomain: message.destinationDomain,
+      destinationChainId: message.destinationChainId,
+      destinationLocalAssetId: message.destinationLocalAssetId,
+      destinationCommitment: message.destinationCommitment,
+      sourceDecimals: 18,
+      destinationDecimals: 9,
+      normalizationMode: 'exact-decimal',
+    });
+    const destinationHash = hashBridgeMessageV1(destinationMessage);
     daemon.recordObservation({
       event: makeEvent(message),
       sourceChain: 'base-sepolia',
@@ -550,9 +548,26 @@ describe('BridgeDaemon', () => {
     await daemon.tick();
     const state = stateStore.list()[0];
     expect(state.status).toBe(BridgeMessageStatus.PAPER_READY_TO_SUBMIT);
+    expect(sourceHash).not.toBe(destinationHash);
+    expect(state.messageHash).toBe(destinationHash);
+    expect(state.sourceMessageHash).toBe(sourceHash);
+    expect(state.destinationMessageHash).toBe(destinationHash);
     expect(state.submissionPreview?.family).toBe('solana');
+    expect(state.submissionPreview?.messageHash).toBe(destinationHash);
+    expect(state.submissionPreview?.sourceMessageHash).toBe(sourceHash);
+    expect(state.signatureMetadata?.signerSetVersion).toBe(2);
+    expect(state.submissionPreview?.signerSetVersion).toBe(2);
     expect((state.submissionPreview?.solana as any).instruction).toBe('accept_bridge_v1_mint');
+    expect((state.submissionPreview?.solana as any).destinationMessageHash).toBe(destinationHash);
+    expect((state.submissionPreview?.solana as any).sourceMessageHash).toBe(sourceHash);
+    expect((state.submissionPreview?.solana as any).accounts.signerSet).toBe('7Emf7vYUY9mpkzBfnzWKJ4B9PNqqrMzr5wyuUc8ap4XK');
+    expect((state.submissionPreview?.solana as any).accounts.poolConfig).toBe('DZLJU6MAeWZ7aGLyt2j7Jq2XnNq2ch6jUAVgKmki9HaF');
+    expect((state.submissionPreview?.solana as any).accounts.merkleTree).toBe('7rNj4NVMyaNFSL9ius2hej2rpzk88d7spXrbYFchhnPi');
+    expect((state.submissionPreview?.solana as any).accounts.assetVault).toBe('4Wb17Qbxm74i4BNLZ6CejXtaijLFRSre5wWKAzwWkaXD');
+    expect((state.submissionPreview?.solana as any).accounts.pendingBuffer).toBe('9oEKYL8iD7mBdvPzrgtv8Q15QqAWUL9ycSGAkt5QT42s');
+    expect(Object.values((state.submissionPreview?.solana as any).accounts)).not.toContain('11111111111111111111111111111111');
     expect((state.submissionPreview?.solana as any).liveSubmissionImplemented).toBe(false);
+    expect((state.submissionPreview?.solana as any).readiness.status).toBe('blocked_live_submit_not_implemented');
   });
 
   test('Solana submit preview helper includes expected accounts', () => {
@@ -561,14 +576,26 @@ describe('BridgeDaemon', () => {
       destinationChain: 'solana-devnet',
       message,
       messageHash: hashBridgeMessageV1(message),
-      signerSetVersion: 1,
+      signerSetVersion: 2,
       signatureCount: 2,
       route: 'base-sepolia->solana-devnet',
       dryRun: true,
       wouldSubmit: true,
+      solanaDestination: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination,
     });
     expect(preview.solana?.accounts.consumedMessage).toBeTruthy();
     expect(preview.solana?.accounts.frozenMessage).toBeTruthy();
+    expect(preview.solana?.accounts.signerSet).toBe('7Emf7vYUY9mpkzBfnzWKJ4B9PNqqrMzr5wyuUc8ap4XK');
+  });
+
+  test('env route loads Base to Solana signer set and deployed account metadata', () => {
+    const config = loadBridgeDaemonConfigFromEnv({
+      BRIDGE_DAEMON_MODE: 'paper',
+      BRIDGE_DAEMON_ROUTES: 'base-sepolia:solana-devnet',
+    });
+    expect(config.routes[0].signerSetVersion).toBe(2);
+    expect(config.routes[0].assets?.[0].destinationDecimals).toBe(9);
+    expect(config.routes[0].solanaDestination?.poolConfig).toBe('DZLJU6MAeWZ7aGLyt2j7Jq2XnNq2ch6jUAVgKmki9HaF');
   });
 
   test('state persists transitions', async () => {

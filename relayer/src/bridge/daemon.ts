@@ -23,6 +23,7 @@ import {
   type BridgeRouteAssetConfig,
   type BridgeRouteConfig,
   type BridgeSignature,
+  type BridgeSolanaDestinationConfig,
   type BridgeSourceAdapter,
 } from './types';
 import { BridgeStateStore } from './state';
@@ -42,8 +43,11 @@ import {
 import { decodeBridgeMessageV1 } from './evm-adapter';
 import {
   WHITE_PROTOCOL_PROGRAM_ID,
+  evaluateSolanaSubmitReadiness,
   buildAcceptBridgeV1MintAccounts,
+  buildAcceptBridgeV1MintAccountMetas,
 } from './solana-adapter';
+import { BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE } from './base-to-solana-route';
 
 export type BridgeDaemonMode = 'disabled' | 'paper' | 'live-testnet';
 
@@ -58,6 +62,7 @@ export interface BridgeDaemonConfig {
   signerSetVersion: number;
   operatorApiToken?: string;
   solanaPoolConfig?: string;
+  solanaDestinations?: Record<string, BridgeSolanaDestinationConfig>;
   submitTargets?: Record<string, string>;
 }
 
@@ -73,6 +78,7 @@ export interface BridgeDaemonSubmitPreview {
   family: 'evm' | 'solana' | 'unknown';
   method: 'acceptBridgeMint' | 'accept_bridge_v1_mint';
   messageHash: string;
+  sourceMessageHash?: string;
   signerSetVersion: number;
   signatureCount: number;
   route: string;
@@ -87,13 +93,20 @@ export interface BridgeDaemonSubmitPreview {
     programId: string;
     instruction: 'accept_bridge_v1_mint';
     accounts: Record<string, string>;
+    accountMetas?: Array<Record<string, unknown>>;
+    sourceMessageHash?: string;
+    destinationMessageHash?: string;
+    destinationCommitment?: string;
     computeBudget: string;
-    liveSubmissionImplemented: false;
+    liveSubmissionImplemented: boolean;
+    readiness?: Record<string, unknown>;
   };
 }
 
 export interface BridgeDaemonMessageView {
   messageHash: string;
+  sourceMessageHash?: string;
+  destinationMessageHash?: string;
   sourceChain: string;
   destinationChain: string;
   status: BridgeMessageStatus;
@@ -224,13 +237,26 @@ function parseRoutes(raw: string | undefined, signerSetVersion: number): BridgeR
     .filter(Boolean)
     .map((segment) => {
       const [source, destination, version] = segment.split(':');
+      const defaultRoute = getDefaultDaemonRoute(source, destination);
+      const routeSignerSetVersion = version
+        ? parseInt(version, 10)
+        : defaultRoute?.signerSetVersion ?? signerSetVersion;
       return {
+        ...defaultRoute,
         source,
         destination,
         enabled: true,
-        signerSetVersion: parseInt(version || String(signerSetVersion), 10),
+        signerSetVersion: routeSignerSetVersion,
+        solanaDestination: defaultRoute?.solanaDestination,
       };
     });
+}
+
+function getDefaultDaemonRoute(source: string, destination: string): BridgeRouteConfig | undefined {
+  if (source === 'base-sepolia' && destination === 'solana-devnet') {
+    return BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE;
+  }
+  return undefined;
 }
 
 function parseSubmitTargets(raw: string | undefined): Record<string, string> {
@@ -288,6 +314,8 @@ function appendTransition(
 function makeMessageView(message: BridgeMessageState): BridgeDaemonMessageView {
   return {
     messageHash: message.messageHash,
+    sourceMessageHash: message.sourceMessageHash,
+    destinationMessageHash: message.destinationMessageHash,
     sourceChain: message.sourceChain,
     destinationChain: message.destinationChain,
     status: message.status,
@@ -329,6 +357,7 @@ export function loadBridgeDaemonConfigFromEnv(
     signerSetVersion,
     operatorApiToken: env.BRIDGE_OPERATOR_API_TOKEN,
     solanaPoolConfig: env.BRIDGE_SOLANA_POOL_CONFIG,
+    solanaDestinations: {},
     submitTargets: parseSubmitTargets(env.BRIDGE_DAEMON_SUBMIT_TARGETS),
   };
 }
@@ -369,22 +398,43 @@ export function buildSolanaSubmitPreview(input: {
   target?: string;
   message: BridgeMessageV1;
   messageHash: string;
+  sourceMessageHash?: string;
   signerSetVersion: number;
   signatureCount: number;
   route: string;
   dryRun: boolean;
   wouldSubmit: boolean;
   poolConfig?: string;
+  solanaDestination?: BridgeSolanaDestinationConfig;
 }): BridgeDaemonSubmitPreview {
   const programId = input.target ? new PublicKey(input.target) : WHITE_PROTOCOL_PROGRAM_ID;
-  const poolConfig = new PublicKey(input.poolConfig || '11111111111111111111111111111111');
-  const accounts = buildAcceptBridgeV1MintAccounts(input.message, poolConfig, programId);
+  const destinationConfig = input.solanaDestination;
+  const poolConfig = new PublicKey(destinationConfig?.poolConfig || input.poolConfig || '11111111111111111111111111111111');
+  const accounts = buildAcceptBridgeV1MintAccounts(input.message, poolConfig, programId, {
+    signerSetVersion: input.signerSetVersion,
+    destinationConfig,
+    messageHash: input.messageHash,
+  });
+  const accountMap = Object.fromEntries(
+    Object.entries(accounts).map(([key, value]) => [key, value.toBase58()])
+  ) as Record<string, string>;
+  const liveSubmissionImplemented = false;
+  const readiness = evaluateSolanaSubmitReadiness({
+    accounts: accountMap,
+    sourceMessageHash: input.sourceMessageHash,
+    destinationMessageHash: input.messageHash,
+    previewMessageHash: input.messageHash,
+    signerSetVersion: input.signerSetVersion,
+    expectedSignerSetVersion: destinationConfig?.signerSetVersion,
+    liveSubmissionImplemented,
+  });
   return {
     destinationChain: input.destinationChain,
     target: programId.toBase58(),
     family: 'solana',
     method: 'accept_bridge_v1_mint',
     messageHash: input.messageHash,
+    sourceMessageHash: input.sourceMessageHash,
     signerSetVersion: input.signerSetVersion,
     signatureCount: input.signatureCount,
     route: input.route,
@@ -393,11 +443,14 @@ export function buildSolanaSubmitPreview(input: {
     solana: {
       programId: programId.toBase58(),
       instruction: 'accept_bridge_v1_mint',
-      accounts: Object.fromEntries(
-        Object.entries(accounts).map(([key, value]) => [key, value.toBase58()])
-      ),
-      computeBudget: 'set by future live Solana submitter',
-      liveSubmissionImplemented: false,
+      accounts: accountMap,
+      accountMetas: buildAcceptBridgeV1MintAccountMetas(accounts) as unknown as Array<Record<string, unknown>>,
+      sourceMessageHash: input.sourceMessageHash,
+      destinationMessageHash: input.messageHash,
+      destinationCommitment: input.message.destinationCommitment,
+      computeBudget: 'recommended: compute-unit limit and price set by future live Solana submitter',
+      liveSubmissionImplemented,
+      readiness: readiness as unknown as Record<string, unknown>,
     },
   };
 }
@@ -690,6 +743,7 @@ export class BridgeDaemon {
     route: BridgeRouteConfig;
     message: BridgeMessageV1;
     messageHash: string;
+    sourceMessageHash?: string;
     signatures: BridgeSignature[];
     dryRun: boolean;
     wouldSubmit: boolean;
@@ -700,6 +754,7 @@ export class BridgeDaemon {
       destinationChain: input.route.destination,
       target,
       messageHash: input.messageHash,
+      sourceMessageHash: input.sourceMessageHash,
       signerSetVersion: input.route.signerSetVersion,
       signatureCount: input.signatures.length,
       route: routeKey(input.route.source, input.route.destination),
@@ -711,6 +766,8 @@ export class BridgeDaemon {
         ...common,
         message: input.message,
         poolConfig: this.config.solanaPoolConfig,
+        solanaDestination: input.route.solanaDestination ??
+          this.config.solanaDestinations?.[routeKey(input.route.source, input.route.destination)],
       });
     }
     return buildEvmSubmitPreview(common);
@@ -744,6 +801,7 @@ export class BridgeDaemon {
       route: input.route,
       message: input.message,
       messageHash: input.messageHash,
+      sourceMessageHash: input.state.sourceMessageHash,
       signatures: input.signatures,
       dryRun: !willSubmit,
       wouldSubmit: true,
@@ -865,6 +923,8 @@ export class BridgeDaemon {
       state = {
         ...state,
         messageHash: destinationMessageHash,
+        sourceMessageHash,
+        destinationMessageHash,
         message: destinationMessage,
         amount: destinationMessage.amount.toString(),
       };
