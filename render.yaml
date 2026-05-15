@@ -107,7 +107,7 @@ services:
       - key: BRIDGE_DAEMON_SUBMIT_TARGETS
         value: ""
       - key: BRIDGE_BASE_SEPOLIA_OUTBOX_ADDRESS
-        value: ""
+        value: 0x7eaFB77E2F05Bf0EbCb8F1A51B187BbcdBCb985D
       - key: SOLANA_DEVNET_RPC_URL
         value: ""
       - key: BRIDGE_SIGNER_THRESHOLD

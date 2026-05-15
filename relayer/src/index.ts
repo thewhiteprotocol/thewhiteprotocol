@@ -53,12 +53,13 @@ import {
   loadBridgeDaemonConfigFromEnv,
   createBridgeSignerAdapterFromEnv,
 } from './bridge';
+import { EvmSourceAdapter } from './bridge/evm-adapter';
 import { BridgeWatcherFindingStore } from './bridge/watcher-store';
 import { BridgeFreezeActionBuilder } from './bridge/freeze-actions';
 import { BridgeAlerter, loadBridgeAlertConfigFromEnv } from './bridge/alerts';
 import { BridgeSignerService } from './bridge/signer';
 import { DEFAULT_BRIDGE_FINALITY } from './bridge/policy';
-import type { BridgeRouteConfig } from './bridge/types';
+import type { BridgeRouteConfig, BridgeSourceAdapter } from './bridge/types';
 import {
   validateChainParameter,
   resolveChain,
@@ -380,6 +381,11 @@ export class RelayerService {
             privateKeys: [],
             adapter: createBridgeSignerAdapterFromEnv(process.env),
           }),
+          sourceAdapters: this.buildBridgeDaemonSourceAdapters(
+            bridgeDaemonConfig.routes.length > 0
+              ? bridgeDaemonConfig.routes
+              : this.parseBridgeRoutes()
+          ),
         });
         logger.info('Bridge daemon initialized', {
           mode: bridgeDaemonConfig.mode,
@@ -397,6 +403,53 @@ export class RelayerService {
     this.app = express();
     this.setupMiddleware();
     this.setupRoutes();
+  }
+
+  private buildBridgeDaemonSourceAdapters(
+    routes: BridgeRouteConfig[]
+  ): Record<string, BridgeSourceAdapter> {
+    const adapters: Record<string, BridgeSourceAdapter> = {};
+    for (const route of routes) {
+      if (route.source !== 'base-sepolia' || adapters[route.source]) continue;
+
+      const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL;
+      if (!rpcUrl) {
+        logger.warn('Bridge daemon source adapter skipped; missing Base Sepolia RPC env', {
+          source: route.source,
+        });
+        continue;
+      }
+
+      const outboxAddress = process.env.BRIDGE_BASE_SEPOLIA_OUTBOX_ADDRESS ||
+        '0x7eaFB77E2F05Bf0EbCb8F1A51B187BbcdBCb985D';
+      if (!/^0x[0-9a-fA-F]{40}$/.test(outboxAddress)) {
+        logger.warn('Bridge daemon source adapter skipped; invalid Base Sepolia outbox address', {
+          source: route.source,
+        });
+        continue;
+      }
+
+      adapters[route.source] = new EvmSourceAdapter({
+        rpcUrl,
+        bridgeOutboxAddress: outboxAddress as `0x${string}`,
+        chainId: 84532,
+        fromBlock: this.parseOptionalBigIntEnv(process.env.BRIDGE_DAEMON_SCAN_FROM_BLOCK),
+        toBlock: this.parseOptionalBigIntEnv(process.env.BRIDGE_DAEMON_SCAN_TO_BLOCK),
+        lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '5000'),
+      });
+      logger.info('Bridge daemon Base Sepolia source adapter initialized', {
+        source: route.source,
+        destination: route.destination,
+        outboxAddress,
+        lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '5000'),
+      });
+    }
+    return adapters;
+  }
+
+  private parseOptionalBigIntEnv(value: string | undefined): bigint | undefined {
+    if (!value) return undefined;
+    return BigInt(value);
   }
   
   /**
