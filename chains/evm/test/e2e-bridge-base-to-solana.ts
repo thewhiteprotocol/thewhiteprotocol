@@ -89,6 +89,26 @@ const BASE_LOW_GAS_OVERRIDES = {
   gasPrice: ethers.utils.parseUnits('0.01', 'gwei'),
 };
 
+function repoRoot(): string {
+  return path.resolve(__dirname, '../../..');
+}
+
+function firstExistingPath(label: string, candidates: string[]): string {
+  const found = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!found) {
+    throw new Error(`${label} not found. Checked: ${candidates.join(', ')}`);
+  }
+  return found;
+}
+
+function circuitFileCandidates(...segments: string[]): string[] {
+  return [
+    path.join(repoRoot(), 'circuits', ...segments),
+    path.join(repoRoot(), 'relayer', 'circuits', ...segments),
+    path.join(repoRoot(), 'app', 'public', 'circuits', ...segments),
+  ];
+}
+
 function randomBigInt(bytes: number): bigint {
   const buf = crypto.randomBytes(bytes);
   let result = 0n;
@@ -344,7 +364,6 @@ async function main() {
 
   // ── STEP A: Deposit ──
   console.log('\n📋 STEP A: Deposit');
-  const depositCircuitPath = path.join(__dirname, '../../../circuits/deposit/build');
   const depositInput = {
     secret: sourceSecret.toString(),
     nullifier: sourceNullifier.toString(),
@@ -356,8 +375,16 @@ async function main() {
   console.log('Generating deposit proof...');
   const { proof: depositProof, publicSignals: depositPubSignals } = await snarkjs.groth16.fullProve(
     depositInput,
-    path.join(depositCircuitPath, 'deposit_js', 'deposit.wasm'),
-    path.join(depositCircuitPath, 'deposit.zkey')
+    firstExistingPath('deposit.wasm', [
+      ...circuitFileCandidates('deposit', 'build', 'deposit_js', 'deposit.wasm'),
+      ...circuitFileCandidates('build', 'deposit_js', 'deposit.wasm'),
+      ...circuitFileCandidates('deposit', 'deposit.wasm'),
+    ]),
+    firstExistingPath('deposit.zkey', [
+      ...circuitFileCandidates('deposit', 'build', 'deposit.zkey'),
+      ...circuitFileCandidates('build', 'deposit.zkey'),
+      ...circuitFileCandidates('deposit', 'deposit.zkey'),
+    ])
   );
   const depositProofBytes = await formatProof(depositProof, depositPubSignals);
   console.log('✅ Deposit proof generated');
@@ -377,7 +404,6 @@ async function main() {
 
   verifyRootMatch(expectedNewRoot, await computeRootFromPath(sourceCommitment, merklePath), 'Settlement');
 
-  const batchCircuitPath = path.join(__dirname, '../../../circuits/merkle_batch_update/build');
   const batchInput = {
     oldRoot: oldRoot.toString(),
     newRoot: expectedNewRoot.toString(),
@@ -390,8 +416,17 @@ async function main() {
 
   const { proof: batchProof, publicSignals: batchPubSignals } = await snarkjs.groth16.fullProve(
     batchInput,
-    path.join(batchCircuitPath, 'merkle_batch_update_js', 'merkle_batch_update.wasm'),
-    path.join(batchCircuitPath, 'merkle_batch_update.zkey')
+    firstExistingPath('merkle_batch_update.wasm', [
+      ...circuitFileCandidates('merkle_batch_update', 'build', 'merkle_batch_update_js', 'merkle_batch_update.wasm'),
+      ...circuitFileCandidates('build', 'merkle_batch_update', 'merkle_batch_update_js', 'merkle_batch_update.wasm'),
+      ...circuitFileCandidates('merkle_batch_update', 'merkle_batch_update_js', 'merkle_batch_update.wasm'),
+      ...circuitFileCandidates('merkle_batch_update', 'merkle_batch_update.wasm'),
+    ]),
+    firstExistingPath('merkle_batch_update.zkey', [
+      ...circuitFileCandidates('merkle_batch_update', 'build', 'merkle_batch_update.zkey'),
+      ...circuitFileCandidates('build', 'merkle_batch_update', 'merkle_batch_update.zkey'),
+      ...circuitFileCandidates('merkle_batch_update', 'merkle_batch_update.zkey'),
+    ])
   );
   const batchProofBytes = await formatProof(batchProof, batchPubSignals);
   console.log('✅ Settlement proof generated');
@@ -469,7 +504,6 @@ async function main() {
   const BN254_SCALAR_FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
   const publicDataHash = BigInt(sourceMessageHash) % BN254_SCALAR_FIELD;
 
-  const withdrawCircuitPath = path.join(__dirname, '../../../circuits/withdraw/build');
   const withdrawInput = {
     secret: sourceSecret.toString(),
     nullifier: sourceNullifier.toString(),
@@ -489,8 +523,16 @@ async function main() {
   console.log('Generating withdraw proof...');
   const { proof: withdrawProof, publicSignals: withdrawPubSignals } = await snarkjs.groth16.fullProve(
     withdrawInput,
-    path.join(withdrawCircuitPath, 'withdraw_js', 'withdraw.wasm'),
-    path.join(withdrawCircuitPath, 'withdraw.zkey')
+    firstExistingPath('withdraw.wasm', [
+      ...circuitFileCandidates('withdraw', 'build', 'withdraw_js', 'withdraw.wasm'),
+      ...circuitFileCandidates('build', 'withdraw_js', 'withdraw.wasm'),
+      ...circuitFileCandidates('withdraw', 'withdraw.wasm'),
+    ]),
+    firstExistingPath('withdraw.zkey', [
+      ...circuitFileCandidates('withdraw', 'build', 'withdraw.zkey'),
+      ...circuitFileCandidates('build', 'withdraw.zkey'),
+      ...circuitFileCandidates('withdraw', 'withdraw.zkey'),
+    ])
   );
   const expectedWithdrawSignals = [
     treeState.currentRoot.toString(),

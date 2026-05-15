@@ -89,6 +89,8 @@ npx tsx test/e2e-bridge-base-to-solana.ts
 
 PR-011W continuation committed the source-event script so Render deployments can run it. The script accepts `BASE_DEPLOYER_PRIVATE_KEY` as a deployer fallback and accepts the comma-separated `BRIDGE_SIGNER_PRIVATE_KEYS_TESTNET` value directly.
 
+The first Render source-event attempt reached deposit proof generation and then failed because the Render checkout did not have the old `circuits/deposit/build` layout. The script was updated to resolve both the old root circuit layout and the relayer/Render circuit layout without hardcoding a Codespace or Render root path.
+
 Do not run this if `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true`. The command creates only the Base source event; do not submit the Solana destination transaction.
 
 ## Replay Scan Range
