@@ -695,6 +695,8 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 **Result:** The hosted relayer remained reachable in paper mode with `allowLiveTestnetSubmit=false`, but `/bridge/daemon/messages` still returned an empty list and the approved PR-011N source hash returned `404`. This local environment does not have Render shell/job access, so the bounded replay command could not be executed against the hosted state path. Local env checks reported missing env names only and the local replay command stopped before RPC access. No destination transaction was submitted.
 
+**Continuation:** After Render env was updated with `BRIDGE_DAEMON_STATE_PATH=/tmp/bridge-daemon`, the current shell was confirmed to be Codespace (`/workspaces/thewhiteprotocol`), not Render (`/opt/render/project/src`). Required live-source env names were still absent locally, so fresh event generation was not run. Use `git rev-parse --show-toplevel` in Render before running hosted commands.
+
 **Next:** PR-011X should execute `npm run bridge:daemon:paper:replay` directly on Render with the PR-011N range, or explicitly approve and fund a fresh low-value Base Sepolia -> Solana Devnet source event if Render replay reports `expired_deadline`.
 
 ---

@@ -175,6 +175,15 @@ For the PR-011N approved message, use source block `41539671` and the bounded ra
 
 PR-011W confirmed the hosted public read API still reports an empty daemon message list. Run the bounded replay command from a Render shell/job, not from a local shell without hosted state. If Render replay returns `expired_deadline` for the PR-011N message, request explicit operator approval and funding before generating a fresh low-value source event.
 
+Use repo-root detection in both Codespace and Render shells:
+
+```bash
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root/relayer"
+```
+
+Do not hardcode `/workspaces/thewhiteprotocol` or `/opt/render/project/src` in scripts or runbooks.
+
 ## Status And Messages
 
 Read endpoints:
