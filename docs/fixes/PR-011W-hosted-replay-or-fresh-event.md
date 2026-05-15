@@ -75,9 +75,21 @@ If hosted replay returns `expired_deadline`, do not bypass policy. Generate one 
 
 ## Fresh Event Generation Result
 
-No fresh event was generated in PR-011W.
+Fresh event generation succeeded on Render after funding and after committing the source-event script/circuit path fixes.
 
-Reason: generating a fresh Base Sepolia source event spends testnet funds and requires private signer/prover environment. The local Codespace shell does not have `BASE_SEPOLIA_RPC_URL`/`BASE_RPC_URL`, `DEPLOYER_PRIVATE_KEY`, or bridge signer key env names present. The operator should explicitly approve that action and fund the source wallet if needed. I will ask for funds before attempting any fresh live testnet event.
+Evidence:
+
+- Base deployer: `0x0101BBe3a30250e4f544eA7c2Ae956b52921B6E1`
+- Base deposit tx: `0x15f2ee7a9ee67ebb191502d1113a836707078f4b84f07e681e880cd2e5da2bcb`
+- Base settlement tx: `0xa40c186bfcbbf7af45d273a3f15b6f44dcc79c69d09da359961a08ff821ecda9`
+- Base bridgeOutV1 tx: `0xd77bbffeb250c4e68f9717f2c6885b748a10b32618a96ec82b26f35926cb3a8b`
+- Source block: `41544840`
+- Source BridgeOut hash: `0xf458b7b9008624410123e2484b299f841fff071c2f9525a0b082af4d8b5b74a7`
+- Destination BridgeMint hash: `0x372c60d4efd03433d7c12e429182a83ab091ae9bc2de9eee2976dd735c8f4dcf`
+- Source nullifier spent: `true`
+- Source amount: `1000000000000000` wei
+- Destination amount: `1000000` lamports
+- Normalization: exact 18 -> 9 decimal normalization
 
 The source-event command must be run from an environment with the required secrets:
 
@@ -106,16 +118,30 @@ Approved historical hashes:
 - source BridgeOut hash: `0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc`
 - destination BridgeMint hash: `0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56`
 
+Fresh replay range:
+
+- from block: `41544820`
+- to block: `41544860`
+- source BridgeOut hash: `0xf458b7b9008624410123e2484b299f841fff071c2f9525a0b082af4d8b5b74a7`
+- destination BridgeMint hash: `0x372c60d4efd03433d7c12e429182a83ab091ae9bc2de9eee2976dd735c8f4dcf`
+
 ## Message State Result
 
-Hosted message state is still empty through public read APIs. The approved source hash returns 404.
+Hosted fresh replay succeeded:
 
-Because the message is not present in hosted daemon state:
+- status: `replayed`
+- source event parsed: `true`
+- policy passed: `true`
+- expired deadline: `false`
+- finality satisfied: `true`
+- signatures produced: `2`
+- submit preview created: `true`
+- message persisted: `true`
+- message status: `paper_ready_to_submit`
+- destination tx submitted: `false`
+- submit tx hash: `null`
 
-- no hosted policy result exists for PR-011W
-- no hosted signatures were produced
-- no hosted Solana submit preview was created
-- no hosted simulation was attempted
+The replay output preserved the source BridgeOut hash separately and used the destination BridgeMint hash as the daemon message hash.
 
 After a fresh source event is generated, replay it with repo-root detection:
 
@@ -132,7 +158,7 @@ Replay must report `sourceEventParsed=true`, `policyPassed=true`, `expiredDeadli
 
 ## Simulation Result
 
-Simulation was not attempted. The simulation command requires the approved message to exist in hosted daemon state first.
+Simulation was attempted after fresh replay but initially blocked because the simulation command still targeted the old PR-011N destination BridgeMint hash. PR-011W continuation updates `bridge:daemon:solana:simulate` to select the route-scoped approved destination hash from `BRIDGE_APPROVED_MESSAGE_HASHES`, or an explicit `BRIDGE_SIMULATION_DESTINATION_MESSAGE_HASH`, so fresh approved messages can be simulated without editing code.
 
 After replay succeeds and the destination BridgeMint hash is known, run:
 
@@ -151,7 +177,8 @@ Simulation must not call any send API and must keep `destinationTxSubmitted=fals
 - hosted daemon status reports `mode=paper`
 - hosted daemon status reports `allowLiveTestnetSubmit=false`
 - hosted message list is empty
-- no Solana simulation was attempted
+- fresh replay reported `destinationTxSubmitted=false`
+- simulation blocker reported `destinationTxSubmitted=false`
 - no live submit path was called
 - local replay command stopped at env checks and emitted `destinationTxSubmitted=false`
 
@@ -171,6 +198,12 @@ Read-only public endpoints were checked. No authenticated mutation was called be
 - inspection of `chains/evm/test/e2e-bridge-base-to-solana.ts` without printing env values
 - `cd relayer && npm run bridge:daemon:env:check`
 - `cd relayer && npm run bridge:daemon:paper:replay`
+- `cd chains/evm && npx tsx test/e2e-bridge-base-to-solana.ts`
+- fresh replay command over blocks `41544820` to `41544860`
+- `cd relayer && npm run bridge:daemon:solana:simulate`
+- `cd relayer && npm run test -- --runTestsByPath src/bridge/__tests__/daemon-solana-simulate.test.ts`
+- `cd relayer && npm run typecheck`
+- `cd relayer && npm run build`
 - `cd relayer && npm run test`
 - `cd relayer && npm run typecheck`
 - `cd relayer && npm run build`
@@ -188,14 +221,12 @@ Read-only public endpoints were checked. No authenticated mutation was called be
 ## Remaining Limitations
 
 - Render shell/job replay has not been executed from this environment.
-- Hosted daemon message state remains empty.
-- The PR-011N historical message may now be expired.
-- A fresh low-value source event may be required.
-- Fresh event generation is blocked here by missing local live-source env names and lack of Render shell access.
+- Hosted fresh message is in paper state.
+- Hosted Solana simulation needs redeploy of the dynamic approved-hash patch, then rerun with the fresh destination BridgeMint hash.
 - No Solana destination transaction was submitted.
 - Live submit remains disabled.
 - Not production-ready.
 
 ## Next Recommended PR
 
-PR-011X - Execute the bounded replay job directly on Render with the PR-011N range, or explicitly approve and fund a fresh low-value Base Sepolia -> Solana Devnet source event if the historical message is expired.
+PR-011X - Rerun hosted Solana simulation for the fresh approved destination BridgeMint hash after the dynamic simulation-target patch is deployed.
