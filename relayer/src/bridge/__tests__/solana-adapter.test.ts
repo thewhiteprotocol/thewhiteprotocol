@@ -6,6 +6,7 @@ import { PublicKey } from '@solana/web3.js';
 import {
   WHITE_PROTOCOL_PROGRAM_ID,
   buildAcceptBridgeV1MintAccounts,
+  buildSolanaAcceptBridgeMintTransactionPreview,
   evaluateSolanaSubmitReadiness,
   deriveBridgeV1ConfigPDA,
   deriveBridgeSignerSetPDA,
@@ -18,7 +19,7 @@ import {
   runSolanaPreSubmitReadinessChecks,
 } from '../solana-adapter';
 import { BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE } from '../base-to-solana-route';
-import { BridgeMessageType, type BridgeMessageV1 } from '@thewhiteprotocol/core';
+import { BridgeMessageType, hashBridgeMessageV1, type BridgeMessageV1 } from '@thewhiteprotocol/core';
 
 function hex(byte: string): string {
   return byte.repeat(32);
@@ -123,6 +124,49 @@ describe('Solana Bridge PDA Derivation', () => {
     expect(accounts.poolConfig.toBase58()).toBe('DZLJU6MAeWZ7aGLyt2j7Jq2XnNq2ch6jUAVgKmki9HaF');
     expect(accounts.merkleTree.toBase58()).toBe('7rNj4NVMyaNFSL9ius2hej2rpzk88d7spXrbYFchhnPi');
     expect(accounts.assetVault.toBase58()).toBe('4Wb17Qbxm74i4BNLZ6CejXtaijLFRSre5wWKAzwWkaXD');
+  });
+
+  test('builds accept_bridge_v1_mint transaction preview without sending', () => {
+    const message = makeDestinationMessage();
+    const destinationHash = hashBridgeMessageV1(message);
+    const preview = buildSolanaAcceptBridgeMintTransactionPreview({
+      message,
+      messageHash: destinationHash,
+      sourceMessageHash: '0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc',
+      signatures: [`0x${'11'.repeat(65)}`, `0x${'22'.repeat(65)}`],
+      signerSetVersion: 2,
+      destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!,
+    });
+    expect(preview.transactionAssemblyImplemented).toBe(true);
+    expect(preview.liveSubmissionImplemented).toBe(false);
+    expect(preview.willSubmit).toBe(false);
+    expect(preview.computeBudgetIncluded).toBe(true);
+    expect(preview.instructions.map((ix) => ix.name)).toEqual([
+      'compute_budget_set_compute_unit_limit',
+      'compute_budget_set_compute_unit_price',
+      'accept_bridge_v1_mint',
+    ]);
+    expect(preview.accountMetaValidation.valid).toBe(true);
+    expect(preview.accountMetaValidation.accountMetaCount).toBe(13);
+    expect(preview.signatureCount).toBe(2);
+    expect(preview.serializedLength).toBeGreaterThan(0);
+    expect(preview.simulationStatus).toBe('skipped');
+  });
+
+  test('transaction preview validation rejects a source hash used as destination hash', () => {
+    const message = makeDestinationMessage();
+    const preview = buildSolanaAcceptBridgeMintTransactionPreview({
+      message,
+      messageHash: '0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc',
+      sourceMessageHash: '0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc',
+      signatures: [`0x${'11'.repeat(65)}`, `0x${'22'.repeat(65)}`],
+      signerSetVersion: 2,
+      destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!,
+    });
+    expect(preview.accountMetaValidation.valid).toBe(false);
+    expect(preview.accountMetaValidation.reasons).toContain(
+      'message_hash_does_not_match_destination_message'
+    );
   });
 
   test('readiness blocks hash, signer-set, and placeholder mismatches', () => {

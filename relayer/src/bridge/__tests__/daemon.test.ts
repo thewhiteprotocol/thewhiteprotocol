@@ -565,7 +565,14 @@ describe('BridgeDaemon', () => {
     expect((state.submissionPreview?.solana as any).accounts.merkleTree).toBe('7rNj4NVMyaNFSL9ius2hej2rpzk88d7spXrbYFchhnPi');
     expect((state.submissionPreview?.solana as any).accounts.assetVault).toBe('4Wb17Qbxm74i4BNLZ6CejXtaijLFRSre5wWKAzwWkaXD');
     expect((state.submissionPreview?.solana as any).accounts.pendingBuffer).toBe('9oEKYL8iD7mBdvPzrgtv8Q15QqAWUL9ycSGAkt5QT42s');
-    expect(Object.values((state.submissionPreview?.solana as any).accounts)).not.toContain('11111111111111111111111111111111');
+    const nonSystemAccounts = Object.entries((state.submissionPreview?.solana as any).accounts)
+      .filter(([name]) => name !== 'systemProgram')
+      .map(([, value]) => value);
+    expect(nonSystemAccounts).not.toContain('11111111111111111111111111111111');
+    expect((state.submissionPreview?.solana as any).transactionAssemblyImplemented).toBe(true);
+    expect((state.submissionPreview?.solana as any).computeBudgetIncluded).toBe(true);
+    expect((state.submissionPreview?.solana as any).serializedLength).toBeGreaterThan(0);
+    expect((state.submissionPreview?.solana as any).accountMetaValidation.valid).toBe(true);
     expect((state.submissionPreview?.solana as any).liveSubmissionImplemented).toBe(false);
     expect((state.submissionPreview?.solana as any).readiness.status).toBe('blocked_live_submit_not_implemented');
   });

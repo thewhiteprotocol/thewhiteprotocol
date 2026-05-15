@@ -86,6 +86,10 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Preview signer set version matches the destination signer set.
     - Preview contains real destination accounts, not `11111111111111111111111111111111` placeholders.
     - Preview readiness does not report `blocked_hash_mismatch`, `blocked_signer_set_mismatch`, or `blocked_placeholder_accounts`.
+    - Transaction assembly dry-run is present.
+    - Account metas match the expected `accept_bridge_v1_mint` order and signer/writable flags.
+    - Compute budget instructions are present.
+    - Serialized transaction length is nonzero, or an exact serialization blocker is documented.
     - Preview has `dryRun=true`.
     - Preview has `liveSubmissionImplemented=true` only after the live submit adapter exists.
 
@@ -103,6 +107,8 @@ Do not approve live submission if any of these are true:
 - Preview signer set version differs from the deployed destination signer set intended for submission.
 - Preview contains placeholder system accounts where live accounts are required.
 - Read-only pre-submit checks cannot confirm required account existence/absence.
+- Account meta validation fails.
+- Transaction assembly dry-run is missing or cannot serialize.
 - Source event, policy, finality, watcher, signer, or route evidence is missing.
 - Any private key, RPC secret, operator token, note secret, witness, or wallet file appears in the approval artifact.
 - Watcher has an open critical finding.

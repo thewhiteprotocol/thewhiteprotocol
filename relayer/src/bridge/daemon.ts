@@ -43,6 +43,7 @@ import {
 import { decodeBridgeMessageV1 } from './evm-adapter';
 import {
   WHITE_PROTOCOL_PROGRAM_ID,
+  buildSolanaAcceptBridgeMintTransactionPreview,
   evaluateSolanaSubmitReadiness,
   buildAcceptBridgeV1MintAccounts,
   buildAcceptBridgeV1MintAccountMetas,
@@ -98,8 +99,15 @@ export interface BridgeDaemonSubmitPreview {
     destinationMessageHash?: string;
     destinationCommitment?: string;
     computeBudget: string;
+    transactionAssemblyImplemented?: boolean;
+    serializedLength?: number;
+    accountMetaCount?: number;
+    computeBudgetIncluded?: boolean;
+    simulationStatus?: string;
+    simulationResult?: string;
     liveSubmissionImplemented: boolean;
     readiness?: Record<string, unknown>;
+    accountMetaValidation?: Record<string, unknown>;
   };
 }
 
@@ -406,6 +414,7 @@ export function buildSolanaSubmitPreview(input: {
   wouldSubmit: boolean;
   poolConfig?: string;
   solanaDestination?: BridgeSolanaDestinationConfig;
+  signatures?: string[];
 }): BridgeDaemonSubmitPreview {
   const programId = input.target ? new PublicKey(input.target) : WHITE_PROTOCOL_PROGRAM_ID;
   const destinationConfig = input.solanaDestination;
@@ -419,6 +428,17 @@ export function buildSolanaSubmitPreview(input: {
     Object.entries(accounts).map(([key, value]) => [key, value.toBase58()])
   ) as Record<string, string>;
   const liveSubmissionImplemented = false;
+  const transactionPreview = destinationConfig && input.signatures
+    ? buildSolanaAcceptBridgeMintTransactionPreview({
+      message: input.message,
+      messageHash: input.messageHash,
+      sourceMessageHash: input.sourceMessageHash,
+      signatures: input.signatures,
+      signerSetVersion: input.signerSetVersion,
+      destinationConfig,
+      programId,
+    })
+    : undefined;
   const readiness = evaluateSolanaSubmitReadiness({
     accounts: accountMap,
     sourceMessageHash: input.sourceMessageHash,
@@ -449,8 +469,15 @@ export function buildSolanaSubmitPreview(input: {
       destinationMessageHash: input.messageHash,
       destinationCommitment: input.message.destinationCommitment,
       computeBudget: 'recommended: compute-unit limit and price set by future live Solana submitter',
+      transactionAssemblyImplemented: transactionPreview?.transactionAssemblyImplemented ?? false,
+      serializedLength: transactionPreview?.serializedLength,
+      accountMetaCount: transactionPreview?.accountMetaValidation.accountMetaCount,
+      computeBudgetIncluded: transactionPreview?.computeBudgetIncluded ?? false,
+      simulationStatus: transactionPreview?.simulationStatus ?? 'skipped',
+      simulationResult: transactionPreview?.simulationResult ?? 'not_attempted_no_transaction_assembly',
       liveSubmissionImplemented,
       readiness: readiness as unknown as Record<string, unknown>,
+      accountMetaValidation: transactionPreview?.accountMetaValidation as unknown as Record<string, unknown> | undefined,
     },
   };
 }
@@ -768,6 +795,7 @@ export class BridgeDaemon {
         poolConfig: this.config.solanaPoolConfig,
         solanaDestination: input.route.solanaDestination ??
           this.config.solanaDestinations?.[routeKey(input.route.source, input.route.destination)],
+        signatures: input.signatures.map((signature) => signature.signature),
       });
     }
     return buildEvmSubmitPreview(common);

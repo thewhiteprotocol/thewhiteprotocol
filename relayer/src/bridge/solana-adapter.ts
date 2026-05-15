@@ -8,8 +8,19 @@
  * bridge V1 accounts are deployed and funded.
  */
 
-import { PublicKey, SystemProgram } from '@solana/web3.js';
-import { hashBridgeMessageV1, type BridgeMessageV1 } from '@thewhiteprotocol/core';
+import { createHash } from 'crypto';
+import {
+  ComputeBudgetProgram,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  TransactionInstruction,
+} from '@solana/web3.js';
+import {
+  BridgeMessageType,
+  hashBridgeMessageV1,
+  type BridgeMessageV1,
+} from '@thewhiteprotocol/core';
 import type {
   BridgeEventObservation,
   BridgeDestinationAdapter,
@@ -159,6 +170,7 @@ export interface AcceptBridgeV1MintAccounts {
   pendingBuffer: PublicKey;
   assetVault: PublicKey;
   commitmentIndex: PublicKey;
+  systemProgram: PublicKey;
 }
 
 export interface AcceptBridgeV1MintAccountMetasPreview {
@@ -196,6 +208,37 @@ export interface SolanaInstructionPreview {
   readiness: SolanaSubmitReadiness;
 }
 
+export interface SolanaAccountMetaValidation {
+  valid: boolean;
+  reasons: string[];
+  accountMetaCount: number;
+  expectedOrder: string[];
+  actualOrder: string[];
+}
+
+export interface SolanaAcceptBridgeMintTransactionPreview {
+  transaction: Transaction;
+  instructions: Array<{
+    programId: string;
+    name: string;
+    accountCount: number;
+    dataLength: number;
+  }>;
+  accountMetas: AcceptBridgeV1MintAccountMetasPreview[];
+  accountMetaValidation: SolanaAccountMetaValidation;
+  messageHash: string;
+  sourceMessageHash?: string;
+  signerSetVersion: number;
+  signatureCount: number;
+  computeBudgetIncluded: boolean;
+  transactionAssemblyImplemented: boolean;
+  liveSubmissionImplemented: false;
+  willSubmit: false;
+  serializedLength: number;
+  simulationStatus: 'skipped';
+  simulationResult: string;
+}
+
 export interface SolanaAccountInfoLike {
   executable?: boolean;
 }
@@ -205,6 +248,10 @@ export interface SolanaReadOnlyAccountProvider {
 }
 
 const PLACEHOLDER_ACCOUNT = '11111111111111111111111111111111';
+const ACCEPT_BRIDGE_V1_MINT_IX_NAME = 'accept_bridge_v1_mint';
+const DRY_RUN_RECENT_BLOCKHASH = '11111111111111111111111111111111';
+const DEFAULT_COMPUTE_UNIT_LIMIT = 400_000;
+const DEFAULT_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS = 0;
 
 function asPublicKey(value: string, field: string): PublicKey {
   try {
@@ -212,6 +259,14 @@ function asPublicKey(value: string, field: string): PublicKey {
   } catch {
     throw new Error(`Invalid Solana account for ${field}`);
   }
+}
+
+function deriveDryRunCallerPDA(programId: PublicKey): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from('bridge_dry_run_payer')],
+    programId
+  );
+  return pda;
 }
 
 function deriveOrConfigured(
@@ -252,7 +307,7 @@ export function buildAcceptBridgeV1MintAccounts(
   return {
     caller: options.destinationConfig?.caller
       ? asPublicKey(options.destinationConfig.caller, 'caller')
-      : poolConfig,
+      : deriveDryRunCallerPDA(programId),
     bridgeV1Config: deriveOrConfigured(
       options.destinationConfig?.bridgeV1Config,
       bridgeV1Config,
@@ -294,6 +349,7 @@ export function buildAcceptBridgeV1MintAccounts(
       hexToBytes(message.destinationCommitment),
       programId
     ),
+    systemProgram: SystemProgram.programId,
   };
 }
 
@@ -302,18 +358,117 @@ export function buildAcceptBridgeV1MintAccountMetas(
 ): AcceptBridgeV1MintAccountMetasPreview[] {
   return [
     { name: 'caller', pubkey: accounts.caller.toBase58(), isSigner: true, isWritable: true },
-    { name: 'bridgeV1Config', pubkey: accounts.bridgeV1Config.toBase58(), isSigner: false, isWritable: false },
+    { name: 'bridgeV1Config', pubkey: accounts.bridgeV1Config.toBase58(), isSigner: false, isWritable: true },
     { name: 'signerSet', pubkey: accounts.signerSet.toBase58(), isSigner: false, isWritable: false },
     { name: 'consumedMessage', pubkey: accounts.consumedMessage.toBase58(), isSigner: false, isWritable: true },
-    { name: 'routeConfig', pubkey: accounts.routeConfig.toBase58(), isSigner: false, isWritable: false },
-    { name: 'assetConfig', pubkey: accounts.assetConfig.toBase58(), isSigner: false, isWritable: false },
+    { name: 'routeConfig', pubkey: accounts.routeConfig.toBase58(), isSigner: false, isWritable: true },
+    { name: 'assetConfig', pubkey: accounts.assetConfig.toBase58(), isSigner: false, isWritable: true },
     { name: 'frozenMessage', pubkey: accounts.frozenMessage.toBase58(), isSigner: false, isWritable: false },
     { name: 'poolConfig', pubkey: accounts.poolConfig.toBase58(), isSigner: false, isWritable: true },
     { name: 'merkleTree', pubkey: accounts.merkleTree.toBase58(), isSigner: false, isWritable: true },
     { name: 'pendingBuffer', pubkey: accounts.pendingBuffer.toBase58(), isSigner: false, isWritable: true },
     { name: 'assetVault', pubkey: accounts.assetVault.toBase58(), isSigner: false, isWritable: true },
     { name: 'commitmentIndex', pubkey: accounts.commitmentIndex.toBase58(), isSigner: false, isWritable: true },
+    { name: 'systemProgram', pubkey: accounts.systemProgram.toBase58(), isSigner: false, isWritable: false },
   ];
+}
+
+export function validateSolanaAcceptBridgeMintAccountMetas(
+  metas: AcceptBridgeV1MintAccountMetasPreview[],
+  input: {
+    accounts: Record<string, string>;
+    expectedSignerSetVersion?: number;
+    signerSetVersion: number;
+    messageHash: string;
+    destinationMessageHash: string;
+    computedDestinationMessageHash?: string;
+  }
+): SolanaAccountMetaValidation {
+  const expectedOrder = [
+    'caller',
+    'bridgeV1Config',
+    'signerSet',
+    'consumedMessage',
+    'routeConfig',
+    'assetConfig',
+    'frozenMessage',
+    'poolConfig',
+    'merkleTree',
+    'pendingBuffer',
+    'assetVault',
+    'commitmentIndex',
+    'systemProgram',
+  ];
+  const actualOrder = metas.map((meta) => meta.name);
+  const reasons: string[] = [];
+
+  if (expectedOrder.join(',') !== actualOrder.join(',')) {
+    reasons.push('account_order_mismatch');
+  }
+
+  const byName = new Map(metas.map((meta) => [meta.name, meta]));
+  const expectedFlags: Record<string, { isSigner: boolean; isWritable: boolean }> = {
+    caller: { isSigner: true, isWritable: true },
+    bridgeV1Config: { isSigner: false, isWritable: true },
+    signerSet: { isSigner: false, isWritable: false },
+    consumedMessage: { isSigner: false, isWritable: true },
+    routeConfig: { isSigner: false, isWritable: true },
+    assetConfig: { isSigner: false, isWritable: true },
+    frozenMessage: { isSigner: false, isWritable: false },
+    poolConfig: { isSigner: false, isWritable: true },
+    merkleTree: { isSigner: false, isWritable: true },
+    pendingBuffer: { isSigner: false, isWritable: true },
+    assetVault: { isSigner: false, isWritable: true },
+    commitmentIndex: { isSigner: false, isWritable: true },
+    systemProgram: { isSigner: false, isWritable: false },
+  };
+  for (const [name, expected] of Object.entries(expectedFlags)) {
+    const meta = byName.get(name as keyof AcceptBridgeV1MintAccounts);
+    if (!meta) {
+      reasons.push(`missing_meta:${name}`);
+      continue;
+    }
+    if (meta.isSigner !== expected.isSigner || meta.isWritable !== expected.isWritable) {
+      reasons.push(`meta_flags_mismatch:${name}`);
+    }
+  }
+
+  const seen = new Set<string>();
+  for (const meta of metas) {
+    if (seen.has(meta.pubkey) && meta.name !== 'systemProgram') {
+      reasons.push(`duplicate_account:${meta.name}`);
+    }
+    seen.add(meta.pubkey);
+  }
+
+  for (const [name, value] of Object.entries(input.accounts)) {
+    if (name === 'caller' || name === 'systemProgram') continue;
+    if (value === PLACEHOLDER_ACCOUNT) reasons.push(`placeholder_account:${name}`);
+  }
+
+  if (input.messageHash.toLowerCase() !== input.destinationMessageHash.toLowerCase()) {
+    reasons.push('source_hash_used_for_destination_instruction');
+  }
+  if (
+    input.computedDestinationMessageHash !== undefined &&
+    input.messageHash.toLowerCase() !== input.computedDestinationMessageHash.toLowerCase()
+  ) {
+    reasons.push('message_hash_does_not_match_destination_message');
+  }
+  if (
+    input.expectedSignerSetVersion !== undefined &&
+    input.signerSetVersion !== input.expectedSignerSetVersion
+  ) {
+    reasons.push('signer_set_version_mismatch');
+  }
+
+  return {
+    valid: reasons.length === 0,
+    reasons,
+    accountMetaCount: metas.length,
+    expectedOrder,
+    actualOrder,
+  };
 }
 
 export function evaluateSolanaSubmitReadiness(input: {
@@ -328,7 +483,7 @@ export function evaluateSolanaSubmitReadiness(input: {
   const checks: Record<string, 'pass' | 'fail' | 'unknown'> = {};
   const reasons: string[] = [];
   const placeholders = Object.entries(input.accounts)
-    .filter(([name, value]) => name !== 'caller' && value === PLACEHOLDER_ACCOUNT)
+    .filter(([name, value]) => name !== 'caller' && name !== 'systemProgram' && value === PLACEHOLDER_ACCOUNT)
     .map(([name]) => name);
   checks.placeholderAccounts = placeholders.length === 0 ? 'pass' : 'fail';
   if (placeholders.length > 0) reasons.push(`placeholder_accounts:${placeholders.join(',')}`);
@@ -421,6 +576,194 @@ export async function runSolanaPreSubmitReadinessChecks(
     return { readyForOperatorApproval: false, status: 'blocked_rpc_state', reasons, checks };
   }
   return { readyForOperatorApproval: true, status: 'ready_for_operator_approval', reasons, checks };
+}
+
+function anchorDiscriminator(name: string): Buffer {
+  return createHash('sha256').update(`global:${name}`).digest().subarray(0, 8);
+}
+
+function writeU16(value: number): Buffer {
+  const out = Buffer.alloc(2);
+  out.writeUInt16LE(value, 0);
+  return out;
+}
+
+function writeU32(value: number): Buffer {
+  const out = Buffer.alloc(4);
+  out.writeUInt32LE(value, 0);
+  return out;
+}
+
+function writeU64(value: number | bigint): Buffer {
+  const out = Buffer.alloc(8);
+  out.writeBigUInt64LE(BigInt(value), 0);
+  return out;
+}
+
+function writeU128(value: bigint): Buffer {
+  const out = Buffer.alloc(16);
+  out.writeBigUInt64LE(value & ((1n << 64n) - 1n), 0);
+  out.writeBigUInt64LE(value >> 64n, 8);
+  return out;
+}
+
+function fixedBytes32(value: string, field: string): Buffer {
+  const out = Buffer.from(value.replace(/^0x/i, ''), 'hex');
+  if (out.length !== 32) throw new Error(`${field} must be 32 bytes`);
+  return out;
+}
+
+function encodeBridgeMessageV1ForAnchor(message: BridgeMessageV1): Buffer {
+  return Buffer.concat([
+    writeU16(message.protocolVersion),
+    Buffer.from([message.messageType]),
+    writeU32(message.sourceDomain),
+    writeU32(message.destinationDomain),
+    writeU64(message.sourceChainId),
+    writeU64(message.destinationChainId),
+    fixedBytes32(message.canonicalAssetId, 'canonicalAssetId'),
+    fixedBytes32(message.sourceLocalAssetId, 'sourceLocalAssetId'),
+    fixedBytes32(message.destinationLocalAssetId, 'destinationLocalAssetId'),
+    writeU128(message.amount),
+    fixedBytes32(message.sourceNullifierHash, 'sourceNullifierHash'),
+    fixedBytes32(message.destinationCommitment, 'destinationCommitment'),
+    fixedBytes32(message.sourceRoot, 'sourceRoot'),
+    writeU64(message.sourceLeafIndex),
+    fixedBytes32(message.sourceTxHash, 'sourceTxHash'),
+    writeU64(message.sourceBlockNumber),
+    writeU64(message.sourceFinalityBlock),
+    writeU64(message.nonce),
+    writeU64(message.deadline),
+    writeU128(message.relayerFee),
+    fixedBytes32(message.recipientStealthMetadataHash, 'recipientStealthMetadataHash'),
+    fixedBytes32(message.memoHash, 'memoHash'),
+    fixedBytes32(message.reserved0, 'reserved0'),
+    fixedBytes32(message.reserved1, 'reserved1'),
+  ]);
+}
+
+function encodeSignaturesForAnchor(signatures: string[]): Buffer {
+  const encoded: Buffer[] = [writeU32(signatures.length)];
+  for (const signature of signatures) {
+    const bytes = Buffer.from(signature.replace(/^0x/i, ''), 'hex');
+    if (bytes.length !== 65) throw new Error('Bridge signature must be 65 bytes');
+    encoded.push(bytes);
+  }
+  return Buffer.concat(encoded);
+}
+
+export function buildAcceptBridgeV1MintInstructionData(input: {
+  message: BridgeMessageV1;
+  signatures: string[];
+  signerSetVersion: number;
+}): Buffer {
+  if (input.message.messageType !== BridgeMessageType.BridgeMint) {
+    throw new Error('accept_bridge_v1_mint requires a BridgeMint destination message');
+  }
+  return Buffer.concat([
+    anchorDiscriminator(ACCEPT_BRIDGE_V1_MINT_IX_NAME),
+    encodeBridgeMessageV1ForAnchor(input.message),
+    encodeSignaturesForAnchor(input.signatures),
+    writeU32(input.signerSetVersion),
+  ]);
+}
+
+export function buildSolanaAcceptBridgeMintTransactionPreview(input: {
+  message: BridgeMessageV1;
+  messageHash: string;
+  sourceMessageHash?: string;
+  signatures: string[];
+  signerSetVersion: number;
+  destinationConfig: BridgeSolanaDestinationConfig;
+  programId?: PublicKey;
+  recentBlockhash?: string;
+  computeUnitLimit?: number;
+  computeUnitPriceMicroLamports?: number;
+}): SolanaAcceptBridgeMintTransactionPreview {
+  const programId = input.programId ?? asPublicKey(input.destinationConfig.programId, 'programId');
+  const poolConfig = asPublicKey(input.destinationConfig.poolConfig, 'poolConfig');
+  const computedDestinationMessageHash = hashBridgeMessageV1(input.message);
+  const accounts = buildAcceptBridgeV1MintAccounts(input.message, poolConfig, programId, {
+    signerSetVersion: input.signerSetVersion,
+    destinationConfig: input.destinationConfig,
+    messageHash: input.messageHash,
+  });
+  const metas = buildAcceptBridgeV1MintAccountMetas(accounts);
+  const accountMap = Object.fromEntries(
+    Object.entries(accounts).map(([key, value]) => [key, value.toBase58()])
+  ) as Record<string, string>;
+  const accountMetaValidation = validateSolanaAcceptBridgeMintAccountMetas(metas, {
+    accounts: accountMap,
+    expectedSignerSetVersion: input.destinationConfig.signerSetVersion,
+    signerSetVersion: input.signerSetVersion,
+    messageHash: input.messageHash,
+    destinationMessageHash: input.messageHash,
+    computedDestinationMessageHash,
+  });
+  const bridgeInstruction = new TransactionInstruction({
+    programId,
+    keys: metas.map((meta) => ({
+      pubkey: asPublicKey(meta.pubkey, meta.name),
+      isSigner: meta.isSigner,
+      isWritable: meta.isWritable,
+    })),
+    data: buildAcceptBridgeV1MintInstructionData({
+      message: input.message,
+      signatures: input.signatures,
+      signerSetVersion: input.signerSetVersion,
+    }),
+  });
+  const computeLimitIx = ComputeBudgetProgram.setComputeUnitLimit({
+    units: input.computeUnitLimit ?? DEFAULT_COMPUTE_UNIT_LIMIT,
+  });
+  const computePriceIx = ComputeBudgetProgram.setComputeUnitPrice({
+    microLamports: input.computeUnitPriceMicroLamports ?? DEFAULT_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
+  });
+  const transaction = new Transaction({
+    feePayer: accounts.caller,
+    recentBlockhash: input.recentBlockhash ?? DRY_RUN_RECENT_BLOCKHASH,
+  }).add(computeLimitIx, computePriceIx, bridgeInstruction);
+  const serialized = transaction.serialize({
+    requireAllSignatures: false,
+    verifySignatures: false,
+  });
+
+  return {
+    transaction,
+    instructions: [
+      {
+        programId: computeLimitIx.programId.toBase58(),
+        name: 'compute_budget_set_compute_unit_limit',
+        accountCount: computeLimitIx.keys.length,
+        dataLength: computeLimitIx.data.length,
+      },
+      {
+        programId: computePriceIx.programId.toBase58(),
+        name: 'compute_budget_set_compute_unit_price',
+        accountCount: computePriceIx.keys.length,
+        dataLength: computePriceIx.data.length,
+      },
+      {
+        programId: bridgeInstruction.programId.toBase58(),
+        name: ACCEPT_BRIDGE_V1_MINT_IX_NAME,
+        accountCount: bridgeInstruction.keys.length,
+        dataLength: bridgeInstruction.data.length,
+      },
+    ],
+    accountMetas: metas,
+    accountMetaValidation,
+    messageHash: input.messageHash,
+    sourceMessageHash: input.sourceMessageHash,
+    signerSetVersion: input.signerSetVersion,
+    signatureCount: input.signatures.length,
+    computeBudgetIncluded: true,
+    transactionAssemblyImplemented: true,
+    liveSubmissionImplemented: false,
+    willSubmit: false,
+    serializedLength: serialized.length,
+    simulationStatus: 'skipped',
+    simulationResult: 'not_attempted_no_rpc_required',
+  };
 }
 
 // =============================================================================

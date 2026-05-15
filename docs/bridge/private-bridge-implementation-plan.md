@@ -592,6 +592,22 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011Q: Solana Destination Transaction Assembly Dry-Run ✅ COMPLETE
+
+**Scope:**
+- Build an unsigned Solana `accept_bridge_v1_mint` transaction preview
+- Attach compute budget instructions
+- Encode destination `BridgeMessageV1`, threshold signatures, and signer set version
+- Validate account metas against the Rust/Anchor account order
+- Serialize locally without sending
+- Keep live submission disabled
+
+**Deliverable:** The Solana preview now includes transaction assembly metadata with compute budget instructions, account meta validation, nonzero serialized length, destination BridgeMint hash usage, source BridgeOut hash audit metadata, signer set version `2`, and `willSubmit=false`. `liveSubmissionImplemented=false` remains intentional.
+
+**Next:** PR-011R should add safe simulation and the final approval gate while keeping live submit disabled.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1
