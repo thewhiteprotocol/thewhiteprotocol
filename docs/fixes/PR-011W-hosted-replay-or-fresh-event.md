@@ -175,6 +175,8 @@ After redeploying the `VersionedTransaction` simulation fix, hosted simulation r
 
 PR-011W continuation adds `simulationResult` and `simulationError` to the hosted simulation command output so the next run exposes the exact sanitized Solana RPC failure.
 
+The next hosted run reported `simulationError="AccountNotFound"` with pre-submit checks still passing. The likely missing account is the dry-run caller/fee-payer PDA used for unsigned simulation, not a bridge PDA. PR-011W continuation updates the simulation command to use an existing simulation caller when available: `BRIDGE_SOLANA_SIMULATION_CALLER`, or the public key derived from `RELAYER_KEYPAIR` without printing the keypair or signing. The command still uses `sigVerify=false` and does not send.
+
 After replay succeeds and the destination BridgeMint hash is known, run:
 
 ```bash

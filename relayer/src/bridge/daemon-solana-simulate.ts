@@ -5,7 +5,7 @@
  * prints RPC URLs, signer material, operator tokens, or env values.
  */
 
-import { Connection, PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
 import {
   hashBridgeMessageV1,
   parseBridgeMessageV1Json,
@@ -79,6 +79,25 @@ export function targetDestinationHashFromEnv(
   return approved ?? PR011N_DESTINATION_BRIDGE_MINT_HASH;
 }
 
+function simulationCallerFromEnv(env: Record<string, string | undefined> = process.env): string | undefined {
+  const configured = env.BRIDGE_SOLANA_SIMULATION_CALLER;
+  if (configured) {
+    try {
+      return new PublicKey(configured).toBase58();
+    } catch {
+      return undefined;
+    }
+  }
+  const relayerKeypair = env.RELAYER_KEYPAIR;
+  if (!relayerKeypair) return undefined;
+  try {
+    const bytes = JSON.parse(relayerKeypair) as number[];
+    return Keypair.fromSecretKey(Uint8Array.from(bytes)).publicKey.toBase58();
+  } catch {
+    return undefined;
+  }
+}
+
 export function checkSolanaSimulationEnv(
   env: Record<string, string | undefined> = process.env
 ): SolanaSimulationEnvCheck {
@@ -143,6 +162,8 @@ export function checkSolanaSimulationEnv(
   if (env.BRIDGE_SIGNER_MODE) present.push('BRIDGE_SIGNER_MODE');
   if (env.BRIDGE_SIGNER_KEY_FILE) present.push('BRIDGE_SIGNER_KEY_FILE');
   if (env.BRIDGE_SIGNER_PRIVATE_KEYS_TESTNET) present.push('BRIDGE_SIGNER_PRIVATE_KEYS_TESTNET');
+  if (env.BRIDGE_SOLANA_SIMULATION_CALLER) present.push('BRIDGE_SOLANA_SIMULATION_CALLER');
+  if (env.RELAYER_KEYPAIR) present.push('RELAYER_KEYPAIR(public-key-derived)');
 
   return {
     ok: missing.length === 0 && warnings.length === 0,
@@ -229,7 +250,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  const destinationConfig = BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!;
+  const caller = simulationCallerFromEnv(process.env);
+  const destinationConfig = {
+    ...BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!,
+    ...(caller ? { caller } : {}),
+  };
   const programId = new PublicKey(destinationConfig.programId);
   const poolConfig = new PublicKey(destinationConfig.poolConfig);
   const accounts = buildAcceptBridgeV1MintAccounts(loaded.message, poolConfig, programId, {
