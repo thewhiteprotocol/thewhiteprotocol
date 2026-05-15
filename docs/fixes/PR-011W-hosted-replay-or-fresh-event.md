@@ -87,6 +87,8 @@ cd "$repo_root/chains/evm"
 npx tsx test/e2e-bridge-base-to-solana.ts
 ```
 
+PR-011W continuation committed the source-event script so Render deployments can run it. The script accepts `BASE_DEPLOYER_PRIVATE_KEY` as a deployer fallback and accepts the comma-separated `BRIDGE_SIGNER_PRIVATE_KEYS_TESTNET` value directly.
+
 Do not run this if `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true`. The command creates only the Base source event; do not submit the Solana destination transaction.
 
 ## Replay Scan Range
