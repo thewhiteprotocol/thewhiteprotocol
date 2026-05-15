@@ -189,6 +189,7 @@ Paper mode records a sanitized `submissionPreview` in bridge state:
 - PR-011R adds the destination-hash approval gate and simulation status fields. Set `BRIDGE_APPROVED_MESSAGE_HASHES` only to destination BridgeMint hashes, optionally route-scoped as `base-sepolia->solana-devnet|0x...`. Source BridgeOut hashes are rejected for approval.
 - PR-011S adds `npm run bridge:daemon:solana:simulate` for hosted approved-message Solana simulation. It checks env names only, requires the destination BridgeMint hash approval, re-runs read-only idempotency checks, simulates with `sigVerify=false`, and never sends.
 - PR-011T confirmed the hosted daemon was running in paper mode with live submit disabled, but `/bridge/daemon/messages` was empty. Restore or replay the approved PR-011N message into hosted state before running hosted simulation.
+- PR-011U confirmed the approved message still was not present in hosted daemon state. Replay requires Render shell/job access or an authenticated operator endpoint for the bounded block range.
 
 Previews contain no private keys or raw env values.
 
@@ -241,6 +242,7 @@ Stop rollout and return to `BRIDGE_DAEMON_MODE=disabled` if:
 - PR-011R implements safe simulation helpers and approval gating, but hosted simulation is not run automatically by the daemon and live submit is still disabled.
 - PR-011S local validation was environment-blocked; the hosted simulation command must be run where Render secrets and daemon state are available.
 - PR-011T hosted read endpoints were available, but the approved message was not present in hosted daemon state.
+- PR-011U could not verify hosted state path or restore state through public endpoints.
 - Live EVM submit remains gated and is not enabled by default.
 - No mainnet support.
 - KMS/HSM/MPC signer adapters remain placeholders.

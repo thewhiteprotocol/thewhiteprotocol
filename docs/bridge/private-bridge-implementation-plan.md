@@ -654,6 +654,20 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011U: Restore/Replay Approved Daemon Message Attempt ✅ BLOCKED BY HOSTED STATE ACCESS
+
+**Scope:**
+- Re-check hosted daemon state
+- Confirm paper mode and live-submit disabled
+- Attempt to locate the approved PR-011N message by source hash
+- Define the bounded replay range for the approved source event
+
+**Result:** The hosted daemon remained reachable in paper mode with live submit disabled, but `/bridge/daemon/messages` was still empty and the approved source hash returned 404. Public endpoints do not expose state path or replay controls, and this local environment does not have Render shell/job access or the hosted operator token. Replay and simulation were not attempted. No transaction was submitted.
+
+**Next:** PR-011V should add or run a hosted-only authenticated replay job/operator endpoint for the bounded block range, or generate a fresh approved low-value source event if the PR-011N deadline has expired.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1
