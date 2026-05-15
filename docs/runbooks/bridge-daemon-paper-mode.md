@@ -222,12 +222,13 @@ Paper mode records a sanitized `submissionPreview` in bridge state:
 
 - EVM: `acceptBridgeMint` target, message hash, signer set version, signature count, route, and calldata preview text.
 - Solana: `accept_bridge_v1_mint` program, PDA account preview, compute-budget placeholder, and `liveSubmissionImplemented=false`.
-- Base Sepolia -> Solana Devnet previews must use the destination BridgeMint hash as `messageHash`, preserve the source BridgeOut hash as `sourceMessageHash`, use signer set version `2`, and include deployed Solana Devnet pool/tree/vault/buffer/config accounts. Any placeholder-account, hash, or signer-set mismatch blocks operator approval.
+- Base Sepolia -> Solana Devnet previews must use the destination BridgeMint hash as `messageHash`, preserve the source BridgeOut hash as `sourceMessageHash`, use signer set version `3`, and include deployed Solana Devnet pool/tree/vault/buffer/config accounts. Any placeholder-account, hash, or signer-set mismatch blocks operator approval.
 - PR-011Q adds unsigned transaction assembly dry-run metadata for Solana previews: compute budget instructions, account-meta validation, serialized length, and `transactionAssemblyImplemented=true`. The daemon still does not submit destination transactions.
 - PR-011R adds the destination-hash approval gate and simulation status fields. Set `BRIDGE_APPROVED_MESSAGE_HASHES` only to destination BridgeMint hashes, optionally route-scoped as `base-sepolia->solana-devnet|0x...`. Source BridgeOut hashes are rejected for approval.
 - PR-011S adds `npm run bridge:daemon:solana:simulate` for hosted approved-message Solana simulation. It checks env names only, requires the destination BridgeMint hash approval, re-runs read-only idempotency checks, simulates with `sigVerify=false`, and never sends.
 - PR-011T confirmed the hosted daemon was running in paper mode with live submit disabled, but `/bridge/daemon/messages` was empty. Restore or replay the approved PR-011N message into hosted state before running hosted simulation.
 - PR-011U confirmed the approved message still was not present in hosted daemon state. Replay requires Render shell/job access or an authenticated operator endpoint for the bounded block range.
+- PR-012A adds `npm run bridge:daemon:solana:submit-approved`, a single-message live-testnet submit command. It requires `BRIDGE_DAEMON_MODE=live-testnet`, `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true`, route-scoped destination-hash approval, fresh pre-submit checks, successful simulation, and a configured Solana relayer keypair before it sends.
 
 Previews contain no private keys or raw env values.
 
@@ -258,6 +259,9 @@ Do not enable live-testnet submission until all items are true:
 - Solana preview account derivations are reviewed against live testnet accounts
 - explicit operator approval is recorded outside git
 - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true` is approved only for a narrow testnet route/window
+- the submit command is scoped to one destination BridgeMint hash through `BRIDGE_SUBMIT_DESTINATION_MESSAGE_HASH` and `BRIDGE_APPROVED_MESSAGE_HASHES`
+- the source BridgeOut hash is pinned with `BRIDGE_SUBMIT_SOURCE_MESSAGE_HASH`
+- `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false` is restored immediately after the submit window
 
 Use `docs/runbooks/bridge-operator-approval-checklist.md` for message-specific approval review. PR-011O applied that checklist to the fresh PR-011N Base Sepolia -> Solana Devnet message and kept the approval decision on hold for live submission because the current Solana submit preview is still preview-only and must be reconciled against the destination BridgeMint hash, deployed signer set version, and real Solana account inputs.
 

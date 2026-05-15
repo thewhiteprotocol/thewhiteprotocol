@@ -21,6 +21,7 @@
     "bridge:daemon:paper:scan": "ts-node src/bridge/daemon-paper-scan.ts",
     "bridge:daemon:paper:status": "ts-node src/bridge/daemon-paper-status.ts",
     "bridge:daemon:solana:simulate": "ts-node src/bridge/daemon-solana-simulate.ts",
+    "bridge:daemon:solana:submit-approved": "ts-node src/bridge/daemon-solana-submit-approved.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

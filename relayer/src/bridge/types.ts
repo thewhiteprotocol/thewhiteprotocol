@@ -77,6 +77,12 @@ export interface BridgeMessageState {
   signatures: BridgeSignature[];
   /** Destination submission tx hash, if any */
   submitTxHash?: string;
+  /** Timestamp when a destination submission was sent. */
+  submittedAt?: number;
+  /** Destination confirmation status captured by submit command. */
+  confirmationStatus?: string;
+  /** Destination confirmation slot when available. */
+  confirmationSlot?: number;
   /** Current status */
   status: BridgeMessageStatus;
   /** Number of submission attempts */

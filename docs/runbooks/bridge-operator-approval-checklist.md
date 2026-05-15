@@ -107,6 +107,17 @@ Use this checklist before approving any bridge daemon message for a future live-
     - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false` during review.
     - `submitTxHash=null` before approval.
 
+14. Guarded live-testnet submit window
+    - `BRIDGE_DAEMON_MODE=live-testnet` is set only for the approved submit window.
+    - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true` is set only for the approved submit window.
+    - `BRIDGE_DAEMON_ROUTES` includes only the intended testnet route, for example `base-sepolia:solana-devnet:3`.
+    - `BRIDGE_SUBMIT_SOURCE_MESSAGE_HASH` is the approved source BridgeOut hash.
+    - `BRIDGE_SUBMIT_DESTINATION_MESSAGE_HASH` is the approved destination BridgeMint hash.
+    - `BRIDGE_APPROVED_MESSAGE_HASHES` includes the route-scoped destination hash.
+    - `npm run bridge:daemon:solana:submit-approved` is the only submit command used.
+    - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false` is restored immediately after the submit attempt.
+    - A duplicate submit command is run or reviewed to confirm it does not send a second transaction.
+
 ## Stop Conditions
 
 Do not approve live submission if any of these are true:
@@ -134,6 +145,9 @@ Do not approve live submission if any of these are true:
 - Watcher has an open critical finding.
 - The message is already consumed or frozen on destination.
 - Live submit flags were enabled before approval was recorded.
+- The submit command target hash differs from the latest successful hosted simulation destination hash.
+- `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true` is left enabled after the submit attempt.
+- The message already has `submitTxHash` in daemon state.
 
 ## Future Live-Testnet Approval Fields
 
@@ -149,4 +163,7 @@ Record these outside git before enabling any future live-testnet destination sub
 - Exact daemon message hash selected:
 - Approved destination action:
 - Approval expiration:
+- Submit command:
+- Submit tx hash:
+- Submit confirmation status:
 - Notes:
