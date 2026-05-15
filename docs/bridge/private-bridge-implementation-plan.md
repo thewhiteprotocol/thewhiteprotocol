@@ -798,6 +798,7 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [x] Solana frozen-message lifecycle fixed so normal BridgeMint accepts do not require pre-created freeze records (PR-011X).
 - [x] Solana destination signer set version reconciled to active devnet signer set v3 (PR-011Y).
 - [x] Guarded single-message Solana live-testnet submit command implemented with approval, simulation, and idempotency gates (PR-012A).
+- [ ] PR-012A daemon-submitted Solana commitment settlement + withdraw evidence captured (PR-012B).
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.
