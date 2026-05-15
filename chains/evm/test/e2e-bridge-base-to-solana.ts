@@ -534,7 +534,7 @@ async function main() {
     ])
   );
   const expectedWithdrawSignals = [
-    treeState.currentRoot.toString(),
+    expectedNewRoot.toString(),
     nullifierHash.toString(),
     BASE_ASSET_ID.toString(),
     BigInt(bridgeOutboxAddress).toString(),
