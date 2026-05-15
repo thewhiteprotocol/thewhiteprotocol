@@ -467,7 +467,7 @@ async function main() {
     sourceBlockNumber: 0,
     sourceFinalityBlock: 0,
     nonce: messageNonce,
-    deadline: now + 3600,
+    deadline: now + 86400,
     relayerFee: 0n,
     recipientStealthMetadataHash: '0x' + '0'.repeat(64),
     memoHash: '0x' + '0'.repeat(64),
