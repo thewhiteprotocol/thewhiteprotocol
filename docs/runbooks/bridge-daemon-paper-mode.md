@@ -146,6 +146,33 @@ BRIDGE_DAEMON_STATE_PATH=/tmp/pr011h-paper-state npm run bridge:daemon:paper:sta
 
 The command reports missing live RPC env var names when a fresh live scan cannot be run. It does not print env values.
 
+## Hosted Bounded Replay Job
+
+PR-011V adds a hosted-safe bounded replay command for restoring a known source block range into daemon paper state:
+
+```bash
+cd relayer
+BRIDGE_DAEMON_REPLAY_ROUTE=base-sepolia:solana-devnet \
+BRIDGE_DAEMON_SCAN_FROM_BLOCK=41539651 \
+BRIDGE_DAEMON_SCAN_TO_BLOCK=41539691 \
+BRIDGE_DAEMON_EXPECTED_SOURCE_MESSAGE_HASH=0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc \
+BRIDGE_DAEMON_EXPECTED_DESTINATION_MESSAGE_HASH=0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56 \
+npm run bridge:daemon:paper:replay
+```
+
+Replay safety rules:
+
+- `BRIDGE_DAEMON_MODE` must be `paper`.
+- `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT` must be `false` or unset.
+- the route must be configured and testnet-only.
+- `BRIDGE_DAEMON_SCAN_FROM_BLOCK` and `BRIDGE_DAEMON_SCAN_TO_BLOCK` must be explicit.
+- the replay range must be no more than 500 blocks.
+- expected source and destination hashes are checked when provided.
+- the command does not configure destination adapters and cannot submit destination transactions.
+- CLI output summarizes message state and does not print raw signer keys, env values, or raw signature arrays.
+
+For the PR-011N approved message, use source block `41539671` and the bounded range `41539651` to `41539691`. If replay finds the event but current-time policy rejects it for `expired_deadline`, do not bypass the policy. Generate a new low-value source event in a follow-up PR and replay that fresh range.
+
 ## Status And Messages
 
 Read endpoints:

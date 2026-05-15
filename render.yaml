@@ -104,6 +104,14 @@ services:
         value: ""
       - key: BRIDGE_DAEMON_SCAN_TO_BLOCK
         value: ""
+      # Optional hosted bounded replay job inputs. Use only with paper mode and
+      # BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false. Hashes are public message hashes.
+      - key: BRIDGE_DAEMON_REPLAY_ROUTE
+        value: ""
+      - key: BRIDGE_DAEMON_EXPECTED_SOURCE_MESSAGE_HASH
+        value: ""
+      - key: BRIDGE_DAEMON_EXPECTED_DESTINATION_MESSAGE_HASH
+        value: ""
       - key: BRIDGE_DAEMON_SUBMIT_TARGETS
         value: ""
       # Destination BridgeMint hashes only; optional route-scoped format:

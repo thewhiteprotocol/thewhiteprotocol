@@ -668,6 +668,23 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011V: Hosted Bounded Replay Job ✅ IMPLEMENTED, HOSTED RUN BLOCKED
+
+**Scope:**
+- Add a safe hosted replay mechanism for a bounded source block range
+- Enforce paper mode and disabled live submit
+- Require configured testnet route and bounded from/to blocks
+- Support expected source and destination hash checks
+- Keep destination submit disabled
+
+**Deliverable:** `npm run bridge:daemon:paper:replay` replays a bounded Base Sepolia source range into daemon paper state when hosted RPC, signer, route, and state-path env are present. CLI output is sanitized and does not include secret env values or raw signature arrays.
+
+**Result:** Local validation proved the replay handler and safety gates with mocked source events. The hosted public API still showed an empty message list before hosted replay. This local environment does not have Render shell/job access, so the PR-011N range was not replayed into hosted state here. No transaction was submitted.
+
+**Next:** Run the PR-011V replay command on Render with range `41539651` to `41539691`. If the PR-011N message is rejected by current-time `expired_deadline`, generate a new approved low-value Base Sepolia -> Solana Devnet source event and replay that fresh block range.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1

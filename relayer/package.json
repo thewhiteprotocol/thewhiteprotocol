@@ -17,6 +17,7 @@
     "watcher:report": "ts-node src/bridge/watcher-report.ts",
     "bridge:daemon:env:check": "ts-node src/bridge/daemon-env-check.ts",
     "bridge:daemon:paper:once": "ts-node src/bridge/daemon-paper-once.ts",
+    "bridge:daemon:paper:replay": "ts-node src/bridge/daemon-paper-replay.ts",
     "bridge:daemon:paper:scan": "ts-node src/bridge/daemon-paper-scan.ts",
     "bridge:daemon:paper:status": "ts-node src/bridge/daemon-paper-status.ts",
     "bridge:daemon:solana:simulate": "ts-node src/bridge/daemon-solana-simulate.ts",

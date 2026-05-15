@@ -124,6 +124,8 @@ Do not approve live submission if any of these are true:
 - Hosted simulation env/state is missing.
 - Hosted daemon message list is empty or missing the approved message hash.
 - Hosted replay cannot write to the same persistent daemon state path.
+- Hosted bounded replay was not run with `BRIDGE_DAEMON_MODE=paper` and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
+- Hosted bounded replay was run without explicit expected source and destination message hashes for the approved message.
 - Source event, policy, finality, watcher, signer, or route evidence is missing.
 - Any private key, RPC secret, operator token, note secret, witness, or wallet file appears in the approval artifact.
 - Watcher has an open critical finding.
