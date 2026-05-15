@@ -106,6 +106,10 @@ services:
         value: ""
       - key: BRIDGE_DAEMON_SUBMIT_TARGETS
         value: ""
+      # Destination BridgeMint hashes only; optional route-scoped format:
+      # base-sepolia->solana-devnet|0x...
+      - key: BRIDGE_APPROVED_MESSAGE_HASHES
+        value: ""
       - key: BRIDGE_BASE_SEPOLIA_OUTBOX_ADDRESS
         value: 0x7eaFB77E2F05Bf0EbCb8F1A51B187BbcdBCb985D
       - key: SOLANA_DEVNET_RPC_URL

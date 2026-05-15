@@ -608,6 +608,22 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011R: Solana Destination Simulation And Final Approval Gate ✅ COMPLETE
+
+**Scope:**
+- Require explicit destination BridgeMint hash approval
+- Reject source BridgeOut hash-only approval
+- Re-run consumed/frozen/commitment-index idempotency checks before simulation
+- Add a safe Solana `simulateTransaction` helper using `sigVerify=false`
+- Sanitize simulation logs
+- Keep all send paths disabled
+
+**Deliverable:** The relayer now has simulation and final approval-gate primitives for the assembled Solana destination transaction. Daemon previews expose approval and readiness fields, while `liveSubmissionImplemented=false` remains intentional.
+
+**Next:** PR-011S should run hosted Solana simulation for the approved PR-011N destination BridgeMint hash, still without submitting.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1

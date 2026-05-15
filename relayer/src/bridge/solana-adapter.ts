@@ -186,7 +186,10 @@ export type SolanaSubmitReadinessStatus =
   | 'blocked_hash_mismatch'
   | 'blocked_signer_set_mismatch'
   | 'blocked_rpc_state'
-  | 'blocked_live_submit_not_implemented';
+  | 'blocked_live_submit_not_implemented'
+  | 'blocked_approval_required'
+  | 'blocked_approval_hash_mismatch'
+  | 'blocked_approval_expired';
 
 export interface SolanaSubmitReadiness {
   readyForOperatorApproval: boolean;
@@ -214,6 +217,59 @@ export interface SolanaAccountMetaValidation {
   accountMetaCount: number;
   expectedOrder: string[];
   actualOrder: string[];
+}
+
+export type SolanaApprovalStatus =
+  | 'approved'
+  | 'blocked_approval_required'
+  | 'blocked_approval_hash_mismatch'
+  | 'blocked_approval_expired';
+
+export interface SolanaApprovalGate {
+  status: SolanaApprovalStatus;
+  approved: boolean;
+  approvedMessageHash?: string;
+  route?: string;
+  expiresAt?: number;
+  reasons: string[];
+}
+
+export type SolanaSimulationStatus =
+  | 'success'
+  | 'failed'
+  | 'skipped'
+  | 'blocked_approval_required'
+  | 'blocked_approval_hash_mismatch'
+  | 'blocked_approval_expired'
+  | 'blocked_pre_submit_checks';
+
+export interface SolanaSimulationResult {
+  simulationAttempted: boolean;
+  simulationOk: boolean;
+  simulationStatus: SolanaSimulationStatus;
+  simulationResult: string;
+  sigVerify: false;
+  readyForLiveSubmit: boolean;
+  logsPreview: string[];
+  unitsConsumed?: number;
+  slot?: number;
+  blockhash?: string;
+  error?: string;
+}
+
+export interface SolanaSimulationConnectionLike {
+  getLatestBlockhash(): Promise<{ blockhash: string; lastValidBlockHeight?: number }>;
+  simulateTransaction(
+    transaction: Transaction,
+    config?: { sigVerify?: boolean; replaceRecentBlockhash?: boolean }
+  ): Promise<{
+    context?: { slot?: number };
+    value: {
+      err: unknown;
+      logs?: string[] | null;
+      unitsConsumed?: number;
+    };
+  }>;
 }
 
 export interface SolanaAcceptBridgeMintTransactionPreview {
@@ -252,6 +308,21 @@ const ACCEPT_BRIDGE_V1_MINT_IX_NAME = 'accept_bridge_v1_mint';
 const DRY_RUN_RECENT_BLOCKHASH = '11111111111111111111111111111111';
 const DEFAULT_COMPUTE_UNIT_LIMIT = 400_000;
 const DEFAULT_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS = 0;
+
+function normalizeHexHash(value: string): string {
+  return `0x${value.replace(/^0x/i, '').toLowerCase()}`;
+}
+
+function isHash(value: string | undefined): value is string {
+  return Boolean(value && /^0x[0-9a-fA-F]{64}$/.test(normalizeHexHash(value)));
+}
+
+function sanitizeSimulationLog(log: string): string {
+  return log
+    .replace(/https?:\/\/\S+/g, '[redacted-url]')
+    .replace(/(api[-_]?key|token|secret|private[-_]?key)=\S+/gi, '$1=[redacted]')
+    .slice(0, 500);
+}
 
 function asPublicKey(value: string, field: string): PublicKey {
   try {
@@ -471,6 +542,83 @@ export function validateSolanaAcceptBridgeMintAccountMetas(
   };
 }
 
+export function evaluateSolanaOperatorApproval(input: {
+  destinationMessageHash: string;
+  sourceMessageHash?: string;
+  route?: string;
+  approvedMessageHashes?: string[];
+  nowSeconds?: number;
+}): SolanaApprovalGate {
+  const approvals = (input.approvedMessageHashes ?? [])
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const destinationHash = normalizeHexHash(input.destinationMessageHash);
+  const sourceHash = input.sourceMessageHash ? normalizeHexHash(input.sourceMessageHash) : undefined;
+  const nowSeconds = input.nowSeconds ?? Math.floor(Date.now() / 1000);
+
+  if (approvals.length === 0) {
+    return {
+      status: 'blocked_approval_required',
+      approved: false,
+      reasons: ['destination_message_hash_approval_required'],
+    };
+  }
+
+  let sourceHashOnlyApproved = false;
+  for (const approval of approvals) {
+    let route: string | undefined;
+    let hash = approval;
+    let expiresAt: number | undefined;
+
+    if (approval.includes('|')) {
+      const parts = approval.split('|').map((part) => part.trim());
+      if (parts.length >= 2) {
+        route = parts[0] || undefined;
+        hash = parts[1];
+        expiresAt = parts[2] ? Number(parts[2]) : undefined;
+      }
+    } else if (approval.includes('=')) {
+      const [routePart, hashPart] = approval.split('=').map((part) => part.trim());
+      route = routePart || undefined;
+      hash = hashPart;
+    }
+
+    if (!isHash(hash)) continue;
+    const normalizedApprovalHash = normalizeHexHash(hash);
+    if (sourceHash && normalizedApprovalHash === sourceHash) sourceHashOnlyApproved = true;
+    if (normalizedApprovalHash !== destinationHash) continue;
+    if (route && input.route && route !== input.route) continue;
+    if (expiresAt !== undefined && Number.isFinite(expiresAt) && expiresAt <= nowSeconds) {
+      return {
+        status: 'blocked_approval_expired',
+        approved: false,
+        approvedMessageHash: destinationHash,
+        route,
+        expiresAt,
+        reasons: ['approval_expired'],
+      };
+    }
+    return {
+      status: 'approved',
+      approved: true,
+      approvedMessageHash: destinationHash,
+      route,
+      expiresAt: Number.isFinite(expiresAt) ? expiresAt : undefined,
+      reasons: [],
+    };
+  }
+
+  return {
+    status: 'blocked_approval_hash_mismatch',
+    approved: false,
+    reasons: [
+      sourceHashOnlyApproved
+        ? 'source_message_hash_is_not_destination_approval'
+        : 'approved_destination_message_hash_not_found',
+    ],
+  };
+}
+
 export function evaluateSolanaSubmitReadiness(input: {
   accounts: Record<string, string>;
   sourceMessageHash?: string;
@@ -479,6 +627,7 @@ export function evaluateSolanaSubmitReadiness(input: {
   signerSetVersion: number;
   expectedSignerSetVersion?: number;
   liveSubmissionImplemented: boolean;
+  approval?: SolanaApprovalGate;
 }): SolanaSubmitReadiness {
   const checks: Record<string, 'pass' | 'fail' | 'unknown'> = {};
   const reasons: string[] = [];
@@ -504,6 +653,13 @@ export function evaluateSolanaSubmitReadiness(input: {
   checks.liveSubmissionImplemented = input.liveSubmissionImplemented ? 'pass' : 'fail';
   if (!input.liveSubmissionImplemented) reasons.push('live_submit_not_implemented');
 
+  if (input.approval) {
+    checks.operatorApproval = input.approval.approved ? 'pass' : 'fail';
+    reasons.push(...input.approval.reasons);
+  } else {
+    checks.operatorApproval = 'unknown';
+  }
+
   if (checks.placeholderAccounts === 'fail') {
     return { readyForOperatorApproval: false, status: 'blocked_placeholder_accounts', reasons, checks };
   }
@@ -512,6 +668,12 @@ export function evaluateSolanaSubmitReadiness(input: {
   }
   if (checks.signerSetVersion === 'fail') {
     return { readyForOperatorApproval: false, status: 'blocked_signer_set_mismatch', reasons, checks };
+  }
+  if (input.approval && !input.approval.approved) {
+    const status = input.approval.status === 'approved'
+      ? 'blocked_approval_required'
+      : input.approval.status;
+    return { readyForOperatorApproval: false, status, reasons, checks };
   }
   if (!input.liveSubmissionImplemented) {
     return { readyForOperatorApproval: false, status: 'blocked_live_submit_not_implemented', reasons, checks };
@@ -764,6 +926,91 @@ export function buildSolanaAcceptBridgeMintTransactionPreview(input: {
     simulationStatus: 'skipped',
     simulationResult: 'not_attempted_no_rpc_required',
   };
+}
+
+export async function simulateSolanaAcceptBridgeMintTransaction(
+  preview: SolanaAcceptBridgeMintTransactionPreview,
+  connection: SolanaSimulationConnectionLike,
+  options: {
+    approval?: SolanaApprovalGate;
+    preSubmitReadiness?: SolanaSubmitReadiness;
+  } = {}
+): Promise<SolanaSimulationResult> {
+  if (options.approval && !options.approval.approved) {
+    const status = options.approval.status === 'approved'
+      ? 'blocked_approval_required'
+      : options.approval.status;
+    return {
+      simulationAttempted: false,
+      simulationOk: false,
+      simulationStatus: status,
+      simulationResult: status,
+      sigVerify: false,
+      readyForLiveSubmit: false,
+      logsPreview: [],
+      error: options.approval.reasons.join(', ') || options.approval.status,
+    };
+  }
+
+  if (options.preSubmitReadiness && !options.preSubmitReadiness.readyForOperatorApproval) {
+    return {
+      simulationAttempted: false,
+      simulationOk: false,
+      simulationStatus: 'blocked_pre_submit_checks',
+      simulationResult: options.preSubmitReadiness.status,
+      sigVerify: false,
+      readyForLiveSubmit: false,
+      logsPreview: [],
+      error: options.preSubmitReadiness.reasons.join(', ') || options.preSubmitReadiness.status,
+    };
+  }
+
+  const latest = await connection.getLatestBlockhash();
+  preview.transaction.recentBlockhash = latest.blockhash;
+  const result = await connection.simulateTransaction(preview.transaction, {
+    sigVerify: false,
+    replaceRecentBlockhash: false,
+  });
+  const logsPreview = (result.value.logs ?? [])
+    .slice(0, 25)
+    .map(sanitizeSimulationLog);
+  const error = result.value.err ? JSON.stringify(result.value.err).slice(0, 500) : undefined;
+  const simulationOk = !result.value.err;
+
+  return {
+    simulationAttempted: true,
+    simulationOk,
+    simulationStatus: simulationOk ? 'success' : 'failed',
+    simulationResult: simulationOk ? 'ok' : 'failed',
+    sigVerify: false,
+    readyForLiveSubmit: simulationOk &&
+      Boolean(options.approval?.approved) &&
+      Boolean(options.preSubmitReadiness?.readyForOperatorApproval),
+    logsPreview,
+    unitsConsumed: result.value.unitsConsumed,
+    slot: result.context?.slot,
+    blockhash: latest.blockhash,
+    error,
+  };
+}
+
+export async function simulateSolanaAcceptBridgeMintTransactionWithGates(input: {
+  preview: SolanaAcceptBridgeMintTransactionPreview;
+  connection: SolanaSimulationConnectionLike;
+  accountProvider: SolanaReadOnlyAccountProvider;
+  accounts: AcceptBridgeV1MintAccounts;
+  approval: SolanaApprovalGate;
+}): Promise<SolanaSimulationResult & { preSubmitReadiness: SolanaSubmitReadiness }> {
+  const preSubmitReadiness = await runSolanaPreSubmitReadinessChecks(
+    input.accounts,
+    input.accountProvider
+  );
+  const simulation = await simulateSolanaAcceptBridgeMintTransaction(
+    input.preview,
+    input.connection,
+    { approval: input.approval, preSubmitReadiness }
+  );
+  return { ...simulation, preSubmitReadiness };
 }
 
 // =============================================================================

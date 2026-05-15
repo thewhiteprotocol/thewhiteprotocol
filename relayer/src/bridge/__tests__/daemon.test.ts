@@ -573,8 +573,11 @@ describe('BridgeDaemon', () => {
     expect((state.submissionPreview?.solana as any).computeBudgetIncluded).toBe(true);
     expect((state.submissionPreview?.solana as any).serializedLength).toBeGreaterThan(0);
     expect((state.submissionPreview?.solana as any).accountMetaValidation.valid).toBe(true);
+    expect((state.submissionPreview?.solana as any).approvalStatus).toBe('blocked_approval_required');
+    expect((state.submissionPreview?.solana as any).readyForLiveSubmit).toBe(false);
+    expect((state.submissionPreview?.solana as any).idempotencyStatus).toBe('not_run_without_rpc_provider');
     expect((state.submissionPreview?.solana as any).liveSubmissionImplemented).toBe(false);
-    expect((state.submissionPreview?.solana as any).readiness.status).toBe('blocked_live_submit_not_implemented');
+    expect((state.submissionPreview?.solana as any).readiness.status).toBe('blocked_approval_required');
   });
 
   test('Solana submit preview helper includes expected accounts', () => {
@@ -595,6 +598,42 @@ describe('BridgeDaemon', () => {
     expect(preview.solana?.accounts.signerSet).toBe('7Emf7vYUY9mpkzBfnzWKJ4B9PNqqrMzr5wyuUc8ap4XK');
   });
 
+  test('Solana submit preview approval gate accepts destination hash only', () => {
+    const message = makeBaseToSolanaMessage();
+    const destinationHash = hashBridgeMessageV1(message);
+    const sourceHash = `0x${hex('aa')}`;
+    const sourceOnlyPreview = buildSolanaSubmitPreview({
+      destinationChain: 'solana-devnet',
+      message,
+      messageHash: destinationHash,
+      sourceMessageHash: sourceHash,
+      signerSetVersion: 2,
+      signatureCount: 2,
+      route: 'base-sepolia->solana-devnet',
+      dryRun: true,
+      wouldSubmit: true,
+      solanaDestination: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination,
+      approvedMessageHashes: [sourceHash],
+    });
+    expect((sourceOnlyPreview.solana as any).approvalStatus).toBe('blocked_approval_hash_mismatch');
+
+    const approvedPreview = buildSolanaSubmitPreview({
+      destinationChain: 'solana-devnet',
+      message,
+      messageHash: destinationHash,
+      sourceMessageHash: sourceHash,
+      signerSetVersion: 2,
+      signatureCount: 2,
+      route: 'base-sepolia->solana-devnet',
+      dryRun: true,
+      wouldSubmit: true,
+      solanaDestination: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination,
+      approvedMessageHashes: [`base-sepolia->solana-devnet|${destinationHash}`],
+    });
+    expect((approvedPreview.solana as any).approvalStatus).toBe('approved');
+    expect((approvedPreview.solana as any).readyForLiveSubmit).toBe(false);
+  });
+
   test('env route loads Base to Solana signer set and deployed account metadata', () => {
     const config = loadBridgeDaemonConfigFromEnv({
       BRIDGE_DAEMON_MODE: 'paper',
@@ -603,6 +642,17 @@ describe('BridgeDaemon', () => {
     expect(config.routes[0].signerSetVersion).toBe(2);
     expect(config.routes[0].assets?.[0].destinationDecimals).toBe(9);
     expect(config.routes[0].solanaDestination?.poolConfig).toBe('DZLJU6MAeWZ7aGLyt2j7Jq2XnNq2ch6jUAVgKmki9HaF');
+  });
+
+  test('env config loads approved message hash gate entries', () => {
+    const config = loadBridgeDaemonConfigFromEnv({
+      BRIDGE_DAEMON_MODE: 'paper',
+      BRIDGE_DAEMON_ROUTES: 'base-sepolia:solana-devnet',
+      BRIDGE_APPROVED_MESSAGE_HASHES: 'base-sepolia->solana-devnet|0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56',
+    });
+    expect(config.approvedMessageHashes).toEqual([
+      'base-sepolia->solana-devnet|0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56',
+    ]);
   });
 
   test('state persists transitions', async () => {
