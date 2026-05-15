@@ -178,7 +178,8 @@ export function checkSolanaSimulationEnv(
 
 function loadApprovedMessage(
   stateDir: string,
-  targetDestinationHash = PR011N_DESTINATION_BRIDGE_MINT_HASH
+  targetDestinationHash = PR011N_DESTINATION_BRIDGE_MINT_HASH,
+  expectedSignerSetVersion = BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion
 ): {
   message: BridgeMessageV1;
   signatures: string[];
@@ -197,7 +198,7 @@ function loadApprovedMessage(
   if (destinationHash !== normalizedTarget) {
     throw new Error('destination_message_hash_mismatch');
   }
-  if (state.signatureMetadata?.signerSetVersion !== 2) {
+  if (state.signatureMetadata?.signerSetVersion !== expectedSignerSetVersion) {
     throw new Error('signer_set_version_mismatch');
   }
   if (state.signatures.length < 2) {
@@ -235,8 +236,9 @@ async function main(): Promise<void> {
   }
 
   let loaded: ReturnType<typeof loadApprovedMessage>;
+  const signerSetVersion = BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion;
   try {
-    loaded = loadApprovedMessage(stateDir, targetDestinationHash);
+    loaded = loadApprovedMessage(stateDir, targetDestinationHash, signerSetVersion);
   } catch (err) {
     console.log(JSON.stringify({
       ok: false,
@@ -258,7 +260,7 @@ async function main(): Promise<void> {
   const programId = new PublicKey(destinationConfig.programId);
   const poolConfig = new PublicKey(destinationConfig.poolConfig);
   const accounts = buildAcceptBridgeV1MintAccounts(loaded.message, poolConfig, programId, {
-    signerSetVersion: 2,
+    signerSetVersion,
     destinationConfig,
     messageHash: targetDestinationHash,
   });
@@ -267,7 +269,7 @@ async function main(): Promise<void> {
     messageHash: targetDestinationHash,
     sourceMessageHash: loaded.sourceMessageHash ?? PR011N_SOURCE_BRIDGE_OUT_HASH,
     signatures: loaded.signatures,
-    signerSetVersion: 2,
+    signerSetVersion,
     destinationConfig,
     programId,
   });
