@@ -162,6 +162,19 @@ Simulation was attempted after fresh replay but initially blocked because the si
 
 After redeploying that target-hash fix, simulation found the fresh message but failed with `Invalid arguments` from the Solana web3 simulation call. The simulation path was updated to simulate a `VersionedTransaction` with `sigVerify=false` and to return sanitized failure details instead of throwing. No send API is called.
 
+After redeploying the `VersionedTransaction` simulation fix, hosted simulation reached Solana RPC:
+
+- pre-submit checks: `ready_for_operator_approval`
+- simulation attempted: `true`
+- `sigVerify=false`
+- simulation result: `failed`
+- compute units: `0`
+- logs: none returned
+- destination transaction submitted: `false`
+- state mutation observed: `false`
+
+PR-011W continuation adds `simulationResult` and `simulationError` to the hosted simulation command output so the next run exposes the exact sanitized Solana RPC failure.
+
 After replay succeeds and the destination BridgeMint hash is known, run:
 
 ```bash

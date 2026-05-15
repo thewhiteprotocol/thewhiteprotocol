@@ -280,6 +280,8 @@ async function main(): Promise<void> {
     preSubmitReasons: simulation.preSubmitReadiness.reasons,
     simulationAttempted: simulation.simulationAttempted,
     simulationOk: simulation.simulationOk,
+    simulationResult: simulation.simulationResult,
+    simulationError: simulation.error ?? null,
     sigVerify: simulation.sigVerify,
     computeUnits: simulation.unitsConsumed ?? null,
     slot: simulation.slot ?? null,
