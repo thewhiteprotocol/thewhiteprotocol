@@ -801,6 +801,7 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [ ] PR-012A daemon-submitted Solana commitment settlement + withdraw evidence captured (PR-012B).
 - [x] Destination note-state validation/export flow added; PR-012A note state not recovered from Render (PR-012C).
 - [ ] Guarded live submit with validated new note state reached Solana, but settlement/withdraw blocked by non-durable Render note-state export (PR-012D).
+- [x] Durable destination note-state backup gate added before guarded Solana live submit (PR-012E).
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.

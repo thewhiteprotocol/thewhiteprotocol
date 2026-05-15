@@ -31,6 +31,10 @@ type ValidationResult = {
 const DEFAULT_OUTPUT_DIR = "/tmp/white-bridge-note-state";
 const SECRET_KEY_RE = /(secret|nullifier|witness|private[_-]?key|mnemonic|seed|signature)/i;
 
+function truthy(value: unknown): boolean {
+  return value === true || value === "true" || value === "1" || value === "yes";
+}
+
 function repoRoot(): string {
   let dir = process.cwd();
   while (dir !== path.dirname(dir)) {
@@ -55,6 +59,13 @@ function normalizeScalar(value: unknown): string | null {
   if (/^0x[0-9a-fA-F]+$/.test(trimmed)) return BigInt(trimmed).toString();
   if (/^[0-9]+$/.test(trimmed)) return BigInt(trimmed).toString();
   return null;
+}
+
+function normalizeOptionalHexScalar(value: unknown): string | null {
+  if (typeof value !== "string") return normalizeScalar(value);
+  const trimmed = value.trim();
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return BigInt(`0x${trimmed}`).toString();
+  return normalizeScalar(trimmed);
 }
 
 function hasKeyDeep(value: unknown, matcher: RegExp): boolean {
@@ -102,16 +113,16 @@ function summarizeState(filePath: string): Summary {
       normalizeHash(state.destinationBridgeMintHash) ||
       normalizeHash(state.destinationMessageHash),
     destinationCommitment:
-      normalizeScalar(state.destinationCommitment) ||
-      normalizeScalar(state.destCommitment) ||
-      normalizeScalar(bridgeMintMessage.destinationCommitment) ||
-      normalizeScalar(sourceMessage.destinationCommitment),
+      normalizeOptionalHexScalar(state.destinationCommitment) ||
+      normalizeOptionalHexScalar(state.destCommitment) ||
+      normalizeOptionalHexScalar(bridgeMintMessage.destinationCommitment) ||
+      normalizeOptionalHexScalar(sourceMessage.destinationCommitment),
     amount: normalizeScalar(state.amount),
     destinationAmount: normalizeScalar(state.destinationAmount) || normalizeScalar(state.destAmount),
     assetId:
-      normalizeScalar(state.solanaAssetId) ||
-      normalizeScalar(bridgeMintMessage.destinationLocalAssetId) ||
-      normalizeScalar(sourceMessage.destinationLocalAssetId),
+      normalizeOptionalHexScalar(state.solanaAssetId) ||
+      normalizeOptionalHexScalar(bridgeMintMessage.destinationLocalAssetId) ||
+      normalizeOptionalHexScalar(sourceMessage.destinationLocalAssetId),
     hasDestSecret: state.destSecret !== undefined && state.destSecret !== null && state.destSecret !== "",
     hasDestNullifier: state.destNullifier !== undefined && state.destNullifier !== null && state.destNullifier !== "",
     hasWitness: Boolean(state.witness || state.withdrawWitness || state.proofWitness),
@@ -133,11 +144,13 @@ function validateState(filePath: string, env = process.env): ValidationResult {
   };
   const errors: string[] = [];
 
-  const expectedSource = normalizeHash(env.BRIDGE_NOTE_EXPECTED_SOURCE_HASH);
-  const expectedDestination = normalizeHash(env.BRIDGE_NOTE_EXPECTED_DESTINATION_HASH);
-  const expectedCommitment = normalizeScalar(env.BRIDGE_NOTE_EXPECTED_DESTINATION_COMMITMENT);
+  const expectedSource = normalizeHash(env.BRIDGE_NOTE_EXPECTED_SOURCE_HASH || env.BRIDGE_NOTE_STATE_EXPECTED_SOURCE_HASH);
+  const expectedDestination = normalizeHash(
+    env.BRIDGE_NOTE_EXPECTED_DESTINATION_HASH || env.BRIDGE_NOTE_STATE_EXPECTED_DESTINATION_HASH
+  );
+  const expectedCommitment = normalizeOptionalHexScalar(env.BRIDGE_NOTE_EXPECTED_DESTINATION_COMMITMENT);
   const expectedAmount = normalizeScalar(env.BRIDGE_NOTE_EXPECTED_DESTINATION_AMOUNT);
-  const expectedAsset = normalizeScalar(env.BRIDGE_NOTE_EXPECTED_ASSET_ID);
+  const expectedAsset = normalizeOptionalHexScalar(env.BRIDGE_NOTE_EXPECTED_ASSET_ID);
 
   if (!summary.exists) errors.push("state_file_missing");
   if (expectedSource) {
@@ -179,9 +192,42 @@ function assertSafeOutputPath(outputPath: string): void {
   }
 }
 
+function isTmpPath(filePath: string): boolean {
+  const resolved = path.resolve(filePath);
+  const tmpRoot = path.resolve(os.tmpdir());
+  return resolved === tmpRoot || resolved.startsWith(tmpRoot + path.sep);
+}
+
+function durableRequired(env: NodeJS.ProcessEnv | Record<string, string | undefined>): boolean {
+  return env.BRIDGE_REQUIRE_DURABLE_NOTE_STATE !== "false";
+}
+
+function assertDurablePath(filePath: string, env = process.env): void {
+  assertSafeOutputPath(filePath);
+  if (durableRequired(env) && isTmpPath(filePath) && !truthy(env.BRIDGE_ALLOW_TMP_NOTE_STATE)) {
+    throw new Error("refusing_tmp_note_state_backup_without_BRIDGE_ALLOW_TMP_NOTE_STATE");
+  }
+}
+
 function destinationFileName(destinationHash: string | null): string {
   const suffix = destinationHash ? destinationHash.slice(2) : crypto.randomBytes(16).toString("hex");
   return `${suffix}.bridge-note-state.json`;
+}
+
+function backupOutputDir(env = process.env): string {
+  return env.BRIDGE_NOTE_STATE_BACKUP_DIR || env.BRIDGE_NOTE_STATE_OUTPUT_DIR || DEFAULT_OUTPUT_DIR;
+}
+
+function resolveInputPath(env = process.env, arg?: string): string {
+  if (env.BRIDGE_NOTE_STATE_INPUT) return path.resolve(env.BRIDGE_NOTE_STATE_INPUT);
+  if (arg) return path.resolve(arg);
+  const expectedDestination = normalizeHash(
+    env.BRIDGE_NOTE_EXPECTED_DESTINATION_HASH || env.BRIDGE_NOTE_STATE_EXPECTED_DESTINATION_HASH
+  );
+  if (expectedDestination) {
+    return path.join(path.resolve(backupOutputDir(env)), destinationFileName(expectedDestination));
+  }
+  throw new Error("BRIDGE_NOTE_STATE_INPUT, input path argument, or BRIDGE_NOTE_EXPECTED_DESTINATION_HASH is required");
 }
 
 function exportState(inputPath: string, env = process.env): Record<string, unknown> {
@@ -193,10 +239,10 @@ function exportState(inputPath: string, env = process.env): Record<string, unkno
   const outputPath = env.BRIDGE_NOTE_STATE_OUTPUT
     ? path.resolve(env.BRIDGE_NOTE_STATE_OUTPUT)
     : path.join(
-        path.resolve(env.BRIDGE_NOTE_STATE_OUTPUT_DIR || DEFAULT_OUTPUT_DIR),
+        path.resolve(backupOutputDir(env)),
         destinationFileName(validation.summary.destinationBridgeMintHash)
       );
-  assertSafeOutputPath(outputPath);
+  assertDurablePath(outputPath, env);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true, mode: 0o700 });
   fs.copyFileSync(inputPath, outputPath);
   fs.chmodSync(outputPath, 0o600);
@@ -248,6 +294,7 @@ function runSelfTest(): void {
     BRIDGE_NOTE_EXPECTED_DESTINATION_AMOUNT: "1000000",
     BRIDGE_NOTE_EXPECTED_ASSET_ID: "0x" + "44".repeat(32),
     BRIDGE_NOTE_STATE_OUTPUT_DIR: path.join(tempDir, "exports"),
+    BRIDGE_ALLOW_TMP_NOTE_STATE: "true",
   };
 
   assert.strictEqual(validateState(fixturePath, env).valid, true);
@@ -260,9 +307,17 @@ function runSelfTest(): void {
   assert.throws(() =>
     exportState(fixturePath, { ...env, BRIDGE_NOTE_STATE_OUTPUT: path.join(repoRoot(), "note-state.json") })
   );
+  assert.throws(() =>
+    exportState(fixturePath, {
+      ...env,
+      BRIDGE_ALLOW_TMP_NOTE_STATE: "false",
+      BRIDGE_NOTE_STATE_OUTPUT_DIR: path.join(tempDir, "blocked-tmp"),
+    })
+  );
   const exported = exportState(fixturePath, env) as any;
   assert.strictEqual(exported.ok, true);
   assert.strictEqual(fs.existsSync(exported.outputPath), true);
+  assert.strictEqual(validateState(exported.outputPath, env).valid, true);
   const rendered = JSON.stringify(redactResult(exported));
   assert.ok(!rendered.includes("super-secret-sentinel"));
   assert.ok(!rendered.includes("super-nullifier-sentinel"));
@@ -295,11 +350,7 @@ function main(): void {
     return;
   }
 
-  const inputPath = process.env.BRIDGE_NOTE_STATE_INPUT || process.argv[3];
-  if (!inputPath) {
-    throw new Error("BRIDGE_NOTE_STATE_INPUT or input path argument is required");
-  }
-  const resolvedInput = path.resolve(inputPath);
+  const resolvedInput = resolveInputPath(process.env, process.argv[3]);
 
   if (command === "summary") {
     print(summarizeState(resolvedInput));
@@ -309,6 +360,24 @@ function main(): void {
     const result = validateState(resolvedInput);
     print(result);
     process.exit(result.valid ? 0 : 1);
+  }
+  if (command === "readback" || command === "readback-check") {
+    const result = validateState(resolvedInput);
+    let policyError: string | null = null;
+    try {
+      assertDurablePath(resolvedInput);
+    } catch (err) {
+      policyError = err instanceof Error ? err.message : String(err);
+      result.errors.push(policyError);
+    }
+    const ok = result.valid && !policyError;
+    print({
+      ok,
+      status: ok ? "readback_valid" : "readback_invalid",
+      backupDir: path.dirname(resolvedInput),
+      validation: result,
+    });
+    process.exit(ok ? 0 : 1);
   }
   if (command === "export") {
     const result = exportState(resolvedInput);

@@ -36,6 +36,7 @@
     "bridge:note-state:summary": "tsx test/helpers/bridge-note-state-cli.ts summary",
     "bridge:validate-note-state": "tsx test/helpers/bridge-note-state-cli.ts validate",
     "bridge:export-note-state": "tsx test/helpers/bridge-note-state-cli.ts export",
+    "bridge:note-state:readback-check": "tsx test/helpers/bridge-note-state-cli.ts readback",
     "bridge:test-note-state": "tsx test/helpers/bridge-note-state-cli.ts self-test"
   },
   "dependencies": {

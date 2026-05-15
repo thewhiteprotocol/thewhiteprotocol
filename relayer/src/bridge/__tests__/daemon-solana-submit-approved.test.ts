@@ -117,8 +117,47 @@ function makeEnv(stateDir: string, destinationHash: string, sourceHash = `0x${he
     SOLANA_DEVNET_RPC_URL: 'present',
     RELAYER_KEYPAIR: JSON.stringify(Array.from(Keypair.generate().secretKey)),
     BRIDGE_APPROVED_MESSAGE_HASHES: `base-sepolia->solana-devnet|${destinationHash}`,
+    BRIDGE_REQUIRE_DURABLE_NOTE_STATE: 'false',
     [BRIDGE_SUBMIT_DESTINATION_MESSAGE_HASH_ENV]: destinationHash,
     [BRIDGE_SUBMIT_SOURCE_MESSAGE_HASH_ENV]: sourceHash,
+  };
+}
+
+function writeNoteStateFixture(input: {
+  backupDir: string;
+  message: BridgeMessageV1;
+  sourceHash: string;
+  destinationHash: string;
+  destinationHashOverride?: string;
+  destSecret?: string;
+  destNullifier?: string;
+}): string {
+  fs.mkdirSync(input.backupDir, { recursive: true });
+  const filePath = path.join(input.backupDir, `${input.destinationHash.slice(2)}.bridge-note-state.json`);
+  fs.writeFileSync(filePath, JSON.stringify({
+    sourceMessageHash: input.sourceHash,
+    bridgeMintMessageHash: input.destinationHashOverride ?? input.destinationHash,
+    bridgeMintMessage: {
+      destinationCommitment: `0x${input.message.destinationCommitment}`,
+      destinationLocalAssetId: `0x${input.message.destinationLocalAssetId}`,
+    },
+    destinationAmount: input.message.amount.toString(),
+    destSecret: input.destSecret ?? 'fixture-secret-redacted',
+    destNullifier: input.destNullifier ?? 'fixture-nullifier-redacted',
+  }));
+  return filePath;
+}
+
+function withRequiredNoteState(
+  env: Record<string, string>,
+  backupDir: string,
+  allowTmp = true
+): Record<string, string> {
+  return {
+    ...env,
+    BRIDGE_REQUIRE_DURABLE_NOTE_STATE: 'true',
+    BRIDGE_NOTE_STATE_BACKUP_DIR: backupDir,
+    BRIDGE_ALLOW_TMP_NOTE_STATE: allowTmp ? 'true' : 'false',
   };
 }
 
@@ -301,5 +340,111 @@ describe('guarded Solana submit command', () => {
     expect(result.status).toBe('already_submitted');
     expect(result.duplicateSubmitBlocked).toBe(true);
     expect(connection.sendRawTransaction).not.toHaveBeenCalled();
+  });
+
+  test('missing note-state blocks submit', async () => {
+    const message = makeDestinationMessage();
+    const sourceHash = `0x${hex('12')}`;
+    const destinationHash = hashBridgeMessageV1(message);
+    const { dir, store } = tempState();
+    store.set(makeState(message, sourceHash));
+    const connection = makeConnection(message);
+    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr012e-note-missing-'));
+    const env = withRequiredNoteState(makeEnv(dir, destinationHash, sourceHash), backupDir, true);
+    const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(env.RELAYER_KEYPAIR)));
+
+    const result = await submitSolanaAcceptBridgeMintApprovedMessage({
+      env,
+      stateDir: dir,
+      connection: connection as any,
+      stateStore: store,
+      payer,
+    });
+
+    expect(result.status).toBe('blocked_note_state');
+    expect(result.error).toContain('note_state_file_missing');
+    expect(connection.sendRawTransaction).not.toHaveBeenCalled();
+  });
+
+  test('tmp note-state backup path is rejected by default', async () => {
+    const message = makeDestinationMessage();
+    const sourceHash = `0x${hex('12')}`;
+    const destinationHash = hashBridgeMessageV1(message);
+    const { dir, store } = tempState();
+    store.set(makeState(message, sourceHash));
+    const connection = makeConnection(message);
+    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr012e-note-tmp-'));
+    writeNoteStateFixture({ backupDir, message, sourceHash, destinationHash });
+    const env = withRequiredNoteState(makeEnv(dir, destinationHash, sourceHash), backupDir, false);
+    const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(env.RELAYER_KEYPAIR)));
+
+    const result = await submitSolanaAcceptBridgeMintApprovedMessage({
+      env,
+      stateDir: dir,
+      connection: connection as any,
+      stateStore: store,
+      payer,
+    });
+
+    expect(result.status).toBe('blocked_note_state');
+    expect(result.error).toContain('BRIDGE_NOTE_STATE_BACKUP_DIR_must_not_be_tmp');
+    expect(connection.sendRawTransaction).not.toHaveBeenCalled();
+  });
+
+  test('invalid note-state blocks submit', async () => {
+    const message = makeDestinationMessage();
+    const sourceHash = `0x${hex('12')}`;
+    const destinationHash = hashBridgeMessageV1(message);
+    const { dir, store } = tempState();
+    store.set(makeState(message, sourceHash));
+    const connection = makeConnection(message);
+    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr012e-note-invalid-'));
+    writeNoteStateFixture({
+      backupDir,
+      message,
+      sourceHash,
+      destinationHash,
+      destinationHashOverride: `0x${hex('44')}`,
+    });
+    const env = withRequiredNoteState(makeEnv(dir, destinationHash, sourceHash), backupDir, true);
+    const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(env.RELAYER_KEYPAIR)));
+
+    const result = await submitSolanaAcceptBridgeMintApprovedMessage({
+      env,
+      stateDir: dir,
+      connection: connection as any,
+      stateStore: store,
+      payer,
+    });
+
+    expect(result.status).toBe('blocked_note_state');
+    expect(result.error).toContain('destination_hash_mismatch');
+    expect(connection.sendRawTransaction).not.toHaveBeenCalled();
+  });
+
+  test('valid note-state gate allows mocked submit with explicit tmp test override', async () => {
+    const message = makeDestinationMessage();
+    const sourceHash = `0x${hex('12')}`;
+    const destinationHash = hashBridgeMessageV1(message);
+    const { dir, store } = tempState();
+    store.set(makeState(message, sourceHash));
+    const connection = makeConnection(message);
+    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr012e-note-valid-'));
+    writeNoteStateFixture({ backupDir, message, sourceHash, destinationHash });
+    const env = withRequiredNoteState(makeEnv(dir, destinationHash, sourceHash), backupDir, true);
+    const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(env.RELAYER_KEYPAIR)));
+
+    const result = await submitSolanaAcceptBridgeMintApprovedMessage({
+      env,
+      stateDir: dir,
+      connection: connection as any,
+      stateStore: store,
+      payer,
+      now: () => 1,
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.noteStateValidation?.valid).toBe(true);
+    expect(connection.sendRawTransaction).toHaveBeenCalledTimes(1);
   });
 });

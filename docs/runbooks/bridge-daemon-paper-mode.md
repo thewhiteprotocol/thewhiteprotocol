@@ -229,6 +229,7 @@ Paper mode records a sanitized `submissionPreview` in bridge state:
 - PR-011T confirmed the hosted daemon was running in paper mode with live submit disabled, but `/bridge/daemon/messages` was empty. Restore or replay the approved PR-011N message into hosted state before running hosted simulation.
 - PR-011U confirmed the approved message still was not present in hosted daemon state. Replay requires Render shell/job access or an authenticated operator endpoint for the bounded block range.
 - PR-012A adds `npm run bridge:daemon:solana:submit-approved`, a single-message live-testnet submit command. It requires `BRIDGE_DAEMON_MODE=live-testnet`, `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true`, route-scoped destination-hash approval, fresh pre-submit checks, successful simulation, and a configured Solana relayer keypair before it sends.
+- PR-012E adds a durable destination note-state gate to `submit-approved`. With default settings it requires `BRIDGE_NOTE_STATE_BACKUP_DIR` to point outside git and outside `/tmp`, and it validates the exact source hash, destination hash, destination commitment, amount, asset, destination secret presence, and destination nullifier presence immediately before send.
 
 Previews contain no private keys or raw env values.
 
@@ -261,7 +262,11 @@ Do not enable live-testnet submission until all items are true:
 - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true` is approved only for a narrow testnet route/window
 - the submit command is scoped to one destination BridgeMint hash through `BRIDGE_SUBMIT_DESTINATION_MESSAGE_HASH` and `BRIDGE_APPROVED_MESSAGE_HASHES`
 - the source BridgeOut hash is pinned with `BRIDGE_SUBMIT_SOURCE_MESSAGE_HASH`
-- destination note-state backup has been validated with `npm run bridge:validate-note-state` and stored outside git before the submit window
+- destination note-state backup has been exported to a durable path such as `/data/white-bridge-note-state`
+- `BRIDGE_NOTE_STATE_BACKUP_DIR` is set, outside git, and not under `/tmp`
+- `BRIDGE_REQUIRE_DURABLE_NOTE_STATE=true` and `BRIDGE_ALLOW_TMP_NOTE_STATE=false`
+- destination note-state backup has been validated with `npm run bridge:validate-note-state`
+- a fresh-shell readback has passed with `npm run bridge:note-state:readback-check`
 - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false` is restored immediately after the submit window
 
 Use `docs/runbooks/bridge-operator-approval-checklist.md` for message-specific approval review. PR-011O applied that checklist to the fresh PR-011N Base Sepolia -> Solana Devnet message and kept the approval decision on hold for live submission because the current Solana submit preview is still preview-only and must be reconciled against the destination BridgeMint hash, deployed signer set version, and real Solana account inputs.
@@ -275,6 +280,7 @@ Stop rollout and return to `BRIDGE_DAEMON_MODE=disabled` if:
 - daemon status exposes any secret value
 - messages repeatedly fail finality or route policy unexpectedly
 - Solana submit preview account derivations do not match deployed testnet config
+- destination note-state is only present under `/tmp`, inside git, or fails the readback check
 
 ## Remaining Limitations
 
@@ -287,6 +293,7 @@ Stop rollout and return to `BRIDGE_DAEMON_MODE=disabled` if:
 - PR-011T hosted read endpoints were available, but the approved message was not present in hosted daemon state.
 - PR-011U could not verify hosted state path or restore state through public endpoints.
 - PR-012C documents that destination note-state must be durably backed up before guarded live submit. Render ephemeral loss of `base-to-solana-bridge-state-v2.json` blocks settlement/withdraw for that submitted commitment.
+- PR-012E blocks future guarded live submits unless the destination note-state backup survives the durable-path validation/readback gate. Operators still need to configure a Render persistent disk or equivalent secret-file restore path.
 - Live EVM submit remains gated and is not enabled by default.
 - No mainnet support.
 - KMS/HSM/MPC signer adapters remain placeholders.

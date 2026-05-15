@@ -120,8 +120,12 @@ Use this checklist before approving any bridge daemon message for a future live-
 
 15. Destination note-state backup
     - The destination note-state file exists before any live destination submit.
+    - `BRIDGE_NOTE_STATE_BACKUP_DIR` points to a durable operator-controlled path such as `/data/white-bridge-note-state`.
+    - `BRIDGE_REQUIRE_DURABLE_NOTE_STATE=true`.
+    - `BRIDGE_ALLOW_TMP_NOTE_STATE=false` for hosted live submit.
+    - The backup path is outside git and not under `/tmp`.
     - `npm run bridge:validate-note-state` passes for the exact source BridgeOut hash and destination BridgeMint hash.
-    - The note-state backup path is outside git and outside Render ephemeral-only storage.
+    - `npm run bridge:note-state:readback-check` passes from a fresh shell before the submit window.
     - The operator records the backup location outside git.
     - No note secret, nullifier, witness, or private field is printed in logs.
 
@@ -157,6 +161,8 @@ Do not approve live submission if any of these are true:
 - The message already has `submitTxHash` in daemon state.
 - Destination note-state backup is missing or fails validation for the exact destination BridgeMint hash.
 - The destination note-state file is only present in an ephemeral shell path with no operator backup.
+- `BRIDGE_NOTE_STATE_BACKUP_DIR` is unset, inside git, under `/tmp`, unreadable, or unwritable.
+- `npm run bridge:note-state:readback-check` has not passed after a fresh shell/container change.
 
 ## Future Live-Testnet Approval Fields
 
@@ -177,4 +183,5 @@ Record these outside git before enabling any future live-testnet destination sub
 - Submit confirmation status:
 - Destination note-state backup reference:
 - Note-state validation command:
+- Note-state readback command:
 - Notes:

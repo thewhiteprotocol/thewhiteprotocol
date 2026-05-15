@@ -6,6 +6,9 @@
  * destination hash.
  */
 
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
 import {
   hashBridgeMessageV1,
@@ -70,6 +73,7 @@ export interface GuardedSolanaSubmitResult {
     | 'blocked_message_load'
     | 'blocked_pre_submit_checks'
     | 'blocked_simulation'
+    | 'blocked_note_state'
     | 'already_submitted'
     | 'already_consumed'
     | 'failed';
@@ -87,11 +91,195 @@ export interface GuardedSolanaSubmitResult {
   duplicateSubmitBlocked: boolean;
   destinationTxSubmitted: boolean;
   stateMutationObserved?: boolean;
+  noteStateValidation?: NoteStateGateResult;
   error?: string;
+}
+
+interface NoteStateSummary {
+  path: string;
+  exists: boolean;
+  sourceBridgeOutHash: string | null;
+  destinationBridgeMintHash: string | null;
+  destinationCommitment: string | null;
+  destinationAmount: string | null;
+  assetId: string | null;
+  hasDestSecret: boolean;
+  hasDestNullifier: boolean;
+}
+
+interface NoteStateGateResult {
+  valid: boolean;
+  required: boolean;
+  backupDir?: string;
+  statePath?: string;
+  checks: Record<string, boolean>;
+  errors: string[];
+  summary?: NoteStateSummary;
 }
 
 function normalizeHash(value: string): string {
   return `0x${value.replace(/^0x/i, '').toLowerCase()}`;
+}
+
+function normalizeMaybeHash(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return /^0x[0-9a-fA-F]{64}$/.test(trimmed) ? normalizeHash(trimmed) : null;
+}
+
+function normalizeScalar(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'number') return BigInt(value).toString();
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (/^0x[0-9a-fA-F]+$/.test(trimmed)) return BigInt(trimmed).toString();
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return BigInt(`0x${trimmed}`).toString();
+  if (/^[0-9]+$/.test(trimmed)) return BigInt(trimmed).toString();
+  return null;
+}
+
+function truthy(value: string | undefined): boolean {
+  return value === 'true' || value === '1' || value === 'yes';
+}
+
+function repoRoot(start = process.cwd()): string {
+  let dir = path.resolve(start);
+  while (dir !== path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, '.git'))) return dir;
+    dir = path.dirname(dir);
+  }
+  return path.resolve(start);
+}
+
+function isInside(parent: string, child: string): boolean {
+  const relative = path.relative(path.resolve(parent), path.resolve(child));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function isTmpPath(filePath: string): boolean {
+  return isInside(os.tmpdir(), filePath);
+}
+
+function noteStateFileName(destinationHash: string): string {
+  return `${normalizeHash(destinationHash).slice(2)}.bridge-note-state.json`;
+}
+
+function summarizeNoteState(filePath: string): NoteStateSummary {
+  if (!fs.existsSync(filePath)) {
+    return {
+      path: filePath,
+      exists: false,
+      sourceBridgeOutHash: null,
+      destinationBridgeMintHash: null,
+      destinationCommitment: null,
+      destinationAmount: null,
+      assetId: null,
+      hasDestSecret: false,
+      hasDestNullifier: false,
+    };
+  }
+  const state = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Record<string, any>;
+  const sourceMessage = state.sourceMessage || state.message || {};
+  const bridgeMintMessage = state.bridgeMintMessage || {};
+  return {
+    path: filePath,
+    exists: true,
+    sourceBridgeOutHash:
+      normalizeMaybeHash(state.sourceMessageHash) ||
+      normalizeMaybeHash(state.sourceBridgeOutHash) ||
+      normalizeMaybeHash(state.messageHash),
+    destinationBridgeMintHash:
+      normalizeMaybeHash(state.bridgeMintMessageHash) ||
+      normalizeMaybeHash(state.destinationBridgeMintHash) ||
+      normalizeMaybeHash(state.destinationMessageHash),
+    destinationCommitment:
+      normalizeScalar(state.destinationCommitment) ||
+      normalizeScalar(state.destCommitment) ||
+      normalizeScalar(bridgeMintMessage.destinationCommitment) ||
+      normalizeScalar(sourceMessage.destinationCommitment),
+    destinationAmount:
+      normalizeScalar(state.destinationAmount) ||
+      normalizeScalar(state.destAmount) ||
+      normalizeScalar(state.amount),
+    assetId:
+      normalizeScalar(state.solanaAssetId) ||
+      normalizeScalar(bridgeMintMessage.destinationLocalAssetId) ||
+      normalizeScalar(sourceMessage.destinationLocalAssetId),
+    hasDestSecret: state.destSecret !== undefined && state.destSecret !== null && state.destSecret !== '',
+    hasDestNullifier: state.destNullifier !== undefined && state.destNullifier !== null && state.destNullifier !== '',
+  };
+}
+
+export function validateDurableNoteStateForSubmit(input: {
+  env: Record<string, string | undefined>;
+  sourceMessageHash: string;
+  destinationMessageHash: string;
+  message: BridgeMessageV1;
+}): NoteStateGateResult {
+  const required = input.env.BRIDGE_REQUIRE_DURABLE_NOTE_STATE !== 'false';
+  if (!required) {
+    return { valid: true, required: false, checks: { required: false }, errors: [] };
+  }
+
+  const errors: string[] = [];
+  const checks: Record<string, boolean> = {};
+  const backupDir = input.env.BRIDGE_NOTE_STATE_BACKUP_DIR;
+  checks.backupDirSet = Boolean(backupDir);
+  if (!backupDir) errors.push('BRIDGE_NOTE_STATE_BACKUP_DIR_required');
+
+  const resolvedBackupDir = backupDir ? path.resolve(backupDir) : undefined;
+  if (resolvedBackupDir) {
+    checks.backupDirNotTmp = !isTmpPath(resolvedBackupDir) || truthy(input.env.BRIDGE_ALLOW_TMP_NOTE_STATE);
+    if (!checks.backupDirNotTmp) errors.push('BRIDGE_NOTE_STATE_BACKUP_DIR_must_not_be_tmp');
+    checks.backupDirOutsideRepo = !isInside(repoRoot(), resolvedBackupDir);
+    if (!checks.backupDirOutsideRepo) errors.push('BRIDGE_NOTE_STATE_BACKUP_DIR_must_be_outside_repo');
+    checks.backupDirExists = fs.existsSync(resolvedBackupDir) && fs.statSync(resolvedBackupDir).isDirectory();
+    if (!checks.backupDirExists) errors.push('BRIDGE_NOTE_STATE_BACKUP_DIR_missing');
+    try {
+      fs.accessSync(resolvedBackupDir, fs.constants.R_OK | fs.constants.W_OK);
+      checks.backupDirReadableWritable = true;
+    } catch {
+      checks.backupDirReadableWritable = false;
+      errors.push('BRIDGE_NOTE_STATE_BACKUP_DIR_not_readable_writable');
+    }
+  }
+
+  const statePath = resolvedBackupDir
+    ? path.join(resolvedBackupDir, noteStateFileName(input.destinationMessageHash))
+    : undefined;
+  const summary = statePath ? summarizeNoteState(statePath) : undefined;
+  const expectedCommitment = normalizeScalar(input.message.destinationCommitment);
+  const expectedAmount = input.message.amount.toString();
+  const expectedAsset = normalizeScalar(input.message.destinationLocalAssetId);
+
+  checks.stateFileExists = Boolean(summary?.exists);
+  checks.sourceHash = summary?.sourceBridgeOutHash === normalizeHash(input.sourceMessageHash);
+  checks.destinationHash = summary?.destinationBridgeMintHash === normalizeHash(input.destinationMessageHash);
+  checks.destinationCommitment = Boolean(expectedCommitment && summary?.destinationCommitment === expectedCommitment);
+  checks.amount = summary?.destinationAmount === expectedAmount;
+  checks.asset = Boolean(expectedAsset && summary?.assetId === expectedAsset);
+  checks.hasDestSecret = Boolean(summary?.hasDestSecret);
+  checks.hasDestNullifier = Boolean(summary?.hasDestNullifier);
+
+  if (!checks.stateFileExists) errors.push('note_state_file_missing');
+  if (!checks.sourceHash) errors.push('source_hash_mismatch');
+  if (!checks.destinationHash) errors.push('destination_hash_mismatch');
+  if (!checks.destinationCommitment) errors.push('destination_commitment_mismatch');
+  if (!checks.amount) errors.push('amount_mismatch');
+  if (!checks.asset) errors.push('asset_mismatch');
+  if (!checks.hasDestSecret) errors.push('dest_secret_missing');
+  if (!checks.hasDestNullifier) errors.push('dest_nullifier_missing');
+
+  return {
+    valid: errors.length === 0 && Object.values(checks).every(Boolean),
+    required,
+    backupDir: resolvedBackupDir,
+    statePath,
+    checks,
+    errors,
+    summary,
+  };
 }
 
 function approvedHashes(env: Record<string, string | undefined>): string[] {
@@ -377,6 +565,32 @@ export async function submitSolanaAcceptBridgeMintApprovedMessage(input: {
     };
   }
 
+  const noteStateValidation = validateDurableNoteStateForSubmit({
+    env: input.env,
+    sourceMessageHash: loaded.sourceMessageHash,
+    destinationMessageHash: targetDestinationHash,
+    message: loaded.message,
+  });
+  if (!noteStateValidation.valid) {
+    return {
+      ok: false,
+      status: 'blocked_note_state',
+      approvedDestinationHash: targetDestinationHash,
+      sourceMessageHash: loaded.sourceMessageHash,
+      preSubmitChecks: simulation.preSubmitReadiness.status,
+      preSubmitReasons: simulation.preSubmitReadiness.reasons,
+      simulationAttempted: simulation.simulationAttempted,
+      simulationOk: simulation.simulationOk,
+      submitAttempted: false,
+      submitTxHash: null,
+      duplicateSubmitBlocked: false,
+      destinationTxSubmitted: false,
+      stateMutationObserved: false,
+      noteStateValidation,
+      error: noteStateValidation.errors.join(', '),
+    };
+  }
+
   const latest = await input.connection.getLatestBlockhash();
   preview.transaction.recentBlockhash = latest.blockhash;
   preview.transaction.feePayer = input.payer.publicKey;
@@ -428,6 +642,7 @@ export async function submitSolanaAcceptBridgeMintApprovedMessage(input: {
       duplicateSubmitBlocked: false,
       destinationTxSubmitted: true,
       stateMutationObserved: Boolean(consumed || commitmentIndex),
+      noteStateValidation,
     };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
