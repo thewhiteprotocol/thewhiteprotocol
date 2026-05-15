@@ -495,11 +495,10 @@ async function main() {
 
   // ── STEP D: Generate Bridge Withdraw Proof ──
   console.log('\n📋 STEP D: Generate Bridge Withdraw Proof');
-  treeState = await getTreeState(baseWP);
-  const withdrawPath = computePath(leafIndex, treeState.filledSubtrees, treeState.zeros);
+  const withdrawPath = merklePath;
   const withdrawalRoot = await computeRootFromPath(sourceCommitment, withdrawPath);
-  verifyRootMatch(withdrawalRoot, treeState.currentRoot, 'Withdrawal path');
-  console.log('  Withdrawal path verified against current root');
+  verifyRootMatch(withdrawalRoot, expectedNewRoot, 'Withdrawal path');
+  console.log('  Withdrawal path verified against settlement root');
 
   const BN254_SCALAR_FIELD = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
   const publicDataHash = BigInt(sourceMessageHash) % BN254_SCALAR_FIELD;
@@ -510,7 +509,7 @@ async function main() {
     amount: sourceAmount.toString(),
     asset_id: BASE_ASSET_ID.toString(),
     leaf_index: leafIndex.toString(),
-    merkle_root: treeState.currentRoot.toString(),
+    merkle_root: expectedNewRoot.toString(),
     nullifier_hash: nullifierHash.toString(),
     merkle_path: withdrawPath.pathElements.map(e => e.toString()),
     merkle_path_indices: withdrawPath.pathIndices.map(i => i.toString()),
