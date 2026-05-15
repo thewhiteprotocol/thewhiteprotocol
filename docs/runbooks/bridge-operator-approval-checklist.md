@@ -96,6 +96,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Simulation uses `sigVerify=false` and does not call send APIs.
     - Hosted simulation command is run with `npm run bridge:daemon:solana:simulate` after `BRIDGE_APPROVED_MESSAGE_HASHES` is configured.
     - Simulation output records sanitized logs and compute units when available.
+    - Hosted `/bridge/daemon/messages` contains the approved destination message before simulation is attempted.
     - Preview has `dryRun=true`.
     - Preview has `liveSubmissionImplemented=true` only after the live submit adapter exists.
 
@@ -120,6 +121,7 @@ Do not approve live submission if any of these are true:
 - Consumed message, frozen message, or commitment-index idempotency checks fail.
 - Simulation fails or returns unsafe/unknown status.
 - Hosted simulation env/state is missing.
+- Hosted daemon message list is empty or missing the approved message hash.
 - Source event, policy, finality, watcher, signer, or route evidence is missing.
 - Any private key, RPC secret, operator token, note secret, witness, or wallet file appears in the approval artifact.
 - Watcher has an open critical finding.

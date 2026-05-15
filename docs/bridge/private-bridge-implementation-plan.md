@@ -640,6 +640,20 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011T: Hosted Solana Simulation Attempt ✅ BLOCKED BY HOSTED STATE
+
+**Scope:**
+- Check hosted relayer status
+- Confirm paper mode and live-submit disabled
+- Inspect daemon messages
+- Attempt approved-message simulation path where possible
+
+**Result:** The hosted relayer was reachable and running in paper mode with `allowLiveTestnetSubmit=false`, but `/bridge/daemon/messages` returned an empty list. The approved PR-011N message was not present in hosted daemon state, so pre-submit checks and simulation could not be run. No transaction was submitted.
+
+**Next:** PR-011U should restore or replay the approved message into hosted daemon state, then run `npm run bridge:daemon:solana:simulate` on Render.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1
