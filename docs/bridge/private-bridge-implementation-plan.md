@@ -624,6 +624,22 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011S: Hosted Solana Simulation For Approved Message ✅ IMPLEMENTATION READY
+
+**Scope:**
+- Add a hosted-safe simulation command for the PR-011N destination BridgeMint message
+- Require `BRIDGE_APPROVED_MESSAGE_HASHES`
+- Load persisted daemon paper state
+- Re-run read-only idempotency checks against Solana Devnet
+- Simulate with `sigVerify=false`
+- Keep destination submit disabled
+
+**Deliverable:** `npm run bridge:daemon:solana:simulate` now performs the hosted simulation flow when env/state are present and stops safely with env names only when they are missing. Local validation was environment-blocked before RPC access; no transaction was submitted.
+
+**Next:** PR-011T should run the command in the hosted Render environment with the approved destination hash and record simulation logs/compute units.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1

@@ -187,6 +187,7 @@ Paper mode records a sanitized `submissionPreview` in bridge state:
 - Base Sepolia -> Solana Devnet previews must use the destination BridgeMint hash as `messageHash`, preserve the source BridgeOut hash as `sourceMessageHash`, use signer set version `2`, and include deployed Solana Devnet pool/tree/vault/buffer/config accounts. Any placeholder-account, hash, or signer-set mismatch blocks operator approval.
 - PR-011Q adds unsigned transaction assembly dry-run metadata for Solana previews: compute budget instructions, account-meta validation, serialized length, and `transactionAssemblyImplemented=true`. The daemon still does not submit destination transactions.
 - PR-011R adds the destination-hash approval gate and simulation status fields. Set `BRIDGE_APPROVED_MESSAGE_HASHES` only to destination BridgeMint hashes, optionally route-scoped as `base-sepolia->solana-devnet|0x...`. Source BridgeOut hashes are rejected for approval.
+- PR-011S adds `npm run bridge:daemon:solana:simulate` for hosted approved-message Solana simulation. It checks env names only, requires the destination BridgeMint hash approval, re-runs read-only idempotency checks, simulates with `sigVerify=false`, and never sends.
 
 Previews contain no private keys or raw env values.
 
@@ -237,6 +238,7 @@ Stop rollout and return to `BRIDGE_DAEMON_MODE=disabled` if:
 - PR-011P removes Base -> Solana preview placeholder accounts and adds readiness checks, but still does not submit or serialize a live Solana transaction.
 - PR-011Q serializes an unsigned dry-run transaction locally, but does not simulate or send it.
 - PR-011R implements safe simulation helpers and approval gating, but hosted simulation is not run automatically by the daemon and live submit is still disabled.
+- PR-011S local validation was environment-blocked; the hosted simulation command must be run where Render secrets and daemon state are available.
 - Live EVM submit remains gated and is not enabled by default.
 - No mainnet support.
 - KMS/HSM/MPC signer adapters remain placeholders.
