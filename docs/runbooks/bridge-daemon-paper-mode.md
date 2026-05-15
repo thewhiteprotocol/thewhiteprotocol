@@ -173,6 +173,8 @@ Replay safety rules:
 
 For the PR-011N approved message, use source block `41539671` and the bounded range `41539651` to `41539691`. If replay finds the event but current-time policy rejects it for `expired_deadline`, do not bypass the policy. Generate a new low-value source event in a follow-up PR and replay that fresh range.
 
+PR-011W confirmed the hosted public read API still reports an empty daemon message list. Run the bounded replay command from a Render shell/job, not from a local shell without hosted state. If Render replay returns `expired_deadline` for the PR-011N message, request explicit operator approval and funding before generating a fresh low-value source event.
+
 ## Status And Messages
 
 Read endpoints:

@@ -126,6 +126,8 @@ Do not approve live submission if any of these are true:
 - Hosted replay cannot write to the same persistent daemon state path.
 - Hosted bounded replay was not run with `BRIDGE_DAEMON_MODE=paper` and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
 - Hosted bounded replay was run without explicit expected source and destination message hashes for the approved message.
+- Fresh low-value source-event generation was not explicitly approved by the operator.
+- Source wallet funding is insufficient for the fresh event and gas; request funds before retrying.
 - Source event, policy, finality, watcher, signer, or route evidence is missing.
 - Any private key, RPC secret, operator token, note secret, witness, or wallet file appears in the approval artifact.
 - Watcher has an open critical finding.

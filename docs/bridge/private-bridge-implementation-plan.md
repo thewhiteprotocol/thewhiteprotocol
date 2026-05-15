@@ -685,6 +685,20 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011W: Hosted Replay Attempt ✅ BLOCKED BY HOSTED JOB ACCESS
+
+**Scope:**
+- Re-check hosted daemon read endpoints
+- Confirm paper mode and disabled live submit
+- Attempt to proceed with hosted replay or document blocker
+- Preserve the no-submit guarantee
+
+**Result:** The hosted relayer remained reachable in paper mode with `allowLiveTestnetSubmit=false`, but `/bridge/daemon/messages` still returned an empty list and the approved PR-011N source hash returned `404`. This local environment does not have Render shell/job access, so the bounded replay command could not be executed against the hosted state path. Local env checks reported missing env names only and the local replay command stopped before RPC access. No destination transaction was submitted.
+
+**Next:** PR-011X should execute `npm run bridge:daemon:paper:replay` directly on Render with the PR-011N range, or explicitly approve and fund a fresh low-value Base Sepolia -> Solana Devnet source event if Render replay reports `expired_deadline`.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1
