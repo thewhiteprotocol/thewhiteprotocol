@@ -94,6 +94,16 @@ If no fresh source event exists in the scan window, the command exits cleanly wi
 
 If the env check fails, do not override the scanner locally with ad hoc secrets. Configure the missing names as hosted secrets, rerun `npm run bridge:daemon:env:check`, and only then run `npm run bridge:daemon:paper:scan`.
 
+Known historical events can be scanned with explicit range env:
+
+```bash
+BRIDGE_DAEMON_SCAN_FROM_BLOCK=<source block - 20>
+BRIDGE_DAEMON_SCAN_TO_BLOCK=<source block + 20>
+npm run bridge:daemon:paper:scan
+```
+
+Old events may parse correctly but still be rejected by current-time policy if their bridge message deadline has expired. Treat that as a valid policy result, not a signer failure.
+
 Hosted observation loop:
 
 1. Start the service.

@@ -52,6 +52,6 @@
       }
     ],
     "verifiedE2E": true,
-    "notes": "PR-010L deployment. Base Sepolia -> BSC Testnet full private bridge E2E passed (forward only). WhiteProtocol lacks bridgeOutV1; reverse direction not yet supported. Cross-chain canonical asset mapping added post-deploy."}}
+    "notes": "PR-010L deployment. Base Sepolia -> BSC Testnet full private bridge E2E passed (forward only). WhiteProtocol lacks bridgeOutV1; reverse direction not yet supported. Cross-chain canonical asset mapping added post-deploy."
   }
 }

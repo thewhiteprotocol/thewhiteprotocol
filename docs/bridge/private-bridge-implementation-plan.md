@@ -534,6 +534,20 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011M: Hosted Paper Known-Range Scan ✅ COMPLETE (expired historical event)
+
+**Scope:**
+- Fix malformed EVM deployment JSON syntax without changing contract addresses
+- Target the known PR-010W Base Sepolia -> Solana Devnet BridgeOut block range
+- Verify the scanner can find and parse the historical event
+- Keep live destination submission disabled
+
+**Deliverable:** The known-range paper scan found the PR-010W source event at Base Sepolia block `41275766` and parsed message hash `0xa17dd855e9927eb508e5cea8abec4002c05d79f148a3f84237ae14781eb6edad`. Current-time policy rejected the event with `expired_deadline`, so no signatures or submit preview were produced. No destination transaction was submitted.
+
+**Next:** Generate one fresh low-value Base Sepolia -> Solana Devnet source event with explicit operator approval, then run hosted paper scan around that block range while keeping live submit disabled.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1

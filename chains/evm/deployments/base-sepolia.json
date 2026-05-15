@@ -31,7 +31,7 @@
   "domainIdHex": "0x02000002",
   "assetIdFormula": "white:asset_id:v2",
   "verifiedE2E": true,
-  "notes": "PR-010H redeployment with bridgeOutV1. PR-010K verified: Ethereum Sepolia -> Base Sepolia full bridge E2E (reverse direction). PR-010L verified: Base Sepolia -> BSC Testnet and Base Sepolia -> Polygon Amoy full bridge E2E (forward direction)."}}
+  "notes": "PR-010H redeployment with bridgeOutV1. PR-010K verified: Ethereum Sepolia -> Base Sepolia full bridge E2E (reverse direction). PR-010L verified: Base Sepolia -> BSC Testnet and Base Sepolia -> Polygon Amoy full bridge E2E (forward direction).",
   "deploymentBlock": 0,
   "bridgeV1": {
     "BridgeOutbox": "0x7eaFB77E2F05Bf0EbCb8F1A51B187BbcdBCb985D",

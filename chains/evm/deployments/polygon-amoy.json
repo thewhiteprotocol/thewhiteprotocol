@@ -52,6 +52,6 @@
       }
     ],
     "verifiedE2E": true,
-    "notes": "PR-010L deployment. Base Sepolia -> Polygon Amoy full private bridge E2E passed (forward only). WhiteProtocol lacks bridgeOutV1; reverse direction not yet supported. Cross-chain canonical asset mapping and Polygon gas override (35 gwei legacy) added post-deploy."}}
+    "notes": "PR-010L deployment. Base Sepolia -> Polygon Amoy full private bridge E2E passed (forward only). WhiteProtocol lacks bridgeOutV1; reverse direction not yet supported. Cross-chain canonical asset mapping and Polygon gas override (35 gwei legacy) added post-deploy."
   }
 }
