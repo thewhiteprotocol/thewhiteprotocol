@@ -5,7 +5,7 @@
  * prints RPC URLs, signer material, operator tokens, or env values.
  */
 
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
 import {
   hashBridgeMessageV1,
   parseBridgeMessageV1Json,
@@ -255,7 +255,7 @@ async function main(): Promise<void> {
   const connection = new Connection(rpcUrl, 'confirmed');
   const simulationConnection: SolanaSimulationConnectionLike = {
     getLatestBlockhash: () => connection.getLatestBlockhash('confirmed'),
-    simulateTransaction: (transaction: Transaction) =>
+    simulateTransaction: (transaction: Transaction | VersionedTransaction) =>
       (connection as any).simulateTransaction(transaction, {
         sigVerify: false,
         replaceRecentBlockhash: false,

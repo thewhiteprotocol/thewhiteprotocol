@@ -15,6 +15,7 @@ import {
   SystemProgram,
   Transaction,
   TransactionInstruction,
+  VersionedTransaction,
 } from '@solana/web3.js';
 import {
   BridgeMessageType,
@@ -260,7 +261,7 @@ export interface SolanaSimulationResult {
 export interface SolanaSimulationConnectionLike {
   getLatestBlockhash(): Promise<{ blockhash: string; lastValidBlockHeight?: number }>;
   simulateTransaction(
-    transaction: Transaction,
+    transaction: Transaction | VersionedTransaction,
     config?: { sigVerify?: boolean; replaceRecentBlockhash?: boolean }
   ): Promise<{
     context?: { slot?: number };
@@ -967,10 +968,27 @@ export async function simulateSolanaAcceptBridgeMintTransaction(
 
   const latest = await connection.getLatestBlockhash();
   preview.transaction.recentBlockhash = latest.blockhash;
-  const result = await connection.simulateTransaction(preview.transaction, {
-    sigVerify: false,
-    replaceRecentBlockhash: false,
-  });
+  let result: Awaited<ReturnType<SolanaSimulationConnectionLike['simulateTransaction']>>;
+  try {
+    const versionedTransaction = new VersionedTransaction(preview.transaction.compileMessage());
+    result = await connection.simulateTransaction(versionedTransaction, {
+      sigVerify: false,
+      replaceRecentBlockhash: false,
+    });
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return {
+      simulationAttempted: true,
+      simulationOk: false,
+      simulationStatus: 'failed',
+      simulationResult: 'failed',
+      sigVerify: false,
+      readyForLiveSubmit: false,
+      logsPreview: [],
+      blockhash: latest.blockhash,
+      error: sanitizeSimulationLog(error),
+    };
+  }
   const logsPreview = (result.value.logs ?? [])
     .slice(0, 25)
     .map(sanitizeSimulationLog);

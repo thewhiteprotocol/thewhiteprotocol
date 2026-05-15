@@ -2,7 +2,7 @@
  * Solana Bridge Adapter Tests — PR-010F
  */
 
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, VersionedTransaction } from '@solana/web3.js';
 import {
   WHITE_PROTOCOL_PROGRAM_ID,
   buildAcceptBridgeV1MintAccounts,
@@ -361,7 +361,7 @@ describe('Solana Bridge PDA Derivation', () => {
     expect(result.simulationOk).toBe(true);
     expect(result.readyForLiveSubmit).toBe(true);
     expect(result.sigVerify).toBe(false);
-    expect(connection.simulateTransaction).toHaveBeenCalledWith(preview.transaction, {
+    expect(connection.simulateTransaction).toHaveBeenCalledWith(expect.any(VersionedTransaction), {
       sigVerify: false,
       replaceRecentBlockhash: false,
     });

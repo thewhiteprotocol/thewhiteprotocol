@@ -160,6 +160,8 @@ Replay must report `sourceEventParsed=true`, `policyPassed=true`, `expiredDeadli
 
 Simulation was attempted after fresh replay but initially blocked because the simulation command still targeted the old PR-011N destination BridgeMint hash. PR-011W continuation updates `bridge:daemon:solana:simulate` to select the route-scoped approved destination hash from `BRIDGE_APPROVED_MESSAGE_HASHES`, or an explicit `BRIDGE_SIMULATION_DESTINATION_MESSAGE_HASH`, so fresh approved messages can be simulated without editing code.
 
+After redeploying that target-hash fix, simulation found the fresh message but failed with `Invalid arguments` from the Solana web3 simulation call. The simulation path was updated to simulate a `VersionedTransaction` with `sigVerify=false` and to return sanitized failure details instead of throwing. No send API is called.
+
 After replay succeeds and the destination BridgeMint hash is known, run:
 
 ```bash
