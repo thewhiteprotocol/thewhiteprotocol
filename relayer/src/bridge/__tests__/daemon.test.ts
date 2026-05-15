@@ -555,12 +555,12 @@ describe('BridgeDaemon', () => {
     expect(state.submissionPreview?.family).toBe('solana');
     expect(state.submissionPreview?.messageHash).toBe(destinationHash);
     expect(state.submissionPreview?.sourceMessageHash).toBe(sourceHash);
-    expect(state.signatureMetadata?.signerSetVersion).toBe(2);
-    expect(state.submissionPreview?.signerSetVersion).toBe(2);
+    expect(state.signatureMetadata?.signerSetVersion).toBe(BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion);
+    expect(state.submissionPreview?.signerSetVersion).toBe(BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion);
     expect((state.submissionPreview?.solana as any).instruction).toBe('accept_bridge_v1_mint');
     expect((state.submissionPreview?.solana as any).destinationMessageHash).toBe(destinationHash);
     expect((state.submissionPreview?.solana as any).sourceMessageHash).toBe(sourceHash);
-    expect((state.submissionPreview?.solana as any).accounts.signerSet).toBe('7Emf7vYUY9mpkzBfnzWKJ4B9PNqqrMzr5wyuUc8ap4XK');
+    expect((state.submissionPreview?.solana as any).accounts.signerSet).toBe('BwtnXeqyZZFoLbjKxuYpzY61zNgmtEQoEqi4DnrdfQT8');
     expect((state.submissionPreview?.solana as any).accounts.poolConfig).toBe('DZLJU6MAeWZ7aGLyt2j7Jq2XnNq2ch6jUAVgKmki9HaF');
     expect((state.submissionPreview?.solana as any).accounts.merkleTree).toBe('7rNj4NVMyaNFSL9ius2hej2rpzk88d7spXrbYFchhnPi');
     expect((state.submissionPreview?.solana as any).accounts.assetVault).toBe('4Wb17Qbxm74i4BNLZ6CejXtaijLFRSre5wWKAzwWkaXD');
@@ -586,7 +586,7 @@ describe('BridgeDaemon', () => {
       destinationChain: 'solana-devnet',
       message,
       messageHash: hashBridgeMessageV1(message),
-      signerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       signatureCount: 2,
       route: 'base-sepolia->solana-devnet',
       dryRun: true,
@@ -595,7 +595,7 @@ describe('BridgeDaemon', () => {
     });
     expect(preview.solana?.accounts.consumedMessage).toBeTruthy();
     expect(preview.solana?.accounts.frozenMessage).toBeTruthy();
-    expect(preview.solana?.accounts.signerSet).toBe('7Emf7vYUY9mpkzBfnzWKJ4B9PNqqrMzr5wyuUc8ap4XK');
+    expect(preview.solana?.accounts.signerSet).toBe('BwtnXeqyZZFoLbjKxuYpzY61zNgmtEQoEqi4DnrdfQT8');
   });
 
   test('Solana submit preview approval gate accepts destination hash only', () => {
@@ -607,7 +607,7 @@ describe('BridgeDaemon', () => {
       message,
       messageHash: destinationHash,
       sourceMessageHash: sourceHash,
-      signerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       signatureCount: 2,
       route: 'base-sepolia->solana-devnet',
       dryRun: true,
@@ -622,7 +622,7 @@ describe('BridgeDaemon', () => {
       message,
       messageHash: destinationHash,
       sourceMessageHash: sourceHash,
-      signerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       signatureCount: 2,
       route: 'base-sepolia->solana-devnet',
       dryRun: true,
@@ -639,7 +639,7 @@ describe('BridgeDaemon', () => {
       BRIDGE_DAEMON_MODE: 'paper',
       BRIDGE_DAEMON_ROUTES: 'base-sepolia:solana-devnet',
     });
-    expect(config.routes[0].signerSetVersion).toBe(2);
+    expect(config.routes[0].signerSetVersion).toBe(BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion);
     expect(config.routes[0].assets?.[0].destinationDecimals).toBe(9);
     expect(config.routes[0].solanaDestination?.poolConfig).toBe('DZLJU6MAeWZ7aGLyt2j7Jq2XnNq2ch6jUAVgKmki9HaF');
   });

@@ -28,6 +28,36 @@ function hex(byte: string): string {
   return byte.repeat(32);
 }
 
+function bridgeV1ConfigData(signerSetVersion: number): Buffer {
+  const data = Buffer.alloc(66);
+  data.writeUInt32LE(signerSetVersion, 44);
+  return data;
+}
+
+function signerSetData(signerSetVersion: number): Buffer {
+  const data = Buffer.alloc(235);
+  data.writeUInt32LE(signerSetVersion, 8);
+  data[12] = 2;
+  data[13] = 3;
+  return data;
+}
+
+function readinessAccountInfo(
+  pubkey: PublicKey,
+  existing: Set<string>,
+  accounts: ReturnType<typeof buildAcceptBridgeV1MintAccounts>,
+  signerSetVersion = BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion
+) {
+  if (!existing.has(pubkey.toBase58())) return null;
+  if (pubkey.equals(accounts.bridgeV1Config)) {
+    return { executable: false, data: bridgeV1ConfigData(signerSetVersion) };
+  }
+  if (pubkey.equals(accounts.signerSet)) {
+    return { executable: false, data: signerSetData(signerSetVersion) };
+  }
+  return { executable: pubkey.equals(WHITE_PROTOCOL_PROGRAM_ID) };
+}
+
 function makeDestinationMessage(): BridgeMessageV1 {
   return {
     protocolVersion: 1,
@@ -115,12 +145,12 @@ describe('Solana Bridge PDA Derivation', () => {
       new PublicKey(BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!.poolConfig),
       WHITE_PROTOCOL_PROGRAM_ID,
       {
-        signerSetVersion: 2,
+        signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
         destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination,
         messageHash: '0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56',
       }
     );
-    expect(accounts.signerSet.toBase58()).toBe('7Emf7vYUY9mpkzBfnzWKJ4B9PNqqrMzr5wyuUc8ap4XK');
+    expect(accounts.signerSet.toBase58()).toBe('BwtnXeqyZZFoLbjKxuYpzY61zNgmtEQoEqi4DnrdfQT8');
     expect(accounts.consumedMessage.toBase58()).toBe('FFms6Q7BHHPsVnWMEmL3gFiyZCu9pBMoog3Gfsp7Qodr');
     expect(accounts.frozenMessage.toBase58()).toBe('B5kc9gKjy4LpGYX8yAoAeHzL81eGAh3DGerL2KdeKpJe');
     expect(accounts.pendingBuffer.toBase58()).toBe('9oEKYL8iD7mBdvPzrgtv8Q15QqAWUL9ycSGAkt5QT42s');
@@ -137,7 +167,7 @@ describe('Solana Bridge PDA Derivation', () => {
       messageHash: destinationHash,
       sourceMessageHash: '0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc',
       signatures: [`0x${'11'.repeat(65)}`, `0x${'22'.repeat(65)}`],
-      signerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!,
     });
     expect(preview.transactionAssemblyImplemented).toBe(true);
@@ -163,7 +193,7 @@ describe('Solana Bridge PDA Derivation', () => {
       messageHash: '0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc',
       sourceMessageHash: '0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc',
       signatures: [`0x${'11'.repeat(65)}`, `0x${'22'.repeat(65)}`],
-      signerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!,
     });
     expect(preview.accountMetaValidation.valid).toBe(false);
@@ -176,7 +206,7 @@ describe('Solana Bridge PDA Derivation', () => {
     const readyBase = {
       accounts: {
         bridgeV1Config: '5ZiC1A8NTS1pc1Rp1mQEnPERzJA1viJZYqW7MX9QhH9s',
-        signerSet: '7Emf7vYUY9mpkzBfnzWKJ4B9PNqqrMzr5wyuUc8ap4XK',
+        signerSet: 'BwtnXeqyZZFoLbjKxuYpzY61zNgmtEQoEqi4DnrdfQT8',
         consumedMessage: 'FFms6Q7BHHPsVnWMEmL3gFiyZCu9pBMoog3Gfsp7Qodr',
         routeConfig: 'Bp6dhddL1pRRacMYGfKqFyN6azEujbphzH8xmnpKzEWt',
         assetConfig: 'CByfLtYcZcVWJoihhzTaKGeVEbqL9b9b1qgVdNLHEpdV',
@@ -190,8 +220,8 @@ describe('Solana Bridge PDA Derivation', () => {
       sourceMessageHash: '0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc',
       destinationMessageHash: '0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56',
       previewMessageHash: '0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56',
-      signerSetVersion: 2,
-      expectedSignerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
+      expectedSignerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       liveSubmissionImplemented: true,
     };
     expect(evaluateSolanaSubmitReadiness(readyBase).status).toBe('ready_for_operator_approval');
@@ -243,7 +273,7 @@ describe('Solana Bridge PDA Derivation', () => {
     const result = evaluateSolanaSubmitReadiness({
       accounts: {
         bridgeV1Config: '5ZiC1A8NTS1pc1Rp1mQEnPERzJA1viJZYqW7MX9QhH9s',
-        signerSet: '7Emf7vYUY9mpkzBfnzWKJ4B9PNqqrMzr5wyuUc8ap4XK',
+        signerSet: 'BwtnXeqyZZFoLbjKxuYpzY61zNgmtEQoEqi4DnrdfQT8',
         consumedMessage: 'FFms6Q7BHHPsVnWMEmL3gFiyZCu9pBMoog3Gfsp7Qodr',
         routeConfig: 'Bp6dhddL1pRRacMYGfKqFyN6azEujbphzH8xmnpKzEWt',
         assetConfig: 'CByfLtYcZcVWJoihhzTaKGeVEbqL9b9b1qgVdNLHEpdV',
@@ -256,8 +286,8 @@ describe('Solana Bridge PDA Derivation', () => {
       },
       destinationMessageHash: '0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56',
       previewMessageHash: '0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56',
-      signerSetVersion: 2,
-      expectedSignerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
+      expectedSignerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       liveSubmissionImplemented: true,
       approval,
     });
@@ -271,7 +301,7 @@ describe('Solana Bridge PDA Derivation', () => {
       new PublicKey(BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!.poolConfig),
       WHITE_PROTOCOL_PROGRAM_ID,
       {
-        signerSetVersion: 2,
+        signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
         destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination,
         messageHash: '0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56',
       }
@@ -289,8 +319,7 @@ describe('Solana Bridge PDA Derivation', () => {
     ]);
     const result = await runSolanaPreSubmitReadinessChecks(accounts, {
       async getAccountInfo(pubkey) {
-        if (!existing.has(pubkey.toBase58())) return null;
-        return { executable: pubkey.equals(WHITE_PROTOCOL_PROGRAM_ID) };
+        return readinessAccountInfo(pubkey, existing, accounts);
       },
     });
     expect(result.status).toBe('ready_for_operator_approval');
@@ -303,7 +332,7 @@ describe('Solana Bridge PDA Derivation', () => {
       new PublicKey(BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!.poolConfig),
       WHITE_PROTOCOL_PROGRAM_ID,
       {
-        signerSetVersion: 2,
+        signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
         destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination,
         messageHash: hashBridgeMessageV1(message),
       }
@@ -312,9 +341,7 @@ describe('Solana Bridge PDA Derivation', () => {
     existing.add(WHITE_PROTOCOL_PROGRAM_ID.toBase58());
     const result = await runSolanaPreSubmitReadinessChecks(accounts, {
       async getAccountInfo(pubkey) {
-        return existing.has(pubkey.toBase58())
-          ? { executable: pubkey.equals(WHITE_PROTOCOL_PROGRAM_ID) }
-          : null;
+        return readinessAccountInfo(pubkey, existing, accounts);
       },
     });
     expect(result.status).toBe('blocked_rpc_state');
@@ -325,6 +352,44 @@ describe('Solana Bridge PDA Derivation', () => {
     ]));
   });
 
+  test('read-only checker blocks signer set version mismatch with on-chain config', async () => {
+    const message = makeDestinationMessage();
+    const accounts = buildAcceptBridgeV1MintAccounts(
+      message,
+      new PublicKey(BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!.poolConfig),
+      WHITE_PROTOCOL_PROGRAM_ID,
+      {
+        signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
+        destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination,
+        messageHash: hashBridgeMessageV1(message),
+      }
+    );
+    const existing = new Set([
+      WHITE_PROTOCOL_PROGRAM_ID.toBase58(),
+      accounts.bridgeV1Config.toBase58(),
+      accounts.signerSet.toBase58(),
+      accounts.routeConfig.toBase58(),
+      accounts.assetConfig.toBase58(),
+      accounts.pendingBuffer.toBase58(),
+      accounts.poolConfig.toBase58(),
+      accounts.merkleTree.toBase58(),
+      accounts.assetVault.toBase58(),
+    ]);
+    const result = await runSolanaPreSubmitReadinessChecks(accounts, {
+      async getAccountInfo(pubkey) {
+        if (pubkey.equals(accounts.bridgeV1Config)) {
+          return {
+            executable: false,
+            data: bridgeV1ConfigData(BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion - 1),
+          };
+        }
+        return readinessAccountInfo(pubkey, existing, accounts);
+      },
+    });
+    expect(result.status).toBe('blocked_rpc_state');
+    expect(result.reasons.some((reason) => reason.startsWith('signer_set_version_mismatch'))).toBe(true);
+  });
+
   test('simulation uses sigVerify=false and does not send', async () => {
     const message = makeDestinationMessage();
     const destinationHash = hashBridgeMessageV1(message);
@@ -333,7 +398,7 @@ describe('Solana Bridge PDA Derivation', () => {
       messageHash: destinationHash,
       sourceMessageHash: '0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc',
       signatures: [`0x${'11'.repeat(65)}`, `0x${'22'.repeat(65)}`],
-      signerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!,
     });
     const sendTransaction = jest.fn();
@@ -375,7 +440,7 @@ describe('Solana Bridge PDA Derivation', () => {
       message,
       messageHash: destinationHash,
       signatures: [`0x${'11'.repeat(65)}`, `0x${'22'.repeat(65)}`],
-      signerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!,
     });
     const connection = {
@@ -414,7 +479,7 @@ describe('Solana Bridge PDA Derivation', () => {
       message,
       messageHash: destinationHash,
       signatures: [`0x${'11'.repeat(65)}`, `0x${'22'.repeat(65)}`],
-      signerSetVersion: 2,
+      signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
       destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!,
     });
     const accounts = buildAcceptBridgeV1MintAccounts(
@@ -422,7 +487,7 @@ describe('Solana Bridge PDA Derivation', () => {
       new PublicKey(BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination!.poolConfig),
       WHITE_PROTOCOL_PROGRAM_ID,
       {
-        signerSetVersion: 2,
+        signerSetVersion: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.signerSetVersion,
         destinationConfig: BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE.solanaDestination,
         messageHash: destinationHash,
       }
@@ -448,8 +513,7 @@ describe('Solana Bridge PDA Derivation', () => {
       accounts,
       accountProvider: {
         async getAccountInfo(pubkey) {
-          if (!existing.has(pubkey.toBase58())) return null;
-          return { executable: pubkey.equals(WHITE_PROTOCOL_PROGRAM_ID) };
+          return readinessAccountInfo(pubkey, existing, accounts);
         },
       },
       approval: evaluateSolanaOperatorApproval({

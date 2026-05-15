@@ -50,6 +50,7 @@ Use this checklist before approving any bridge daemon message for a future live-
 
 7. Signer set check
    - The signer set version in the daemon state matches the deployed destination signer set version intended for submission.
+   - The decoded destination `BridgeV1Config.signer_set_version` matches the decoded `BridgeSignerSet.version`.
    - The threshold is recorded.
    - The recovered signer addresses are members of the destination signer set.
 

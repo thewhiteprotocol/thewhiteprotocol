@@ -298,6 +298,7 @@ export interface SolanaAcceptBridgeMintTransactionPreview {
 
 export interface SolanaAccountInfoLike {
   executable?: boolean;
+  data?: Uint8Array | Buffer;
 }
 
 export interface SolanaReadOnlyAccountProvider {
@@ -309,6 +310,17 @@ const ACCEPT_BRIDGE_V1_MINT_IX_NAME = 'accept_bridge_v1_mint';
 const DRY_RUN_RECENT_BLOCKHASH = '11111111111111111111111111111111';
 const DEFAULT_COMPUTE_UNIT_LIMIT = 400_000;
 const DEFAULT_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS = 0;
+
+function readU32AccountData(
+  account: SolanaAccountInfoLike | null,
+  offset: number,
+  field: string
+): number {
+  if (!account?.data || account.data.length < offset + 4) {
+    throw new Error(`${field}_data_unavailable`);
+  }
+  return Buffer.from(account.data).readUInt32LE(offset);
+}
 
 function normalizeHexHash(value: string): string {
   return `0x${value.replace(/^0x/i, '').toLowerCase()}`;
@@ -731,6 +743,30 @@ export async function runSolanaPreSubmitReadinessChecks(
   await expectAbsent('consumedMessage');
   await expectAbsent('frozenMessage');
   await expectAbsent('commitmentIndex');
+
+  try {
+    const [bridgeConfig, signerSet] = await Promise.all([
+      provider.getAccountInfo(accounts.bridgeV1Config),
+      provider.getAccountInfo(accounts.signerSet),
+    ]);
+    const configVersion = readU32AccountData(
+      bridgeConfig,
+      44,
+      'bridgeV1Config.signerSetVersion'
+    );
+    const signerSetVersion = readU32AccountData(
+      signerSet,
+      8,
+      'signerSet.version'
+    );
+    checks.signerSetVersion = configVersion === signerSetVersion ? 'pass' : 'fail';
+    if (checks.signerSetVersion === 'fail') {
+      reasons.push(`signer_set_version_mismatch:config=${configVersion},signerSet=${signerSetVersion}`);
+    }
+  } catch {
+    checks.signerSetVersion = 'unknown';
+    reasons.push('signer_set_version_unknown');
+  }
 
   if (Object.values(checks).includes('unknown')) {
     return { readyForOperatorApproval: false, status: 'blocked_rpc_state', reasons, checks };

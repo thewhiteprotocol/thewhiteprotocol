@@ -795,6 +795,8 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [x] SBF stack overflow in `accept_bridge_v1_mint` fixed.
 - [x] Solana source BridgeOut is bound to withdraw proof/nullifier/value lock on localnet (PR-010Y).
 - [x] Solana Devnet → Base Sepolia route proven with source-bound `bridge_out_v1_with_proof` (PR-010Z).
+- [x] Solana frozen-message lifecycle fixed so normal BridgeMint accepts do not require pre-created freeze records (PR-011X).
+- [x] Solana destination signer set version reconciled to active devnet signer set v3 (PR-011Y).
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.

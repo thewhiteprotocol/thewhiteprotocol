@@ -20,13 +20,13 @@ pub struct AcceptBridgeV1Mint<'info> {
     pub caller: Signer<'info>,
 
     #[account(mut)]
-    pub bridge_v1_config: Account<'info, BridgeV1Config>,
+    pub bridge_v1_config: Box<Account<'info, BridgeV1Config>>,
 
     #[account(
         seeds = [BridgeSignerSet::SEED_PREFIX, &signer_set_version.to_le_bytes()],
         bump = signer_set.bump,
     )]
-    pub signer_set: Account<'info, BridgeSignerSet>,
+    pub signer_set: Box<Account<'info, BridgeSignerSet>>,
 
     #[account(
         init,
@@ -35,7 +35,7 @@ pub struct AcceptBridgeV1Mint<'info> {
         seeds = [ConsumedBridgeMessage::SEED_PREFIX, &hash_bridge_message_v1(&message)?],
         bump,
     )]
-    pub consumed_message: Account<'info, ConsumedBridgeMessage>,
+    pub consumed_message: Box<Account<'info, ConsumedBridgeMessage>>,
 
     #[account(
         mut,
@@ -46,21 +46,22 @@ pub struct AcceptBridgeV1Mint<'info> {
         ],
         bump = route_config.bump,
     )]
-    pub route_config: Account<'info, BridgeRouteConfig>,
+    pub route_config: Box<Account<'info, BridgeRouteConfig>>,
 
     #[account(
         mut,
         seeds = [BridgeAssetConfig::SEED_PREFIX, &message.canonical_asset_id],
         bump = asset_config.bump,
     )]
-    pub asset_config: Account<'info, BridgeAssetConfig>,
+    pub asset_config: Box<Account<'info, BridgeAssetConfig>>,
 
-    /// CHECK: Optional frozen message account. If it exists and frozen=true, reject.
+    /// CHECK: Optional frozen message PDA. If absent/uninitialized, the message is not frozen.
+    /// If initialized, handler verifies owner, discriminator, message hash, and frozen flag.
     #[account(
         seeds = [FrozenBridgeMessage::SEED_PREFIX, &hash_bridge_message_v1(&message)?],
-        bump = frozen_message.bump,
+        bump,
     )]
-    pub frozen_message: Account<'info, FrozenBridgeMessage>,
+    pub frozen_message: UncheckedAccount<'info>,
 
     // -------------------------------------------------------------------------
     // Pool accounts for commitment insertion
@@ -109,7 +110,7 @@ pub struct AcceptBridgeV1Mint<'info> {
         seeds = [b"commitment", pool_config.key().as_ref(), message.destination_commitment.as_ref()],
         bump,
     )]
-    pub commitment_index: Account<'info, CommitmentIndex>,
+    pub commitment_index: Box<Account<'info, CommitmentIndex>>,
 
     pub system_program: Program<'info, System>,
 }
@@ -124,7 +125,6 @@ pub fn handler(
     let signer_set = &ctx.accounts.signer_set;
     let route = &mut ctx.accounts.route_config;
     let asset = &mut ctx.accounts.asset_config;
-    let frozen_msg = &ctx.accounts.frozen_message;
     let clock = Clock::get()?;
     let now = clock.unix_timestamp;
 
@@ -174,13 +174,11 @@ pub fn handler(
         return Err(WhiteProtocolError::BridgeDeadlineExpired.into());
     }
 
-    // 9. Message not frozen
-    if frozen_msg.frozen {
-        return Err(WhiteProtocolError::MessageIsFrozen.into());
-    }
-
-    // 10. Compute message hash
+    // 9. Compute message hash
     let message_hash = hash_bridge_message_v1(&message)?;
+
+    // 10. Message not frozen. The PDA is optional for normal messages.
+    ensure_message_not_frozen(&ctx.accounts.frozen_message, &message_hash)?;
 
     // 11. Signer set version matches
     if signer_set_version != config.signer_set_version {
@@ -247,13 +245,13 @@ pub fn handler(
 
     // Update vault statistics
     // NOTE: amount is u128; asset_vault stats are u64.
-    // For bridge commitments we only increment deposit_count.
     // The actual token transfer is handled by the bridge relayer / escrow.
-    asset_vault.deposit_count = asset_vault
-        .deposit_count
-        .checked_add(1)
-        .ok_or(error!(WhiteProtocolError::ArithmeticOverflow))?;
-    asset_vault.last_activity_at = now;
+    // We safely cast amount to u64 (bridge caps should prevent overflow).
+    let amount_u64: u64 = message
+        .amount
+        .try_into()
+        .map_err(|_| WhiteProtocolError::ArithmeticOverflow)?;
+    asset_vault.record_deposit(amount_u64, now)?;
 
     emit!(DepositQueuedEvent {
         pool: ctx.accounts.pool_config.key(),
@@ -288,6 +286,36 @@ pub fn handler(
         nonce: message.nonce,
         timestamp: now,
     });
+
+    Ok(())
+}
+
+fn ensure_message_not_frozen(
+    frozen_message: &UncheckedAccount,
+    message_hash: &[u8; 32],
+) -> Result<()> {
+    let info = frozen_message.to_account_info();
+
+    // Uninitialized optional PDA means no freeze record exists, so the message is not frozen.
+    if info.data_is_empty() {
+        return Ok(());
+    }
+
+    require_keys_eq!(*info.owner, crate::ID, WhiteProtocolError::InvalidInput);
+
+    let data = info.try_borrow_data()?;
+    let mut data_slice: &[u8] = &data;
+    let frozen_msg = FrozenBridgeMessage::try_deserialize(&mut data_slice)
+        .map_err(|_| WhiteProtocolError::CorruptedData)?;
+
+    require!(
+        frozen_msg.message_hash == *message_hash,
+        WhiteProtocolError::InvalidInput
+    );
+
+    if frozen_msg.frozen {
+        return Err(WhiteProtocolError::MessageIsFrozen.into());
+    }
 
     Ok(())
 }
