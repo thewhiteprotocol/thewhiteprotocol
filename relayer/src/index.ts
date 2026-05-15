@@ -435,13 +435,13 @@ export class RelayerService {
         chainId: 84532,
         fromBlock: this.parseOptionalBigIntEnv(process.env.BRIDGE_DAEMON_SCAN_FROM_BLOCK),
         toBlock: this.parseOptionalBigIntEnv(process.env.BRIDGE_DAEMON_SCAN_TO_BLOCK),
-        lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '5000'),
+        lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '1000'),
       });
       logger.info('Bridge daemon Base Sepolia source adapter initialized', {
         source: route.source,
         destination: route.destination,
         outboxAddress,
-        lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '5000'),
+        lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '1000'),
       });
     }
     return adapters;

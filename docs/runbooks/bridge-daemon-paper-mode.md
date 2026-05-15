@@ -84,7 +84,7 @@ The scanner:
 
 - requires hosted env/secrets to be configured
 - scans Base Sepolia `BridgeOutInitiated` logs from the configured BridgeOutbox
-- uses `BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS=5000` by default
+- uses `BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS=1000` by default to stay below public RPC log-range limits
 - optionally accepts `BRIDGE_DAEMON_SCAN_FROM_BLOCK` and `BRIDGE_DAEMON_SCAN_TO_BLOCK`
 - computes live confirmations from Base RPC
 - keeps `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`

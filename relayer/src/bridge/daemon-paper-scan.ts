@@ -56,7 +56,7 @@ async function main(): Promise<void> {
     chainId: 84532,
     fromBlock: parseOptionalBigInt(process.env.BRIDGE_DAEMON_SCAN_FROM_BLOCK),
     toBlock: parseOptionalBigInt(process.env.BRIDGE_DAEMON_SCAN_TO_BLOCK),
-    lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '5000'),
+    lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '1000'),
   });
   const daemon = new BridgeDaemon({
     config: {
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
     scan: {
       fromBlock: process.env.BRIDGE_DAEMON_SCAN_FROM_BLOCK || null,
       toBlock: process.env.BRIDGE_DAEMON_SCAN_TO_BLOCK || null,
-      lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '5000'),
+      lookbackBlocks: Number(process.env.BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS || '1000'),
     },
     safety: {
       liveSubmitEnabled: false,
