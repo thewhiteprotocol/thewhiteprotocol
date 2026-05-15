@@ -697,7 +697,9 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 **Continuation:** After Render env was updated with `BRIDGE_DAEMON_STATE_PATH=/tmp/bridge-daemon`, the current shell was confirmed to be Codespace (`/workspaces/thewhiteprotocol`), not Render (`/opt/render/project/src`). Required live-source env names were still absent locally, so fresh event generation was not run. Use `git rev-parse --show-toplevel` in Render before running hosted commands.
 
-**Next:** PR-011X should execute `npm run bridge:daemon:paper:replay` directly on Render with the PR-011N range, or explicitly approve and fund a fresh low-value Base Sepolia -> Solana Devnet source event if Render replay reports `expired_deadline`.
+**Continuation result:** A fresh low-value Base Sepolia -> Solana Devnet source event was generated and replayed successfully into hosted paper state. The fresh message reached `paper_ready_to_submit` with policy accepted, finality satisfied, 2 signatures, and a Solana submit preview. Hosted simulation reached the Solana program with `sigVerify=false` and failed deterministically on `frozen_message` account initialization (`AnchorError AccountNotInitialized`, custom `3012`). No destination transaction was submitted and no Solana state mutation was observed.
+
+**Next:** PR-011X should reconcile the Solana destination `frozen_message` account lifecycle for `accept_bridge_v1_mint`, then rerun hosted simulation. Do not enable live submit until simulation succeeds.
 
 ---
 

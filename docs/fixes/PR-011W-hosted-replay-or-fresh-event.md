@@ -177,6 +177,22 @@ PR-011W continuation adds `simulationResult` and `simulationError` to the hosted
 
 The next hosted run reported `simulationError="AccountNotFound"` with pre-submit checks still passing. The likely missing account is the dry-run caller/fee-payer PDA used for unsigned simulation, not a bridge PDA. PR-011W continuation updates the simulation command to use an existing simulation caller when available: `BRIDGE_SOLANA_SIMULATION_CALLER`, or the public key derived from `RELAYER_KEYPAIR` without printing the keypair or signing. The command still uses `sigVerify=false` and does not send.
 
+After redeploying the existing-caller simulation fix, hosted simulation reached the Solana program and returned a deterministic program error:
+
+- simulation attempted: `true`
+- `sigVerify=false`
+- pre-submit checks: `ready_for_operator_approval`
+- simulation result: `failed`
+- simulation error: `{"InstructionError":[2,{"Custom":3012}]}`
+- compute units: `8199`
+- slot: `462563527`
+- logs captured: yes
+- key log: `AnchorError caused by account: frozen_message. Error Code: AccountNotInitialized.`
+- destination transaction submitted: `false`
+- state mutation observed: `false`
+
+This means the fresh paper message and transaction assembly reached the on-chain `accept_bridge_v1_mint` instruction in simulation, but the current destination account model expects the `frozen_message` account to already be initialized. Live submit remains blocked until the destination account lifecycle is reconciled.
+
 After replay succeeds and the destination BridgeMint hash is known, run:
 
 ```bash
@@ -239,11 +255,12 @@ Read-only public endpoints were checked. No authenticated mutation was called be
 
 - Render shell/job replay has not been executed from this environment.
 - Hosted fresh message is in paper state.
-- Hosted Solana simulation needs redeploy of the dynamic approved-hash patch, then rerun with the fresh destination BridgeMint hash.
+- Hosted Solana simulation now reaches the Solana program and fails on `frozen_message` account initialization.
+- Live destination submit remains blocked until the destination frozen-message account lifecycle is reconciled.
 - No Solana destination transaction was submitted.
 - Live submit remains disabled.
 - Not production-ready.
 
 ## Next Recommended PR
 
-PR-011X - Rerun hosted Solana simulation for the fresh approved destination BridgeMint hash after the dynamic simulation-target patch is deployed.
+PR-011X - Reconcile Solana destination `frozen_message` account lifecycle for `accept_bridge_v1_mint`, then rerun hosted simulation. Do not enable live submit until simulation succeeds.
