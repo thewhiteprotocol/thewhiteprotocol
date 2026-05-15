@@ -548,6 +548,20 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011N: Fresh Hosted Paper Scan ✅ COMPLETE
+
+**Scope:**
+- Generate one low-value Base Sepolia -> Solana Devnet source `BridgeOut` through `WhiteProtocol.bridgeOutV1`
+- Keep destination submission disabled
+- Let hosted paper mode observe the fresh event
+- Verify policy, finality, signer policy, signatures, Solana preview, persisted state, and read-only operator APIs
+
+**Deliverable:** Hosted paper mode processed fresh source tx `0xf0f3f4f12ddbd2ade17334f72a4a348dce614b706ad6427077840dbf9cfef866` from Base block `41539671`, accepted policy, produced 2 signatures, created a Solana `accept_bridge_v1_mint` preview, persisted `paper_ready_to_submit`, and kept `submitTxHash=null`.
+
+**Next:** Prepare an operator approval package for the fresh message and Solana preview before any live-testnet destination submission PR.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1

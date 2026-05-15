@@ -104,6 +104,16 @@ npm run bridge:daemon:paper:scan
 
 Old events may parse correctly but still be rejected by current-time policy if their bridge message deadline has expired. Treat that as a valid policy result, not a signer failure.
 
+Fresh source-event paper scans should end in `paper_ready_to_submit` only when all of the following are true:
+
+- source event was produced by the production source-bound path
+- source event has reached the configured finality threshold
+- bridge policy accepted the message
+- watcher did not block the message
+- signer policy accepted the message
+- paper mode generated signatures and a sanitized submit preview
+- `submitTxHash` remains `null`
+
 Hosted observation loop:
 
 1. Start the service.
