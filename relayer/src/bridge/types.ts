@@ -13,13 +13,19 @@ import type { BridgeMessageV1 } from '@thewhiteprotocol/core';
 
 export enum BridgeMessageStatus {
   OBSERVED = 'observed',
+  POLICY_CHECKED = 'policy_checked',
   FINALITY_WAIT = 'finality_wait',
   READY_TO_ATTEST = 'ready_to_attest',
+  READY_TO_SIGN = 'ready_to_sign',
   SIGNED = 'signed',
+  PAPER_READY_TO_SUBMIT = 'paper_ready_to_submit',
   SUBMITTED = 'submitted',
   CONFIRMED = 'confirmed',
+  REJECTED = 'rejected',
   FAILED = 'failed',
+  IGNORED = 'ignored',
   FROZEN = 'frozen',
+  FROZEN_OR_BLOCKED = 'frozen_or_blocked',
   EXPIRED = 'expired',
 }
 
@@ -79,6 +85,34 @@ export interface BridgeMessageState {
   updatedAt: number;
   /** Raw BridgeMessageV1 (stored for reconstruction) */
   message: BridgeMessageV1;
+  /** PR-011G daemon transition history. No secrets. */
+  daemonTransitions?: Array<{
+    status: BridgeMessageStatus;
+    at: number;
+    reason?: string;
+  }>;
+  /** Sanitized policy decision captured by daemon mode. */
+  policyDecision?: BridgePolicyDecision;
+  /** Whether source finality was satisfied when the daemon last evaluated it. */
+  finalitySatisfied?: boolean;
+  /** Sanitized signing policy decision. */
+  signingDecision?: {
+    accepted: boolean;
+    action: string;
+    reasons: string[];
+    adapterType?: string;
+  };
+  /** Signature metadata only. Raw signatures are already in signatures. */
+  signatureMetadata?: {
+    signerSetVersion: number;
+    signerCount: number;
+    threshold: number;
+    signerAddresses: string[];
+  };
+  /** Destination submission preview for paper mode or before live-testnet submit. */
+  submissionPreview?: Record<string, unknown>;
+  /** Paper-mode marker: destination submit would be attempted outside paper mode. */
+  wouldSubmit?: boolean;
 }
 
 // =============================================================================

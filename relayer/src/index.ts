@@ -48,9 +48,15 @@ import {
   BridgeWatcherDaemon,
   loadBridgeWatcherDaemonConfigFromEnv,
 } from './bridge/watcher-daemon';
+import {
+  BridgeDaemon,
+  loadBridgeDaemonConfigFromEnv,
+  createBridgeSignerAdapterFromEnv,
+} from './bridge';
 import { BridgeWatcherFindingStore } from './bridge/watcher-store';
 import { BridgeFreezeActionBuilder } from './bridge/freeze-actions';
 import { BridgeAlerter, loadBridgeAlertConfigFromEnv } from './bridge/alerts';
+import { BridgeSignerService } from './bridge/signer';
 import { DEFAULT_BRIDGE_FINALITY } from './bridge/policy';
 import type { BridgeRouteConfig } from './bridge/types';
 import {
@@ -259,6 +265,9 @@ export class RelayerService {
   /** Bridge watcher daemon (disabled by default) */
   private bridgeWatcherDaemon?: BridgeWatcherDaemon;
 
+  /** Bridge paper/live-testnet daemon (disabled by default) */
+  private bridgeDaemon?: BridgeDaemon;
+
   /** Solana settlement sequencer */
   private sequencer?: Sequencer;
   
@@ -327,18 +336,20 @@ export class RelayerService {
     }
     
     // Setup bridge state store if STATE_DIR is configured
-    const stateDir = process.env.STATE_DIR;
+    const stateDir = process.env.STATE_DIR || process.env.BRIDGE_DAEMON_STATE_PATH;
     if (stateDir) {
       this.bridgeStateStore = new BridgeStateStore(stateDir);
       logger.info('Bridge state store initialized', { stateDir });
+
+      const findingStore = new BridgeWatcherFindingStore(stateDir, {
+        findingsPath: process.env.BRIDGE_WATCHER_FINDINGS_PATH,
+      });
 
       const watcherConfig = loadBridgeWatcherDaemonConfigFromEnv(process.env);
       if (watcherConfig.enabled) {
         this.bridgeWatcherDaemon = new BridgeWatcherDaemon({
           stateStore: this.bridgeStateStore,
-          findingStore: new BridgeWatcherFindingStore(stateDir, {
-            findingsPath: process.env.BRIDGE_WATCHER_FINDINGS_PATH,
-          }),
+          findingStore,
           routes: this.parseBridgeRoutes(),
           finality: DEFAULT_BRIDGE_FINALITY,
           config: watcherConfig,
@@ -351,8 +362,35 @@ export class RelayerService {
           intervalMs: watcherConfig.intervalMs,
         });
       }
+
+      const bridgeDaemonConfig = loadBridgeDaemonConfigFromEnv(process.env);
+      if (bridgeDaemonConfig.mode !== 'disabled') {
+        this.bridgeDaemon = new BridgeDaemon({
+          config: {
+            ...bridgeDaemonConfig,
+            routes: bridgeDaemonConfig.routes.length > 0
+              ? bridgeDaemonConfig.routes
+              : this.parseBridgeRoutes(),
+          },
+          stateStore: this.bridgeStateStore,
+          findingStore,
+          finality: DEFAULT_BRIDGE_FINALITY,
+          signer: new BridgeSignerService({
+            threshold: bridgeDaemonConfig.signerThreshold,
+            privateKeys: [],
+            adapter: createBridgeSignerAdapterFromEnv(process.env),
+          }),
+        });
+        logger.info('Bridge daemon initialized', {
+          mode: bridgeDaemonConfig.mode,
+          allowLiveTestnetSubmit: bridgeDaemonConfig.allowLiveTestnetSubmit,
+          intervalMs: bridgeDaemonConfig.intervalMs,
+        });
+      }
     } else if (loadBridgeWatcherDaemonConfigFromEnv(process.env).enabled) {
       logger.warn('Bridge watcher requested but STATE_DIR is not configured; watcher not started');
+    } else if (loadBridgeDaemonConfigFromEnv(process.env).mode !== 'disabled') {
+      logger.warn('Bridge daemon requested but STATE_DIR is not configured; daemon not started');
     }
 
     // Setup Express app
@@ -633,6 +671,7 @@ export class RelayerService {
           stateStore: this.bridgeStateStore,
           routes: bridgeRoutes,
           watcherDaemon: this.bridgeWatcherDaemon,
+          bridgeDaemon: this.bridgeDaemon,
           operatorApiToken: process.env.BRIDGE_OPERATOR_API_TOKEN,
         })
       );
@@ -1756,6 +1795,11 @@ export class RelayerService {
     if (this.bridgeWatcherDaemon?.isEnabled()) {
       this.bridgeWatcherDaemon.start();
       logger.info('Bridge watcher daemon started', { ...this.bridgeWatcherDaemon.getStatus() });
+    }
+
+    if (this.bridgeDaemon?.isEnabled()) {
+      this.bridgeDaemon.start();
+      logger.info('Bridge daemon started', { ...this.bridgeDaemon.getStatus() });
     }
     
     // Start background Solana settlement sequencer

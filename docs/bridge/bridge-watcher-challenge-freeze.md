@@ -30,6 +30,23 @@ PR-011D adds:
 - alert failure retry/no-crash behavior
 - hosted dry-run operator runbook
 
+PR-011E adds:
+
+- hosted observation-window summaries in `relayer/src/bridge/observation.ts`
+- offline report command: `npm run watcher:report`
+- escalation policy helpers and tests
+- freeze execution design doc
+- observation window runbook
+
+PR-011G adds:
+
+- daemonized bridge relayer paper/live-testnet mode in `relayer/src/bridge/daemon.ts`
+- bridge daemon status/message/operator tick APIs
+- EVM `acceptBridgeMint` submit previews
+- Solana `accept_bridge_v1_mint` submit previews
+- watcher-critical-finding blocks before signing/submission
+- live-testnet submission gates, with mainnet blocked and live submission disabled by default
+
 The watcher does not replace on-chain checks. It is a pre-signing and post-observation safety layer that classifies bridge messages, produces findings, and recommends whether the relayer should accept, delay, alert, require manual review, or freeze.
 
 ## 2. Inputs
@@ -220,6 +237,38 @@ Synthetic fixture coverage:
 - not-final source event
 - cross-decimal mismatch
 
+## 7.1 Observation Window Reporting
+
+PR-011E adds an offline report command:
+
+```bash
+cd relayer
+npm run watcher:report
+```
+
+The report reads persisted watcher findings and writes sanitized JSON and Markdown summaries. It tracks:
+
+- observation label and time range
+- watcher mode, `dryRun`, and `autoFreeze`
+- chains and routes monitored
+- findings by severity, status, route, and code
+- repeated findings and top codes
+- alert counts
+- freeze preview counts
+- live freeze transaction count
+
+During hosted dry-run, `liveFreezeTxCount` must remain `0`.
+
+Escalation policy:
+
+| Severity | Default action |
+| --- | --- |
+| low | Log only. |
+| medium | Alert if repeated. |
+| high | Alert immediately and require manual review. |
+| critical | Alert immediately, generate freeze preview, require operator review. |
+| critical repeated | Freeze recommended, still dry-run unless a later PR enables live freeze. |
+
 ## 8. Finality Rules
 
 Default testnet policy:
@@ -263,6 +312,11 @@ Routes:
 - `POST /bridge/watcher/findings/:id/ignore`
 - `POST /bridge/watcher/findings/:id/freeze-dry-run`
 - `POST /bridge/watcher/tick`
+- `GET /bridge/daemon/status`
+- `GET /bridge/daemon/messages`
+- `GET /bridge/daemon/messages/:hash`
+- `POST /bridge/daemon/tick`
+- `POST /bridge/daemon/messages/:hash/retry`
 
 Errors use the standard `{ success: false, error: { code, message, details } }` shape.
 
@@ -277,6 +331,30 @@ Status output includes:
 - alerting enabled/dry-run/min-severity/sink
 
 It does not include `BRIDGE_OPERATOR_API_TOKEN` or `BRIDGE_ALERT_WEBHOOK_URL`.
+
+Daemon status output includes mode, running state, route testnet-only classification, message counts by status, signer adapter type, and signer threshold. It does not include signer private keys, key file contents, operator tokens, webhook URLs, or RPC secrets.
+
+## 10.1 Bridge Daemon Paper Mode
+
+PR-011G paper mode is the recommended next operational posture:
+
+```bash
+BRIDGE_DAEMON_MODE=paper
+BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false
+```
+
+Paper mode can produce signatures and submit previews when policy allows, but it records `submitTxHash=null` and never calls the destination submit adapter. Live-testnet mode must not be enabled until paper-mode output has been reviewed over a hosted observation window.
+
+Live-testnet submission requires:
+
+- `BRIDGE_DAEMON_MODE=live-testnet`
+- `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true`
+- known testnet-only routes
+- no open critical watcher findings
+- signer mode permitted for live-testnet
+- destination adapter configured
+
+Solana live submission is not implemented in PR-011G; Solana output is preview-only.
 
 ## 11. Alert Payload
 

@@ -144,6 +144,12 @@ PR-011C adds hosted dry-run alerting hooks. `BRIDGE_ALERT_WEBHOOK_URL` is option
 
 PR-011D adds `npm run watcher:smoke` and deterministic synthetic findings so operators can validate watcher persistence, status shape, alert no-op/failure behavior, and freeze previews without live RPC or freeze submission. The hosted dry-run process is documented in `docs/runbooks/bridge-watcher-dry-run.md`.
 
+PR-011E adds `npm run watcher:report`, observation-window summaries, and an explicit escalation policy for hosted testnet dry-run. The report is generated from persisted watcher findings and must show `liveFreezeTxCount=0` while `BRIDGE_WATCHER_DRY_RUN=true`.
+
+PR-011F adds the signer custody adapter interface and a signing policy gate. Bridge attestations must pass bridge policy, finality, route, asset, amount, watcher-critical-finding, dry-run, adapter-mode, purpose, and `BridgeMessageV1` format checks before signing. `local-dev` and raw `env-file` signing are blocked in production by default.
+
+PR-011G adds daemonized bridge relayer mode in `relayer/src/bridge/daemon.ts`. The daemon is `disabled` by default. In `paper` mode it observes source events, applies policy, waits finality, builds destination messages, consults watcher findings, runs signer policy, optionally signs, and records EVM/Solana submit previews without submitting destination transactions. In `live-testnet` mode, destination submission is allowed only when `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true`, every route is a known testnet route, no open critical watcher finding exists, signer mode is permitted, and a destination adapter is configured. Mainnet and unknown routes are blocked.
+
 Default hosted watcher safety knobs:
 
 - `BRIDGE_WATCHER_ENABLED=false`
@@ -152,6 +158,54 @@ Default hosted watcher safety knobs:
 - `BRIDGE_ALERT_DRY_RUN=true`
 - `BRIDGE_ALERT_MIN_SEVERITY=high`
 - `BRIDGE_WATCHER_FINDING_RETENTION_DAYS=30`
+
+Observation window defaults:
+
+- `BRIDGE_WATCHER_OBSERVATION_WINDOW_HOURS=24`
+- `BRIDGE_WATCHER_OBSERVATION_LABEL=hosted-testnet-dry-run`
+- `BRIDGE_WATCHER_OBSERVATION_REPORT_PATH=<STATE_DIR>/bridge-watcher-observation-report.json`
+
+Escalation policy:
+
+- low: log only
+- medium: alert if repeated
+- high: alert immediately and require manual review
+- critical: alert immediately, generate freeze preview, require operator review
+- critical repeated: freeze recommended, but live execution remains blocked unless a later PR explicitly enables it
+
+Signer custody defaults:
+
+- `BRIDGE_SIGNER_MODE=local-dev` is local/test only.
+- `BRIDGE_SIGNER_MODE=env-file` is testnet raw-key mode only.
+- `BRIDGE_ALLOW_ENV_SIGNER_IN_PRODUCTION=false`.
+- `kms`, `hsm`, and `mpc` modes are placeholders until custody integration.
+
+Bridge daemon defaults:
+
+- `BRIDGE_DAEMON_MODE=disabled`
+- `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`
+- `BRIDGE_ALLOW_LOCAL_DEV_SIGNER_IN_LIVE_TESTNET=false`
+- `BRIDGE_DAEMON_INTERVAL_MS=30000`
+- mutation APIs under `/bridge/daemon/*` require `BRIDGE_OPERATOR_API_TOKEN`
+
+PR-011H adds paper-mode historical replay commands:
+
+- `npm run bridge:daemon:paper:once`
+- `npm run bridge:daemon:paper:status`
+
+These commands are for testnet paper validation only. They must keep `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false` and must not be used as proof of mainnet readiness.
+
+PR-011I adds hosted paper-mode preparation for fresh live testnet logs:
+
+- `npm run bridge:daemon:env:check` prints required env var names only.
+- `npm run bridge:daemon:paper:scan` scans Base Sepolia BridgeOut logs when hosted RPC/signer/operator env is configured.
+- live confirmations are carried into source policy as `event.confirmations`.
+- no destination submit adapter is called in paper mode.
+- if hosted env is missing, the scan reports missing names and exits without scanning or submitting.
+
+PR-011J reruns the hosted paper-mode path with the real-env commands. In the local shell used for the PR, the run remained safely blocked because the hosted RPC, signer, operator token, daemon route, daemon mode, and state-path env names were absent. The scanner exited before RPC access and reported `destinationTxSubmitted=false`. A historical paper fallback was run only to confirm the persisted paper-state path still produces signatures and Solana previews without submission.
+
+PR-011K repeats the hosted paper scan readiness gate for the real-secrets environment. The env check still failed in this shell, so the live scan was not run. This is the required safety behavior: missing hosted env names must block RPC scanning and destination submission.
 
 ## 11. Remaining Limitations
 

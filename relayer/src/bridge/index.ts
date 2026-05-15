@@ -32,7 +32,21 @@ import {
   validateBridgeSourceEvent,
 } from './policy';
 
-export { BridgeSignerService, BridgeStateStore };
+export {
+  BridgeSignerService,
+  LocalDevSignerAdapter,
+  EnvFileSignerAdapter,
+  KmsSignerAdapter,
+  HsmSignerAdapter,
+  MpcSignerAdapter,
+  createBridgeSignerAdapterFromEnv,
+  evaluateSigningPolicy,
+  type BridgeSignerAdapter,
+  type BridgeSigningContext,
+  type SignerHealth,
+  type SignerPolicyDecision,
+} from './signer';
+export { BridgeStateStore };
 export * from './types';
 export * from './evm-adapter';
 export * from './solana-adapter';
@@ -45,6 +59,9 @@ export * from './watcher-smoke';
 export * from './watcher-smoke-fixtures';
 export * from './freeze-actions';
 export * from './alerts';
+export * from './observation';
+export * from './daemon';
+export * from './daemon-paper-fixture';
 
 function hexToUint8Array(hex: string): Uint8Array {
   const clean = hex.replace(/^0x/, '');
@@ -285,7 +302,22 @@ export class BridgeRelayerService {
 
     // Sign
     this.state.update(destinationMessageHash, { status: BridgeMessageStatus.READY_TO_ATTEST });
-    const allSignatures = await this.signer.signMessage(message);
+    const allSignatures = await this.signer.signMessage(message, {
+      sourceChain: route.source,
+      destinationChain: route.destination,
+      route: `${route.source}->${route.destination}`,
+      riskLevel: policyDecision.severity,
+      dryRun: false,
+      signerSetVersion: route.signerSetVersion,
+      purpose: 'bridge-attestation',
+      messageFormat: 'BridgeMessageV1',
+      bridgePolicyAccepted: policyDecision.accepted,
+      finalitySatisfied: true,
+      routeAllowed: true,
+      assetSupported: true,
+      amountWithinCap: true,
+      openCriticalFindings: 0,
+    });
     const thresholdSigs = this.signer.takeThreshold(allSignatures);
     this.signer.validateSignatureOrder(thresholdSigs);
 

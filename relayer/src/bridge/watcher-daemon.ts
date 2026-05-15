@@ -54,6 +54,7 @@ export interface BridgeWatcherDaemonStatus {
   findingRetentionDays: number;
   lastTickAt?: number;
   lastTickDurationMs?: number;
+  tickCount: number;
   lastError?: string;
   findingsBySeverity: Record<string, number>;
   findingsByStatus: Record<string, number>;
@@ -180,6 +181,7 @@ export class BridgeWatcherDaemon {
   private timer?: NodeJS.Timeout;
   private lastTickAt?: number;
   private lastTickDurationMs?: number;
+  private tickCount = 0;
   private lastError?: string;
 
   constructor(options: BridgeWatcherDaemonOptions) {
@@ -240,6 +242,7 @@ export class BridgeWatcherDaemon {
       findingRetentionDays: this.config.findingRetentionDays,
       lastTickAt: this.lastTickAt,
       lastTickDurationMs: this.lastTickDurationMs,
+      tickCount: this.tickCount,
       lastError: this.lastError,
       findingsBySeverity,
       findingsByStatus,
@@ -443,6 +446,7 @@ export class BridgeWatcherDaemon {
       }
       this.lastTickAt = Date.now();
       this.lastTickDurationMs = this.lastTickAt - startedAt;
+      this.tickCount += 1;
       this.lastError = undefined;
       return tickResult;
     } catch (err) {

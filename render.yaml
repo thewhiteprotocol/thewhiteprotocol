@@ -1,13 +1,13 @@
 # Render Blueprint for The White Protocol Relayer
-# Deploys the relayer service from the relayer/ directory
+# Deploys the relayer service from the repository root so workspace packages
+# such as @thewhiteprotocol/core are built before the relayer.
 services:
   - type: web
     name: thewhiteprotocol-relayer
     runtime: node
     plan: starter
-    rootDir: relayer
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: npm install --include=dev && npm run build:core && npm run build:relayer
+    startCommand: npm run relayer:start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -75,6 +75,45 @@ services:
         value: "30"
       - key: BRIDGE_WATCHER_MIN_SEVERITY_TO_FREEZE
         value: critical
+      - key: BRIDGE_WATCHER_OBSERVATION_WINDOW_HOURS
+        value: "24"
+      - key: BRIDGE_WATCHER_OBSERVATION_REPORT_PATH
+        value: /app/data/bridge-watcher-observation-report.json
+      - key: BRIDGE_WATCHER_OBSERVATION_LABEL
+        value: hosted-testnet-dry-run
+      # Bridge daemon paper/live-testnet mode:
+      # - disabled by default
+      # - paper mode may build signing/submission previews and must not submit
+      # - live-testnet submission requires BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true
+      # - mainnet routes remain blocked
+      - key: BRIDGE_DAEMON_MODE
+        value: disabled
+      - key: BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT
+        value: "false"
+      - key: BRIDGE_ALLOW_LOCAL_DEV_SIGNER_IN_LIVE_TESTNET
+        value: "false"
+      - key: BRIDGE_DAEMON_INTERVAL_MS
+        value: "30000"
+      - key: BRIDGE_DAEMON_ROUTES
+        value: ""
+      - key: BRIDGE_DAEMON_STATE_PATH
+        value: /app/data
+      - key: BRIDGE_DAEMON_SCAN_LOOKBACK_BLOCKS
+        value: "5000"
+      - key: BRIDGE_DAEMON_SCAN_FROM_BLOCK
+        value: ""
+      - key: BRIDGE_DAEMON_SCAN_TO_BLOCK
+        value: ""
+      - key: BRIDGE_DAEMON_SUBMIT_TARGETS
+        value: ""
+      - key: BRIDGE_BASE_SEPOLIA_OUTBOX_ADDRESS
+        value: ""
+      - key: SOLANA_DEVNET_RPC_URL
+        value: ""
+      - key: BRIDGE_SIGNER_THRESHOLD
+        value: "2"
+      - key: BRIDGE_SIGNER_SET_VERSION
+        value: "1"
       - key: BRIDGE_ALERT_MIN_SEVERITY
         value: high
       - key: BRIDGE_ALERT_DRY_RUN
@@ -115,6 +154,11 @@ services:
       # - SEQUENCER_AUTH_TOKEN
       # - BRIDGE_OPERATOR_API_TOKEN
       # - BRIDGE_ALERT_WEBHOOK_URL
+      # Signer custody:
+      # - keep BRIDGE_SIGNER_MODE=local-dev only for local/test jobs
+      # - env-file signer keys must be set only as hosted secrets and remain testnet-only
+      # - KMS/HSM/MPC modes are placeholders until a future signer custody PR
+      # - BRIDGE_ALLOW_ENV_SIGNER_IN_PRODUCTION must remain false
       # - BASE_DEPLOYER_PRIVATE_KEY
       # - ETH_DEPLOYER_PRIVATE_KEY
       # - BSC_DEPLOYER_PRIVATE_KEY

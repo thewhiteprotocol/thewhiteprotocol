@@ -5,6 +5,18 @@
  */
 
 import { BridgeSignerService } from '../signer';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import {
+  EnvFileSignerAdapter,
+  HsmSignerAdapter,
+  KmsSignerAdapter,
+  LocalDevSignerAdapter,
+  MpcSignerAdapter,
+  evaluateSigningPolicy,
+  type BridgeSigningContext,
+} from '../signer';
 import { BridgeMessageType, hashBridgeMessageV1 } from '@thewhiteprotocol/core';
 import type { BridgeMessageV1 } from '@thewhiteprotocol/core';
 
@@ -42,6 +54,35 @@ function makeTestMessage(overrides: Partial<BridgeMessageV1> = {}): BridgeMessag
     memoHash: '0'.repeat(64),
     reserved0: '0'.repeat(64),
     reserved1: '0'.repeat(64),
+    ...overrides,
+  };
+}
+
+function makeSigningContext(
+  message: BridgeMessageV1,
+  overrides: Partial<BridgeSigningContext> = {}
+): BridgeSigningContext {
+  return {
+    messageHash: hashBridgeMessageV1(message),
+    sourceChain: 'base-sepolia',
+    destinationChain: 'ethereum-sepolia',
+    sourceDomain: message.sourceDomain,
+    destinationDomain: message.destinationDomain,
+    canonicalAssetId: message.canonicalAssetId,
+    amount: message.amount,
+    route: 'base-sepolia->ethereum-sepolia',
+    riskLevel: 'info',
+    dryRun: false,
+    signerSetVersion: 1,
+    purpose: 'bridge-attestation',
+    messageFormat: 'BridgeMessageV1',
+    bridgePolicyAccepted: true,
+    finalitySatisfied: true,
+    routeAllowed: true,
+    assetSupported: true,
+    amountWithinCap: true,
+    openCriticalFindings: 0,
+    environment: 'test',
     ...overrides,
   };
 }
@@ -154,5 +195,184 @@ describe('BridgeSignerService', () => {
     for (const r of raw) {
       expect(r).toMatch(/^0x[a-f0-9]{130}$/);
     }
+  });
+});
+
+describe('Bridge signer custody adapters', () => {
+  test('local-dev signer signs and recovers expected addresses', async () => {
+    const message = makeTestMessage();
+    const adapter = new LocalDevSignerAdapter({ env: { NODE_ENV: 'test' } });
+    const context = makeSigningContext(message, {
+      purpose: 'test',
+      messageFormat: undefined,
+    });
+    const signatures = await adapter.signMessageHash(context.messageHash, context);
+    const addresses = await adapter.getSignerAddresses();
+
+    expect(signatures).toHaveLength(3);
+    expect(signatures.map((sig) => sig.signerAddress.toLowerCase())).toEqual(
+      addresses.map((address) => address.toLowerCase())
+    );
+  });
+
+  test('env-file signer parses test-only temp file', async () => {
+    const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-signer-env-file-'));
+    const keyFile = path.join(stateDir, '.bridge-signers.env');
+    fs.writeFileSync(
+      keyFile,
+      [
+        `BRIDGE_SIGNER_1_PRIVATE_KEY=${TEST_KEYS[0]}`,
+        `BRIDGE_SIGNER_2_PRIVATE_KEY=${TEST_KEYS[1]}`,
+        `BRIDGE_SIGNER_3_PRIVATE_KEY=${TEST_KEYS[2]}`,
+      ].join('\n')
+    );
+    const adapter = new EnvFileSignerAdapter({ keyFile, env: { NODE_ENV: 'test' } });
+    const signatures = await adapter.signMessageHash(
+      hashBridgeMessageV1(makeTestMessage()),
+      makeSigningContext(makeTestMessage())
+    );
+
+    expect(await adapter.getSignerAddresses()).toHaveLength(3);
+    expect(signatures).toHaveLength(3);
+  });
+
+  test('env-file signer never exposes private key in errors', () => {
+    const badKey = `0x${'f'.repeat(63)}z`;
+    expect(() =>
+      new EnvFileSignerAdapter({
+        privateKeys: [badKey],
+        env: { NODE_ENV: 'test' },
+      })
+    ).toThrow(/Invalid bridge signer configuration/);
+
+    try {
+      new EnvFileSignerAdapter({
+        privateKeys: [badKey],
+        env: { NODE_ENV: 'test' },
+      });
+    } catch (err) {
+      expect(String(err)).not.toContain(badKey);
+    }
+  });
+
+  test('production mode rejects local-dev signer', async () => {
+    const message = makeTestMessage();
+    const adapter = new LocalDevSignerAdapter({
+      env: { NODE_ENV: 'production', BRIDGE_SIGNER_MODE: 'local-dev' },
+    });
+    const decision = await adapter.canSign(
+      makeSigningContext(message, { environment: 'production' })
+    );
+
+    expect(decision.accepted).toBe(false);
+    expect(decision.reasons).toContain('local_dev_signer_blocked_in_production');
+  });
+
+  test('production mode rejects env-file signer unless explicitly overridden', async () => {
+    const message = makeTestMessage();
+    const adapter = new EnvFileSignerAdapter({
+      privateKeys: TEST_KEYS,
+      env: { NODE_ENV: 'production' },
+    });
+
+    const blocked = await adapter.canSign(
+      makeSigningContext(message, { environment: 'production' })
+    );
+    const allowed = await adapter.canSign(
+      makeSigningContext(message, {
+        environment: 'production',
+        allowEnvSignerInProduction: true,
+      })
+    );
+
+    expect(blocked.accepted).toBe(false);
+    expect(blocked.reasons).toContain('env_file_signer_blocked_in_production');
+    expect(allowed.accepted).toBe(true);
+  });
+
+  test('KMS/HSM/MPC placeholders return unavailable safely', async () => {
+    for (const adapter of [new KmsSignerAdapter(), new HsmSignerAdapter(), new MpcSignerAdapter()]) {
+      const health = await adapter.healthCheck();
+      expect(health.ok).toBe(false);
+      expect(health.status).toBe('not_implemented');
+      await expect(
+        adapter.signMessageHash(hashBridgeMessageV1(makeTestMessage()), makeSigningContext(makeTestMessage()))
+      ).rejects.toThrow(/not implemented/);
+    }
+  });
+
+  test('policy gate blocks unsupported route', () => {
+    const message = makeTestMessage();
+    const decision = evaluateSigningPolicy(
+      'env-file',
+      makeSigningContext(message, { routeAllowed: false })
+    );
+
+    expect(decision.accepted).toBe(false);
+    expect(decision.reasons).toContain('route_not_allowed');
+  });
+
+  test('policy gate blocks signing if finality is not satisfied', () => {
+    const message = makeTestMessage();
+    const decision = evaluateSigningPolicy(
+      'env-file',
+      makeSigningContext(message, { finalitySatisfied: false })
+    );
+
+    expect(decision.accepted).toBe(false);
+    expect(decision.reasons).toContain('source_finality_not_satisfied');
+  });
+
+  test('policy gate blocks signing if watcher has open critical finding', () => {
+    const message = makeTestMessage();
+    const decision = evaluateSigningPolicy(
+      'env-file',
+      makeSigningContext(message, { openCriticalFindings: 1 })
+    );
+
+    expect(decision.accepted).toBe(false);
+    expect(decision.reasons).toContain('open_critical_watcher_finding');
+  });
+
+  test('dry-run signing is blocked for bridge attestation and allowed for test purpose', () => {
+    const message = makeTestMessage();
+    const bridgeDecision = evaluateSigningPolicy(
+      'env-file',
+      makeSigningContext(message, { dryRun: true })
+    );
+    const testDecision = evaluateSigningPolicy(
+      'env-file',
+      makeSigningContext(message, {
+        dryRun: true,
+        purpose: 'test',
+        messageFormat: undefined,
+      })
+    );
+
+    expect(bridgeDecision.accepted).toBe(false);
+    expect(bridgeDecision.reasons).toContain('dry_run_signing_blocked');
+    expect(testDecision.accepted).toBe(true);
+  });
+
+  test('raw non-BridgeMessageV1 signing context is rejected for bridge attestation', () => {
+    const message = makeTestMessage();
+    const decision = evaluateSigningPolicy(
+      'env-file',
+      makeSigningContext(message, { messageFormat: undefined })
+    );
+
+    expect(decision.accepted).toBe(false);
+    expect(decision.reasons).toContain('message_format_not_bridge_message_v1');
+  });
+
+  test('unsupported signing purpose is rejected', () => {
+    const message = makeTestMessage();
+    const decision = evaluateSigningPolicy(
+      'env-file',
+      makeSigningContext(message, { purpose: 'unsupported' as any })
+    );
+
+    expect(decision.accepted).toBe(false);
+    expect(decision.reasons[0]).toMatch(/unsupported_signing_purpose/);
   });
 });

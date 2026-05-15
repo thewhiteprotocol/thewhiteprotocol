@@ -128,24 +128,37 @@ export interface EvmSourceAdapterConfig {
   rpcUrl: string;
   bridgeOutboxAddress: Hex;
   chainId: number;
+  /** Optional explicit scan start block for paper/live observation. */
+  fromBlock?: bigint | number;
+  /** Optional explicit scan end block for paper/live observation. */
+  toBlock?: bigint | number;
+  /** Recent block lookback when fromBlock is not provided. Defaults to 100. */
+  lookbackBlocks?: number;
+  /** Test/mocked public client injection. */
+  publicClient?: Pick<PublicClient, 'getBlockNumber' | 'getContractEvents' | 'getTransactionReceipt'>;
 }
 
 export class EvmSourceAdapter implements BridgeSourceAdapter {
-  private readonly client: PublicClient;
+  private readonly client: Pick<PublicClient, 'getBlockNumber' | 'getContractEvents' | 'getTransactionReceipt'>;
   private readonly outboxAddress: Hex;
+  private readonly fromBlock?: bigint;
+  private readonly toBlock?: bigint;
+  private readonly lookbackBlocks: number;
 
   constructor(config: EvmSourceAdapterConfig) {
-    this.client = createPublicClient({
+    this.client = config.publicClient ?? createPublicClient({
       transport: http(config.rpcUrl),
     }) as PublicClient;
     this.outboxAddress = config.bridgeOutboxAddress;
+    this.fromBlock = config.fromBlock === undefined ? undefined : BigInt(config.fromBlock);
+    this.toBlock = config.toBlock === undefined ? undefined : BigInt(config.toBlock);
+    this.lookbackBlocks = config.lookbackBlocks ?? 100;
   }
 
   async *watch(): AsyncGenerator<BridgeEventObservation> {
     const currentBlock = await this.getBlockNumber();
-    // Look back 100 blocks from startup
-    const fromBlock = BigInt(Math.max(0, currentBlock - 100));
-    const toBlock = BigInt(currentBlock);
+    const fromBlock = this.fromBlock ?? BigInt(Math.max(0, currentBlock - this.lookbackBlocks));
+    const toBlock = this.toBlock ?? BigInt(currentBlock);
 
     const logs = await this.client.getContractEvents({
       address: this.outboxAddress,
@@ -174,6 +187,9 @@ export class EvmSourceAdapter implements BridgeSourceAdapter {
         encodedMessage: args.encodedMessage,
         txHash: log.transactionHash ?? '0x',
         blockNumber: Number(log.blockNumber ?? 0n),
+        confirmations: log.blockNumber === undefined
+          ? undefined
+          : Math.max(0, currentBlock - Number(log.blockNumber)),
         sourceEventKind: 'evm_bridge_outbox_bridge_out_initiated',
         sourceAddress: this.outboxAddress,
         sourceTxSucceeded: true,

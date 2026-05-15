@@ -2,7 +2,7 @@
 
 **Version:** 1.1  
 **Date:** 2026-05-04  
-**Status:** EVM↔EVM Testnet Live / Solana Pending
+**Status:** EVM↔EVM Testnet Live / Base→Solana Devnet Live / Solana→Base Sepolia Live
 
 ---
 
@@ -13,11 +13,18 @@ This plan defines the concrete implementation steps for The White Protocol Priva
 **Current state:**
 - EVM BridgeInbox/BridgeOutbox deployed on Base Sepolia, Ethereum Sepolia, Polygon Amoy, BSC Testnet
 - Solana bridge mint instruction (`accept_bridge_v1_mint`) implemented in main program
+- Solana source bridge-out instruction (`bridge_out_v1_with_proof`) implemented and proven on localnet
 - Relayer bridge service implemented with state machine, signer service, EVM adapter, status API
+- Relayer production policy rejects unsafe message-level source events and includes watcher/freeze recommendation scaffolding
+- Watcher dry-run observation/reporting, signer custody adapter interface, and daemonized bridge paper/live-testnet mode are implemented for testnet operations
+- Cross-decimal Base Sepolia to Solana Devnet amount normalization is defined and proven live: source `BridgeOut.amount` is source-local, generated destination `BridgeMint.amount` is destination-local, and non-divisible conversions are rejected
 - First EVM↔EVM E2E (Base Sepolia → Ethereum Sepolia) completed successfully
 - Reverse EVM↔EVM E2E (Ethereum Sepolia → Base Sepolia) completed successfully
 - Forward EVM↔EVM E2E (Base Sepolia → BSC Testnet) completed successfully
 - Forward EVM↔EVM E2E (Base Sepolia → Polygon Amoy) completed successfully
+- Live Base Sepolia → Solana Devnet private bridge rerun completed with automated exact-decimal normalization and real Solana settlement/withdraw proofs
+- Live Solana Devnet → Base Sepolia private bridge E2E completed with `bridge_out_v1_with_proof`, Base commitment insertion, Base withdraw, and replay checks
+- PR-010M: EVM bridge matrix cleanup, artifact audit, route matrix documentation completed
 - No bridge-specific circuits; `public_data_hash` has dummy constraint
 
 ---
@@ -29,10 +36,11 @@ This plan defines the concrete implementation steps for The White Protocol Priva
 | `BridgeInbox.sol` / `BridgeOutbox.sol` (EVM) | Deployed & tested | Real | Yes — threshold, pause, caps | Low | Monitor mainnet readiness |
 | `BridgeAttestationLib.sol` | Deployed & tested | Real | Yes — secp256k1 raw hash | Low | None |
 | `WhiteProtocol.sol` hooks | Deployed & tested | Real | Yes — `bridgeMint`/`bridgeWithdraw` | Low | None |
-| Solana `accept_bridge_v1_mint` | Implemented & tested | Real | Yes — threshold + pending buffer | Low | Needs devnet deployment for E2E |
-| Relayer bridge service | Implemented & tested | Real | Yes — state machine, signer, adapters | Low | Needs daemonized polling mode |
+| Solana `accept_bridge_v1_mint` | Implemented & live-tested | Real | Yes — threshold + pending buffer | Low | Monitor Devnet route coverage |
+| Solana `bridge_out_v1_with_proof` | Implemented & live-tested | Real | Yes — withdraw proof + nullifier + custody lock | Medium | Formalize Solana -> EVM amount normalization policy |
+| Relayer bridge service | Implemented & tested | Real | Yes — state machine, signer, adapters, production policy, watcher scaffolding | Medium | Needs daemonized watcher/freeze operations |
 | `packages/core` bridge message | Implemented & tested | Real | Yes — encoding, hashing, validation | Low | None |
-| Bridge E2E script | Implemented | Real | Yes — Base↔Ethereum bidirectional proven | Low | Extend to Solana and other EVM routes |
+| Bridge E2E script | Implemented | Real | Yes — EVM routes and Solana↔Base proven | Low | Extend to remaining Solana routes |
 
 ---
 
@@ -206,47 +214,323 @@ Route B: Base Sepolia → Polygon Amoy
 
 ---
 
-### PR-010M: Solana ↔ EVM Bridge Route
+### PR-010M: EVM Bridge Matrix Cleanup & Route Readiness ✅ COMPLETE
 
 **Scope:**
-- Deploy Solana bridge accounts to Devnet
-- Configure Solana ↔ Base, Solana ↔ Ethereum routes
-- Handle asset ID version differences (Solana v1, EVM v2)
-- Test commitment derivation across domain boundaries
-- Measure Solana CU for threshold verification
+- Audit and fix malformed deployment JSON artifacts (Base, BNB, Polygon)
+- Enrich bridgeV1 metadata (domainId, supportsBridgeOutV1, route limitations, gas overrides)
+- Create canonical EVM bridge route matrix (`docs/bridge/evm-bridge-route-matrix.md`)
+- Audit E2E scripts for copy-paste errors and stale comments
+- Verify package scripts for all proven routes
+- Run regression tests (EVM Foundry + relayer tests + typecheck + build)
+- Document BNB/Polygon reverse-route blockers
 
-**Deliverable:** Solana ↔ EVM routes working.
+**Deliverable:** Clean artifacts, documented matrix, passing regression tests, clear next steps.
+
+**Key Findings:**
+- 3 of 4 deployment JSONs had JSON syntax errors (fixed).
+- BNB and Polygon `WhiteProtocol` deployments lack `bridgeOutV1`; reverse routes blocked.
+- All 4 proven routes are repeatable with fresh notes/commitments per run.
 
 ---
 
-### PR-010N: Watcher / Challenge / Freeze
+### PR-010N: Upgrade/Redeploy BNB + Polygon WhiteProtocol with bridgeOutV1
 
 **Scope:**
-- Watcher service that monitors all chains for reorgs
-- Freeze UI/API for operators
-- Challenge window queue monitoring
-- Alerting (Discord/Slack/PagerDuty webhook)
-- Dashboard showing route status, pending messages, cap utilization
+- Redeploy `WhiteProtocol` on BNB Chain Testnet and Polygon Amoy with PR-010H+ bytecode
+- Redeploy `BridgeOutbox` on both chains wired to new `WhiteProtocol`
+- Configure outbound routes and asset mappings
+- Run full E2E: BNB → Base and Polygon → Base
+- Verify duplicate replay protections
+
+**Deliverable:** BNB and Polygon become full source chains. Reverse routes unblocked.
+
+---
+
+### PR-010O: BNB → Base + Polygon → Base Reverse-Direction E2E ✅ COMPLETE
+
+**Scope:**
+- Fix BNB and Polygon `canonicalAssetId` to match AssetRegistry v2 on-chain values
+- Configure Base BridgeInbox inbound asset mapping for BNB and Polygon assets
+- Run full E2E: BNB → Base and Polygon → Base with destination withdraw
+- Verify duplicate replay protections
+
+**Deliverable:** BNB → Base and Polygon → Base are fully proven.
+
+**Evidence:**
+- BNB deposit tx: `0x50d10cf1...`
+- BNB bridgeOutV1 tx: `0xebf4c006...`
+- Base acceptBridgeMint (BNB): `0x568fdcbf...`
+- Base destination withdraw (BNB): `0xa40c4da8...`
+- Polygon deposit tx: `0xa19c7c97...`
+- Polygon bridgeOutV1 tx: `0xd623fe02...`
+- Base acceptBridgeMint (Polygon): `0x43d56a6d...`
+- Base destination withdraw (Polygon): `0xb387349d...`
+
+See `docs/fixes/PR-010O-bnb-polygon-to-base-bridge-e2e.md` for full report.
+
+---
+
+### PR-010P: Ethereum → BNB + Ethereum → Polygon E2E ✅ COMPLETE
+
+See `docs/fixes/PR-010P-ethereum-to-bnb-polygon-bridge-e2e.md` for full report.
+
+---
+
+### PR-010Q: BNB → Ethereum + Polygon → Ethereum E2E ✅ COMPLETE
+
+See `docs/fixes/PR-010Q-bnb-polygon-to-ethereum-bridge-e2e.md` for full report.
+
+---
+
+### PR-010R: Solana Bridge TS/Anchor Integration Tests ✅ COMPLETE
+
+**Scope:**
+- Solana `accept_bridge_v1_mint` instruction tests with real threshold signatures
+- `init_bridge_v1_out`, signer set, route, and asset configuration tests
+- Replay protection, insufficient signature, and unknown signer rejection tests
+- Bridge message encoding/decoding across Solana ↔ EVM domain boundaries
+- **Discovered and fixed SBF stack overflow in `AcceptBridgeV1Mint`**
+
+**Deliverable:** Solana bridge codepath is integration-tested and relayer-ready.
+
+**Results:**
+- 12/12 integration tests pass on localnet
+- Stack overflow fixed by boxing all accounts in `AcceptBridgeV1Mint`
+- 115/115 Rust tests pass, SBF build clean
+
+See `docs/fixes/PR-010R-solana-bridge-v1-integration-tests.md` for full report.
+
+---
+
+### PR-010V: Cross-decimal Amount Normalization ✅ COMPLETE
+
+**Scope:**
+- Define v1 amount semantics without changing `BridgeMessageV1`
+- Add deterministic exact decimal conversion for `BridgeOut` to `BridgeMint`
+- Reject non-divisible downscales and uint128 overflow
+- Add Base Sepolia ETH to Solana Devnet wSOL route metadata
+- Sign the generated destination `BridgeMint` hash instead of a manually edited message
+- Update Base to Solana source-side E2E state generation for automated destination message creation
+
+**Decision:**
+- `BridgeOut.amount` is source-local units
+- `BridgeMint.amount` is destination-local units
+- Base ETH 18 decimals to Solana wSOL 9 decimals uses `exact-decimal`
+- `1e15` wei maps to `1e6` lamports, not `1e9` lamports
+
+See `docs/bridge/cross-chain-amount-normalization.md` and `docs/fixes/PR-010V-cross-decimal-amount-normalization.md`.
+
+---
+
+### PR-010W: Base Sepolia → Solana Devnet Normalized E2E ✅ COMPLETE
+
+**Scope:**
+- Fund the Base Sepolia deployer and rerun the Base source path.
+- Parse JSON-loaded `BridgeMessageV1` numeric fields through bigint-safe helpers.
+- Use automated `BridgeOut` to `BridgeMint` transformation with exact-decimal normalization.
+- Sign the generated Solana `BridgeMint` hash with the 2-of-3 threshold signer set.
+- Run live Solana Devnet accept, pending enqueue, settlement, withdraw, and duplicate checks.
+
+**Deliverable:** Base Sepolia to Solana Devnet private bridge path is proven end-to-end without manual destination message edits.
+
+**Evidence:**
+- Source amount: `1_000_000_000_000_000` wei
+- Destination amount: `1_000_000` lamports
+- Source `BridgeOut` hash: `0xa17dd855e9927eb508e5cea8abec4002c05d79f148a3f84237ae14781eb6edad`
+- Generated destination `BridgeMint` hash: `0x706f7b492e5ea1efc568f6bcf5929631650f00635fc4102596fefb231f7f944a`
+- Base `bridgeOutV1` tx: `0xc931d4989abc6fa8c6c85726575780d12370c2a26d38db063c837bd0491ac6d2`
+- Solana accept tx: `3jWjcDwEhiNcZ6AgfzU26hoWioLyCeuhSM9YjsodDGxghqJqVGfyb3Tvj1ApyudJTueA6rt1ZLwWQdWGQ2WRYmRh`
+- Solana settle tx: `jMmPT2MSPsUKkGofn1mRrprtUXnpfWRLuRwtwNbtJv542L2XrwtfQLtbXZR47jQ7gWLVVSRn2Jp3UNrNwRhtnFF`
+- Solana withdraw tx: `26t1UmPPCDftKv48j8dZxs5GCV5c31YyRyDWD32q6ARHEyEdJ3DajgNCNAZF56CShu75zD15ErEMnxWfdrgLmthW`
+
+See `docs/fixes/PR-010W-live-base-to-solana-normalized-rerun.md` for full report.
+
+---
+
+### PR-010X: Solana Source BridgeOut Binding Audit ✅ COMPLETE
+
+**Scope:**
+- Audit current Solana `init_bridge_v1_out` behavior before attempting Solana → Base.
+- Compare current source path with EVM `WhiteProtocol.bridgeOutV1`.
+- Decide whether current Solana source bridge-out is production-safe.
+- Specify the required source note/nullifier binding instruction if missing.
+
+**Finding:** Current `init_bridge_v1_out` is message-level only. It does not verify a withdraw proof, spend a source nullifier, bind `sourceNullifierHash`, bind `public_data_hash` to `hash_bridge_message_v1(message)`, or lock source-side value.
+
+**Deliverable:** Solana → Base E2E is blocked until `bridge_out_v1_with_proof` or equivalent is implemented.
+
+See `docs/fixes/PR-010X-solana-source-bridgeout-binding-audit.md` for full report.
+
+---
+
+### PR-010Y: Solana Source BridgeOut With Proof ✅ COMPLETE
+
+**Scope:**
+- Add `bridge_out_v1_with_proof` to the main Solana program.
+- Verify a real withdraw proof with `public_data_hash = hash_bridge_message_v1(message)`.
+- Bind source nullifier, Merkle root, amount, source asset, canonical asset, route, and domain to the message.
+- Create a spent nullifier PDA and outbound replay PDA.
+- Transfer source-side value from the shielded vault to bridge custody.
+- Update route and asset cap accounting.
+- Keep `init_bridge_v1_out` as message-level/test-only by relayer policy.
+- Add localnet positive and negative coverage.
+
+**Deliverable:** Solana source BridgeOut is source-note/nullifier-bound on localnet. Live Solana Devnet -> Base Sepolia E2E is unblocked for PR-010Z.
+
+**Results:**
+- New source-with-proof localnet test: 19/19 checks pass.
+- Existing bridge integration localnet test: 12/12 checks pass.
+- Existing bridge settle/withdraw localnet summary: 14/14 checks pass.
+- Rust unit tests: 115/115.
+- SBF build passes.
+
+See `docs/fixes/PR-010Y-solana-bridge-out-with-proof.md` for full report.
+
+---
+
+### PR-010Z: Solana Devnet → Base Sepolia Private Bridge E2E ✅ COMPLETE
+
+**Scope:**
+- Upgrade Solana Devnet program to include PR-010Y `bridge_out_v1_with_proof`.
+- Configure Solana -> Base source route and Base inbound Solana asset mapping.
+- Run Solana source deposit and settlement with real proofs.
+- Run Solana `bridge_out_v1_with_proof` with a real withdraw proof bound to `hashBridgeMessageV1(message)`.
+- Produce sorted 2-of-3 raw secp256k1 threshold signatures.
+- Submit Base `BridgeInbox.acceptBridgeMint`.
+- Verify Base destination commitment insertion and Base withdraw with a real proof.
+- Verify duplicate Solana bridge-out, duplicate Base bridge accept, and duplicate Base withdraw rejection.
+
+**Deliverable:** Solana Devnet -> Base Sepolia private bridge route proven live.
+
+**Evidence:**
+- Solana deposit tx: `yomzcemuB7fsKBTmsVP9coXa9RsGQ6myy4cUAebk8baRdxKRXBh4Y3CirGhBxdj677XnLVHhHz5wKfLvMP1HQcW`
+- Solana settlement tx: `2UZXPpgxtY5eqB3N3QtXk8rHY2AdDssmVUfR7fmpWY7GLWyuMqqdPZRZWyyCLV3FXhuQ7T9i2iohjxA6wNECjWwR`
+- Solana `bridge_out_v1_with_proof` tx: `BQNRKsUFX5ttshDzZcjtqecsUJjt6cbvURtQtcqX4K7edtmTsNnK5kbNM3hjBwSUtwq2MQfDXhs8SKjP96S3QDQ`
+- Bridge message hash: `0x16a3f7f82b64a4d4d669b79118fcdaf7b720bd24d7bbced1dffc36dba3e71334`
+- Base `acceptBridgeMint` tx: `0x8035a98d328dcfc6442e5253fc86320fb9488000bc252a9fb3dd74019f706c2e`
+- Base withdraw tx: `0x24f31bda6e2b415527f9f4d949ef050fd7394987a0ebaf23325076caffcff6fa`
+
+**Notes:**
+- `init_bridge_v1_out` was not used.
+- A later fresh rerun emitted an additional Solana BridgeOut but stopped before Base accept because the Base deployer was low on Base Sepolia ETH. The recorded PR-010Z success path above is complete.
+- Solana -> EVM economic amount normalization remains a follow-up policy item.
+
+See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
+
+---
+
+### PR-011A: Watcher / Challenge / Freeze ✅ COMPLETE (policy scaffolding)
+
+**Scope:**
+- Production relayer source-event acceptance policy
+- Explicit rejection of unsafe Solana `init_bridge_v1_out`
+- Explicit acceptance of Solana `bridge_out_v1_with_proof`
+- Explicit EVM BridgeOut source-bound policy
+- Finality policy per testnet source chain
+- Route, asset, amount cap, and cross-decimal policy checks
+- Watcher finding/recommendation scaffolding for delay, alert, manual review, and freeze
+- Offline relayer tests for policy decisions
 
 **Files:**
-- `relayer/src/bridge/watcher-service.ts` (new)
-- `relayer/src/bridge/alerting.ts` (new)
-- `ops/bridge-dashboard/` (new, optional)
+- `relayer/src/bridge/policy.ts`
+- `relayer/src/bridge/watcher.ts`
+- `relayer/src/bridge/__tests__/policy.test.ts`
+- `docs/bridge/bridge-production-policy.md`
+- `docs/bridge/bridge-watcher-challenge-freeze.md`
 
-**Deliverable:** Operators can freeze messages and routes; alerts fire on anomalies.
+**Deliverable:** Production relayer policy rejects unsafe message-level events and watcher scaffolding produces deterministic freeze/manual-review recommendations. No runtime deployments or on-chain freeze transactions were added in this PR.
+
+**Results:**
+- Relayer tests: 17 suites passed, 231 tests passed
+- Typecheck: passed
+- Build: passed
+
+**Next:** PR-011B should daemonize watcher operations, persist findings, expose operator APIs, and add approved on-chain freeze submission flows.
 
 ---
 
-### PR-010O: Bridge Audit Package
+### PR-011B–PR-011G: Operational Hardening ✅ COMPLETE (testnet-only)
 
 **Scope:**
-- Internal security review document
-- External audit preparation package
-- Testnet public beta announcement
-- Public documentation update
-- Update `docs/fixes/PR-010-private-bridge-spec.md` with final findings
+- watcher daemon, persistent findings, authenticated operator APIs
+- hosted dry-run alerting and smoke fixtures
+- observation window reports and escalation policy
+- freeze execution design without live freeze enablement
+- signer custody adapter interface and signing policy gate
+- daemonized bridge relayer mode with `disabled`, `paper`, and gated `live-testnet`
 
-**Deliverable:** Bridge is ready for external audit and public testnet beta.
+**Deliverable:** Bridge operations can be exercised in hosted testnet paper mode without default live destination submission. Mainnet remains blocked, freeze submission remains disabled by default, and Solana daemon submission is preview-only in PR-011G.
+
+**Results:**
+- PR-011F relayer tests: 20 suites passed, 293 tests passed
+- PR-011G adds daemon tests for mode gating, watcher blocks, signer policy, EVM/Solana previews, persistence, and operator auth
+
+**Next:** PR-011H should run hosted bridge daemon paper mode on current testnet routes, compare previews against known E2E flows, and define the narrow operator checklist before any live-testnet submit enablement.
+
+---
+
+### PR-011H: Bridge Daemon Paper Replay ✅ COMPLETE (historical event)
+
+**Scope:**
+- Add offline-safe `npm run bridge:daemon:paper:once`
+- Replay the documented PR-010W Base Sepolia -> Solana Devnet source event artifact
+- Apply policy/finality/signing gates in paper mode
+- Generate Solana `accept_bridge_v1_mint` submit preview
+- Persist daemon state and inspect it with `npm run bridge:daemon:paper:status`
+- Keep live destination submission disabled
+
+**Deliverable:** The bridge daemon can process a real historical testnet source event artifact in paper mode and reach `paper_ready_to_submit` with signatures and a submit preview while `submitTxHash=null`.
+
+**Blocked live scan note:** Fresh live RPC scanning was not run in this shell because Base/Ethereum RPC env vars and signer/operator env were absent. The PR therefore proves the historical replay path and documents the live-env blocker by variable name only.
+
+---
+
+### PR-011I: Hosted Paper-Mode Live-Log Prep ✅ COMPLETE (environment-blocked)
+
+**Scope:**
+- Add `npm run bridge:daemon:env:check`
+- Add `npm run bridge:daemon:paper:scan`
+- Carry live EVM confirmation counts from source log scans into daemon policy
+- Add hosted env/runbook checklist for Render or equivalent hosts
+- Add mocked live-log tests for final, not-final, and no-event scan windows
+- Keep live destination submission disabled
+
+**Deliverable:** Hosted paper-mode live-log observation is implementation-ready. In this shell, fresh live scanning remained blocked because hosted RPC/signer/operator env was absent, so the PR follows the environment-blocked acceptance path with mocked live-scan coverage.
+
+**Next:** PR-011J should run the hosted scanner in an environment with real RPC and signer/operator secrets configured, then record fresh scan evidence without enabling destination submission.
+
+---
+
+### PR-011J: Hosted Paper Mode With Real Env ✅ COMPLETE (environment-blocked)
+
+**Scope:**
+- Run `npm run bridge:daemon:env:check` through the hosted-real-env path
+- Run `npm run bridge:daemon:paper:scan` only if required hosted env is present
+- Keep `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`
+- Record missing env names without printing values
+- Run historical paper fallback only as a clearly labeled fallback
+- Keep destination submission disabled
+
+**Deliverable:** The hosted paper-mode real-env command path remains safe. In this local shell, the required hosted RPC, signer, operator token, daemon mode, route, and state-path env names were still absent, so fresh live scanning was blocked before RPC access and no destination transaction was submitted. The historical fallback continued to reach `paper_ready_to_submit` with signatures and Solana preview while `submitTxHash=null`.
+
+**Next:** PR-011K should execute the same scanner on Render or an equivalent host after configuring the required secrets, then record fresh scan range, finality evidence, operator API evidence, and no-submit proof.
+
+---
+
+### PR-011K: Hosted Paper Scan With Real Secrets ✅ COMPLETE (environment-blocked)
+
+**Scope:**
+- Run the hosted env readiness check for the real-secrets paper scan
+- Stop before live scan if hosted env is incomplete
+- Keep `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`
+- Record missing env names without printing values
+- Re-run relayer regression, build, watcher smoke, and watcher report
+- Keep destination submission disabled
+
+**Deliverable:** The hosted paper scan remains gated correctly. In this local shell, hosted RPC, signer, operator token, daemon mode, route, and state-path env names were still absent. The run stopped before Base Sepolia RPC access, no fresh logs were scanned, and no destination transaction was submitted.
+
+**Next:** PR-011L should run the same commands on Render or an equivalent host after the required secrets are actually configured, then record fresh scan range, finality evidence, operator API evidence, and no-submit proof.
 
 ---
 
@@ -306,15 +590,15 @@ Route B: Base Sepolia → Polygon Amoy
 | Message format | Unit (TS/Solidity/Rust) | Cross-language hash parity, validation rules | ✅ Complete |
 | EVM contracts | Unit + integration (Foundry) | Threshold verification, caps, pause, replay | ✅ 149 tests pass |
 | Solana program | Unit + integration (Anchor) | CPIs, signature verification, CU limits | ✅ 115 tests pass |
-| Relayer | Unit + integration (Jest) | Message flow, signature collection, submission | ✅ 210 tests pass |
-| E2E | Integration | BridgeOut → sign → BridgeIn → commitment insert → withdraw | ✅ Base↔Ethereum bidirectional proven |
+| Relayer | Unit + integration (Jest) | Message flow, signature collection, submission | ✅ 213 tests pass |
+| E2E | Integration | BridgeOut → sign → BridgeIn/accept → commitment insert → withdraw | ✅ EVM↔EVM routes and Base→Solana proven |
 | Fuzz | Property-based | Message decoding, cap edge cases, signature malleability | ⏳ Future |
 
 ---
 
 ## 6. Open Engineering Questions
 
-1. **Solana devnet deployment:** Need to deploy bridge config accounts and fund them for live E2E.
+1. **Solana source E2E:** Run Solana Devnet -> Base Sepolia using `bridge_out_v1_with_proof`.
 2. **Relayer daemon mode:** Current relayer bridge service processes events synchronously. Needs background polling loop for production.
 3. **Message retry / backoff:** `FAILED` state messages need automatic retry with exponential backoff.
 4. **Explorer verification:** Bridge contracts need verification on Basescan/Etherscan for transparency.
@@ -332,7 +616,16 @@ Route B: Base Sepolia → Polygon Amoy
 - [x] Typecheck and build pass for all modified packages.
 - [x] Destination withdrawal from bridge-minted commitment proven.
 - [x] Duplicate bridge replay and duplicate destination withdraw replay rejected.
-- [ ] Solana↔EVM route proven.
-- [ ] All 12 EVM↔EVM routes proven.
+- [x] Base Sepolia → Solana Devnet route proven with automated exact-decimal normalization.
+- [x] EVM bridge matrix cleanup and route readiness documented (PR-010M).
+- [x] BNB and Polygon WhiteProtocol upgraded with bridgeOutV1 (PR-010N).
+- [x] BNB → Base and Polygon → Base reverse routes proven (PR-010O).
+- [x] ETH → BNB and ETH → Polygon routes proven (PR-010P).
+- [x] BNB → ETH and Polygon → ETH routes proven (PR-010Q).
+- [x] Solana Bridge V1 TS/Anchor integration tests pass (PR-010R).
+- [x] SBF stack overflow in `accept_bridge_v1_mint` fixed.
+- [x] Solana source BridgeOut is bound to withdraw proof/nullifier/value lock on localnet (PR-010Y).
+- [x] Solana Devnet → Base Sepolia route proven with source-bound `bridge_out_v1_with_proof` (PR-010Z).
+- [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.

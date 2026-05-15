@@ -142,6 +142,41 @@ The smoke test:
 - verifies no freeze submissions are produced
 - requires no live RPC and sends no webhook by default
 
+## 9.1 Observation Report
+
+During PR-011E hosted dry-run, generate a sanitized observation report:
+
+```bash
+cd relayer
+npm run watcher:report
+```
+
+Recommended env:
+
+- `BRIDGE_WATCHER_OBSERVATION_WINDOW_HOURS=24`
+- `BRIDGE_WATCHER_OBSERVATION_REPORT_PATH=/app/data/bridge-watcher-observation-report.json`
+- `BRIDGE_WATCHER_OBSERVATION_LABEL=hosted-testnet-dry-run`
+
+The report must show `liveFreezeTxCount=0` while `BRIDGE_WATCHER_DRY_RUN=true`. Treat any non-zero live freeze count as a rollout stop condition.
+
+## 9.2 Bridge Daemon Paper Mode
+
+After watcher dry-run is stable, PR-011G allows a separate bridge daemon paper mode:
+
+```bash
+BRIDGE_DAEMON_MODE=paper
+BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false
+```
+
+Paper mode evaluates bridge events, applies policy, waits finality, checks watcher findings, runs signer policy, and records destination submit previews. It must not submit destination transactions. Inspect:
+
+- `GET /bridge/daemon/status`
+- `GET /bridge/daemon/messages`
+- `GET /bridge/daemon/messages/:hash`
+- `POST /bridge/daemon/tick` with operator token
+
+Do not enable `BRIDGE_DAEMON_MODE=live-testnet` during watcher dry-run.
+
 ## 10. Common Findings
 
 | Code | Meaning | Default response |
@@ -157,9 +192,14 @@ The smoke test:
 
 - Do not set `BRIDGE_WATCHER_AUTO_FREEZE=true`.
 - Do not set `BRIDGE_WATCHER_DRY_RUN=false`.
+- Do not set `BRIDGE_DAEMON_MODE=live-testnet`.
+- Do not set `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true`.
+- Do not use `local-dev` signer mode for hosted production environments.
+- Do not enable raw env/file signing in production except under a documented testnet override.
 - Do not submit live freeze transactions.
 - Do not put `BRIDGE_OPERATOR_API_TOKEN` in URLs, logs, screenshots, docs, or git.
 - Do not commit webhook URLs.
+- Do not commit signer private keys or `.bridge-signers.env`.
 - Do not treat watcher clean status as a mainnet readiness signal.
 
 ## 12. Emergency Checklist

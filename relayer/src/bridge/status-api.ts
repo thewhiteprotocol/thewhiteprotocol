@@ -9,12 +9,14 @@ import { Router, type Request, type Response } from 'express';
 import { BridgeStateStore } from './state';
 import { BridgeMessageStatus } from './types';
 import type { BridgeWatcherDaemon } from './watcher-daemon';
+import type { BridgeDaemon } from './daemon';
 import { createApiError } from '../chain-registry';
 
 export interface BridgeStatusApiConfig {
   stateStore: BridgeStateStore;
   routes: Array<{ source: string; destination: string; enabled: boolean; signerSetVersion: number }>;
   watcherDaemon?: BridgeWatcherDaemon;
+  bridgeDaemon?: BridgeDaemon;
   operatorApiToken?: string;
 }
 
@@ -46,6 +48,21 @@ export function createBridgeStatusRouter(config: BridgeStatusApiConfig): Router 
       return undefined;
     }
     return config.watcherDaemon;
+  }
+
+  function requireBridgeDaemon(req: Request, res: Response): BridgeDaemon | undefined {
+    if (!config.bridgeDaemon) {
+      res
+        .status(503)
+        .json(createApiError('BRIDGE_DAEMON_NOT_CONFIGURED', 'Bridge daemon is not configured.'));
+      return undefined;
+    }
+    return config.bridgeDaemon;
+  }
+
+  function requireMutableBridgeDaemon(req: Request, res: Response): BridgeDaemon | undefined {
+    if (!requireOperatorAuth(req, res)) return undefined;
+    return requireBridgeDaemon(req, res);
   }
 
   /**
@@ -129,6 +146,54 @@ export function createBridgeStatusRouter(config: BridgeStatusApiConfig): Router 
     res.json({
       routes: config.routes,
     });
+  });
+
+  router.get('/bridge/daemon/status', (req: Request, res: Response) => {
+    const daemon = requireBridgeDaemon(req, res);
+    if (!daemon) return;
+    res.json(daemon.getStatus());
+  });
+
+  router.get('/bridge/daemon/messages', (req: Request, res: Response) => {
+    const daemon = requireBridgeDaemon(req, res);
+    if (!daemon) return;
+    res.json({ messages: daemon.listMessages() });
+  });
+
+  router.get('/bridge/daemon/messages/:hash', (req: Request, res: Response) => {
+    const daemon = requireBridgeDaemon(req, res);
+    if (!daemon) return;
+    const message = daemon.getMessage(req.params.hash);
+    if (!message) {
+      return res
+        .status(404)
+        .json(createApiError('BRIDGE_DAEMON_MESSAGE_NOT_FOUND', `No daemon message found with hash: ${req.params.hash}`));
+    }
+    res.json(message);
+  });
+
+  router.post('/bridge/daemon/tick', async (req: Request, res: Response) => {
+    const daemon = requireMutableBridgeDaemon(req, res);
+    if (!daemon) return;
+    try {
+      res.json(await daemon.tick());
+    } catch (err) {
+      res
+        .status(500)
+        .json(createApiError('BRIDGE_DAEMON_TICK_FAILED', err instanceof Error ? err.message : String(err)));
+    }
+  });
+
+  router.post('/bridge/daemon/messages/:hash/retry', (req: Request, res: Response) => {
+    const daemon = requireMutableBridgeDaemon(req, res);
+    if (!daemon) return;
+    try {
+      res.json(daemon.retryMessage(req.params.hash));
+    } catch (err) {
+      res
+        .status(404)
+        .json(createApiError('BRIDGE_DAEMON_MESSAGE_NOT_FOUND', err instanceof Error ? err.message : String(err)));
+    }
   });
 
   router.get('/bridge/watcher/status', (req: Request, res: Response) => {
