@@ -36,6 +36,11 @@ chains/solana/tests/test-withdraw-note.json
 chains/solana/tests/*.json
 !chains/solana/tests/package.json
 !chains/solana/tests/tsconfig.json
+chains/evm/test/*bridge-state*.json
+**/*bridge-state*.json
+**/*note-state*.json
+**/.bridge-notes/**
+.bridge-signers.env
 *.orig
 *.rej
 

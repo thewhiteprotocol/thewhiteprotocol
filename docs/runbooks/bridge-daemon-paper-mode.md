@@ -261,6 +261,7 @@ Do not enable live-testnet submission until all items are true:
 - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true` is approved only for a narrow testnet route/window
 - the submit command is scoped to one destination BridgeMint hash through `BRIDGE_SUBMIT_DESTINATION_MESSAGE_HASH` and `BRIDGE_APPROVED_MESSAGE_HASHES`
 - the source BridgeOut hash is pinned with `BRIDGE_SUBMIT_SOURCE_MESSAGE_HASH`
+- destination note-state backup has been validated with `npm run bridge:validate-note-state` and stored outside git before the submit window
 - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false` is restored immediately after the submit window
 
 Use `docs/runbooks/bridge-operator-approval-checklist.md` for message-specific approval review. PR-011O applied that checklist to the fresh PR-011N Base Sepolia -> Solana Devnet message and kept the approval decision on hold for live submission because the current Solana submit preview is still preview-only and must be reconciled against the destination BridgeMint hash, deployed signer set version, and real Solana account inputs.
@@ -285,6 +286,7 @@ Stop rollout and return to `BRIDGE_DAEMON_MODE=disabled` if:
 - PR-011S local validation was environment-blocked; the hosted simulation command must be run where Render secrets and daemon state are available.
 - PR-011T hosted read endpoints were available, but the approved message was not present in hosted daemon state.
 - PR-011U could not verify hosted state path or restore state through public endpoints.
+- PR-012C documents that destination note-state must be durably backed up before guarded live submit. Render ephemeral loss of `base-to-solana-bridge-state-v2.json` blocks settlement/withdraw for that submitted commitment.
 - Live EVM submit remains gated and is not enabled by default.
 - No mainnet support.
 - KMS/HSM/MPC signer adapters remain placeholders.

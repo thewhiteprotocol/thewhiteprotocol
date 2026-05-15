@@ -118,6 +118,13 @@ Use this checklist before approving any bridge daemon message for a future live-
     - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false` is restored immediately after the submit attempt.
     - A duplicate submit command is run or reviewed to confirm it does not send a second transaction.
 
+15. Destination note-state backup
+    - The destination note-state file exists before any live destination submit.
+    - `npm run bridge:validate-note-state` passes for the exact source BridgeOut hash and destination BridgeMint hash.
+    - The note-state backup path is outside git and outside Render ephemeral-only storage.
+    - The operator records the backup location outside git.
+    - No note secret, nullifier, witness, or private field is printed in logs.
+
 ## Stop Conditions
 
 Do not approve live submission if any of these are true:
@@ -148,6 +155,8 @@ Do not approve live submission if any of these are true:
 - The submit command target hash differs from the latest successful hosted simulation destination hash.
 - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true` is left enabled after the submit attempt.
 - The message already has `submitTxHash` in daemon state.
+- Destination note-state backup is missing or fails validation for the exact destination BridgeMint hash.
+- The destination note-state file is only present in an ephemeral shell path with no operator backup.
 
 ## Future Live-Testnet Approval Fields
 
@@ -166,4 +175,6 @@ Record these outside git before enabling any future live-testnet destination sub
 - Submit command:
 - Submit tx hash:
 - Submit confirmation status:
+- Destination note-state backup reference:
+- Note-state validation command:
 - Notes:

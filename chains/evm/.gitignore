@@ -20,3 +20,9 @@ lib/
 
 # Bridge signer keys (testnet only, never commit)
 .bridge-signers.env
+
+# Bridge note/state files (contain destination note material)
+test/*bridge-state*.json
+**/*bridge-state*.json
+**/*note-state*.json
+**/.bridge-notes/**
