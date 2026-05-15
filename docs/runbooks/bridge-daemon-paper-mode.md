@@ -215,6 +215,8 @@ Do not enable live-testnet submission until all items are true:
 - explicit operator approval is recorded outside git
 - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true` is approved only for a narrow testnet route/window
 
+Use `docs/runbooks/bridge-operator-approval-checklist.md` for message-specific approval review. PR-011O applied that checklist to the fresh PR-011N Base Sepolia -> Solana Devnet message and kept the approval decision on hold for live submission because the current Solana submit preview is still preview-only and must be reconciled against the destination BridgeMint hash, deployed signer set version, and real Solana account inputs.
+
 ## Stop Criteria
 
 Stop rollout and return to `BRIDGE_DAEMON_MODE=disabled` if:

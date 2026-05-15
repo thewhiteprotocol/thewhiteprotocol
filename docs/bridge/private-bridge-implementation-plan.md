@@ -562,6 +562,20 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 
 ---
 
+### PR-011O: Paper Operator Approval Package ✅ COMPLETE
+
+**Scope:**
+- Review the PR-011N hosted paper message and submit preview
+- Verify amount normalization, signer evidence, Solana PDA derivations, and read-only Solana Devnet account state
+- Create a reusable operator approval checklist
+- Keep live destination submission disabled
+
+**Deliverable:** The PR-011N message was reviewed for paper-mode approval. The package confirms source hash `0x78db644c282399fb04d304752cd492ca12e31982e50e78bb382eb836905384bc`, destination BridgeMint hash `0xcd745c98e78eed6667f9655efa2f4725d052a9c06c4419c1c2dd8a05727f8f56`, exact 18-to-9 decimal normalization, 2 signatures, and read-only Solana account existence for the deployed program/config/route/asset/pool state. Live submission remains on hold because the Solana submit preview is still preview-only and must be reconciled to the destination hash, signer set version, and real live-submit account inputs.
+
+**Next:** PR-011P should implement Solana destination live-submit adapter readiness while keeping live submit disabled until a separate approval window.
+
+---
+
 ## 4. Technical Decisions
 
 ### 4.1 No New Circuit for v1
