@@ -62,6 +62,7 @@ const RESULT_PATH =
 const EXPECTED_SOURCE_HASH = process.env.PR012B_SOURCE_MESSAGE_HASH?.toLowerCase();
 const EXPECTED_DESTINATION_HASH = process.env.PR012B_DESTINATION_MESSAGE_HASH?.toLowerCase();
 const EXPECTED_SUBMIT_TX = process.env.PR012B_SUBMIT_TX;
+const SETTLE_FIFO_PREFIX = process.env.PR012B_SETTLE_FIFO_PREFIX === "true";
 
 const BASE_SEPOLIA_DOMAIN = 0x02000002;
 const SOLANA_DEVNET_DOMAIN = 0x01000002;
@@ -205,6 +206,125 @@ async function sendIx(
   });
   console.log(`${label}: ${sig}`);
   return sig;
+}
+
+async function generateSettlementForCommitment(
+  merkleData: any,
+  commitment: bigint
+): Promise<{
+  oldRoot: bigint;
+  newRoot: bigint;
+  startIndex: number;
+  pathElements: bigint[];
+  pathIndices: number[];
+  proofBytes: number[];
+}> {
+  const oldRoot = bytes32ToBigInt(merkleData.currentRoot);
+  const startIndex = Number(merkleData.nextLeafIndex);
+  const zeros: bigint[] = [];
+  for (let i = 0; i <= TREE_DEPTH; i++) {
+    zeros.push(bytes32ToBigInt(merkleData.zeros[i]));
+  }
+
+  const pathElements: bigint[] = [];
+  const pathIndices: number[] = [];
+  let current = commitment;
+  let currentIndex = startIndex;
+  for (let level = 0; level < TREE_DEPTH; level++) {
+    const isRight = (currentIndex & 1) === 1;
+    const sibling = isRight ? bytes32ToBigInt(merkleData.filledSubtrees[level]) : zeros[level];
+    pathElements.push(sibling);
+    pathIndices.push(isRight ? 1 : 0);
+    current = isRight ? poseidonHash([sibling, current]) : poseidonHash([current, sibling]);
+    currentIndex >>= 1;
+  }
+  const newRoot = current;
+
+  const commitmentsBuffer = Buffer.from(commitment.toString(16).padStart(64, "0"), "hex");
+  const digest = createHash("sha256").update(commitmentsBuffer).digest();
+  digest[0] &= 0x1f;
+  const commitmentsHash = BigInt("0x" + digest.toString("hex"));
+
+  const { proof } = await snarkjs.groth16.fullProve(
+    {
+      oldRoot: oldRoot.toString(),
+      newRoot: newRoot.toString(),
+      startIndex,
+      batchSize: 1,
+      commitmentsHash: commitmentsHash.toString(),
+      commitments: [commitment.toString()],
+      pathElements: [pathElements.map((p) => p.toString())],
+    },
+    MERKLE_BATCH_WASM,
+    MERKLE_BATCH_ZKEY
+  );
+
+  return {
+    oldRoot,
+    newRoot,
+    startIndex,
+    pathElements,
+    pathIndices,
+    proofBytes: serializeProofForSolana(proof),
+  };
+}
+
+async function settleOnePendingHead(input: {
+  connection: Connection;
+  authority: Keypair;
+  program: anchor.Program;
+  poolConfig: PublicKey;
+  merkleTree: PublicKey;
+  pendingBuffer: PublicKey;
+  batchVk: PublicKey;
+  label: string;
+}): Promise<{
+  tx: string;
+  commitment: bigint;
+  oldRoot: bigint;
+  newRoot: bigint;
+  startIndex: number;
+}> {
+  const pending = await (input.program.account as any).pendingDepositsBuffer.fetch(input.pendingBuffer);
+  if (pendingCount(pending) < 1) {
+    throw new Error("No pending commitment available to settle");
+  }
+  const commitment = bytes32ToBigInt(pending.deposits[0].commitment);
+  const preMerkle = await (input.program.account as any).merkleTree.fetch(input.merkleTree);
+  const settlement = await generateSettlementForCommitment(preMerkle, commitment);
+  const tx = await sendIx(input.connection, input.authority, input.label, () =>
+    input.program.methods
+      .settleDepositsBatch({
+        proof: settlement.proofBytes,
+        newRoot: bigintToBytes32Array(settlement.newRoot),
+        batchSize: 1,
+      })
+      .accountsStrict({
+        authority: input.authority.publicKey,
+        poolConfig: input.poolConfig,
+        merkleTree: input.merkleTree,
+        pendingBuffer: input.pendingBuffer,
+        verificationKey: input.batchVk,
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction()
+  );
+
+  const postMerkle = await (input.program.account as any).merkleTree.fetch(input.merkleTree);
+  if (bytes32ToBigInt(postMerkle.currentRoot) !== settlement.newRoot) {
+    throw new Error("Post-settlement root mismatch for FIFO prefix commitment");
+  }
+  if (Number(postMerkle.nextLeafIndex) !== settlement.startIndex + 1) {
+    throw new Error("nextLeafIndex did not advance for FIFO prefix commitment");
+  }
+
+  return {
+    tx,
+    commitment,
+    oldRoot: settlement.oldRoot,
+    newRoot: settlement.newRoot,
+    startIndex: settlement.startIndex,
+  };
 }
 
 async function main(): Promise<void> {
@@ -356,8 +476,37 @@ async function main(): Promise<void> {
   if (pendingIndex < 0) {
     throw new Error("Destination commitment is not present in PendingDepositsBuffer");
   }
+  const fifoPrefixSettlementTxs: string[] = [];
   if (pendingIndex !== 0) {
-    throw new Error(`Destination commitment is pending at index ${pendingIndex}; expected FIFO index 0`);
+    if (!SETTLE_FIFO_PREFIX) {
+      throw new Error(
+        `Destination commitment is pending at index ${pendingIndex}; expected FIFO index 0. ` +
+        `Set PR012B_SETTLE_FIFO_PREFIX=true to settle earlier FIFO commitments first.`
+      );
+    }
+    console.log(`Destination commitment is pending at index ${pendingIndex}; settling FIFO prefix first`);
+    for (let i = 0; i < pendingIndex; i++) {
+      const prefix = await settleOnePendingHead({
+        connection,
+        authority,
+        program,
+        poolConfig,
+        merkleTree,
+        pendingBuffer,
+        batchVk,
+        label: `settle_deposits_batch prefix ${i + 1}/${pendingIndex}`,
+      });
+      fifoPrefixSettlementTxs.push(prefix.tx);
+    }
+  }
+
+  const refreshedPending = await (program.account as any).pendingDepositsBuffer.fetch(pendingBuffer);
+  const refreshedPendingBefore = pendingCount(refreshedPending);
+  const refreshedPendingIndex = refreshedPending.deposits.findIndex((deposit: any) =>
+    Buffer.from(deposit.commitment).equals(commitmentBytes)
+  );
+  if (refreshedPendingIndex !== 0) {
+    throw new Error(`Destination commitment is pending at index ${refreshedPendingIndex}; expected FIFO index 0 after prefix settlement`);
   }
 
   const preMerkle = await (program.account as any).merkleTree.fetch(merkleTree);
@@ -370,54 +519,20 @@ async function main(): Promise<void> {
   }
 
   console.log("Consumed PDA exists:", consumedMessage.toBase58());
-  console.log("Pending count before:", pendingBefore);
-  console.log("Pending commitment index:", pendingIndex);
+  console.log("Pending count before:", refreshedPendingBefore);
+  console.log("Pending commitment index:", refreshedPendingIndex);
   console.log("nextLeafIndex before:", startIndex);
 
-  const zeros: bigint[] = [];
-  for (let i = 0; i <= TREE_DEPTH; i++) {
-    zeros.push(bytes32ToBigInt(preMerkle.zeros[i]));
-  }
-
-  const pathElements: bigint[] = [];
-  const pathIndices: number[] = [];
-  let current = destinationCommitment;
-  let currentIndex = startIndex;
-  for (let level = 0; level < TREE_DEPTH; level++) {
-    const isRight = (currentIndex & 1) === 1;
-    const sibling = isRight ? bytes32ToBigInt(preMerkle.filledSubtrees[level]) : zeros[level];
-    pathElements.push(sibling);
-    pathIndices.push(isRight ? 1 : 0);
-    current = isRight ? poseidonHash([sibling, current]) : poseidonHash([current, sibling]);
-    currentIndex >>= 1;
-  }
-  const newRoot = current;
-
-  const commitmentsBuffer = Buffer.from(destinationCommitment.toString(16).padStart(64, "0"), "hex");
-  const digest = createHash("sha256").update(commitmentsBuffer).digest();
-  digest[0] &= 0x1f;
-  const commitmentsHash = BigInt("0x" + digest.toString("hex"));
-
   console.log("Generating settlement proof...");
-  const { proof: settlementProof } = await snarkjs.groth16.fullProve(
-    {
-      oldRoot: oldRoot.toString(),
-      newRoot: newRoot.toString(),
-      startIndex,
-      batchSize: 1,
-      commitmentsHash: commitmentsHash.toString(),
-      commitments: [destinationCommitment.toString()],
-      pathElements: [pathElements.map((p) => p.toString())],
-    },
-    MERKLE_BATCH_WASM,
-    MERKLE_BATCH_ZKEY
-  );
-  const settlementProofBytes = serializeProofForSolana(settlementProof);
+  const settlement = await generateSettlementForCommitment(preMerkle, destinationCommitment);
+  const newRoot = settlement.newRoot;
+  const pathElements = settlement.pathElements;
+  const pathIndices = settlement.pathIndices;
 
   const settleTx = await sendIx(connection, authority, "settle_deposits_batch", () =>
     program.methods
       .settleDepositsBatch({
-        proof: settlementProofBytes,
+        proof: settlement.proofBytes,
         newRoot: bigintToBytes32Array(newRoot),
         batchSize: 1,
       })
@@ -439,7 +554,7 @@ async function main(): Promise<void> {
   const pendingAfter = pendingCount(postPending);
   if (postRoot !== newRoot) throw new Error("Post-settlement root mismatch");
   if (nextLeafIndexAfter !== startIndex + 1) throw new Error("nextLeafIndex did not advance by 1");
-  if (pendingAfter !== pendingBefore - 1) throw new Error("Pending count did not decrement by 1");
+  if (pendingAfter !== refreshedPendingBefore - 1) throw new Error("Pending count did not decrement by 1");
 
   console.log("Generating withdraw proof...");
   const leafIndex = startIndex;
@@ -561,7 +676,10 @@ async function main(): Promise<void> {
   Object.assign(evidence, {
     consumedPdaExists: true,
     pendingBufferContainsCommitment: true,
+    fifoPrefixSettlementTxs,
+    fifoPrefixSettledCount: fifoPrefixSettlementTxs.length,
     pendingBefore,
+    pendingBeforeTargetSettle: refreshedPendingBefore,
     settleTx,
     oldRoot: oldRoot.toString(),
     newRoot: newRoot.toString(),
