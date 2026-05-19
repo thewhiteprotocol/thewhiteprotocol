@@ -25,7 +25,16 @@
     "ci:build-mode": "npx tsx scripts/check-build-mode-safety.ts",
     "ci:circuits": "npx tsx scripts/check-circuit-artifacts.ts",
     "ci:idl-check": "npx tsx scripts/check-idl-drift.ts",
-    "ci:localnet": "bash scripts/ci-localnet-e2e.sh"
+    "ci:localnet": "bash scripts/ci-localnet-e2e.sh",
+    "bridge:preflight:settle-withdraw": "npx tsx scripts/hosted-settle-withdraw-preflight.ts",
+    "bridge:test-preflight:settle-withdraw": "npx tsx scripts/hosted-settle-withdraw-preflight.test.ts",
+    "bridge:recovery:snapshot": "npx tsx scripts/hosted-recovery-snapshot.ts",
+    "bridge:test-recovery:snapshot": "npx tsx scripts/hosted-recovery-snapshot.test.ts",
+    "bridge:job:settle-withdraw": "npx tsx scripts/hosted-settle-withdraw-job.ts",
+    "bridge:job:settle-withdraw:resume": "BRIDGE_SETTLE_WITHDRAW_RESUME=true npx tsx scripts/hosted-settle-withdraw-job.ts",
+    "bridge:job:index": "npx tsx scripts/hosted-settle-withdraw-job-index.ts",
+    "bridge:job:show": "npx tsx scripts/hosted-settle-withdraw-job-index.ts",
+    "bridge:test-job:settle-withdraw": "npx tsx scripts/hosted-settle-withdraw-job.test.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",

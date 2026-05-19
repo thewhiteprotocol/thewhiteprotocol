@@ -802,6 +802,14 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [x] Destination note-state validation/export flow added; PR-012A note state not recovered from Render (PR-012C).
 - [ ] Guarded live submit with validated new note state reached Solana, but settlement/withdraw blocked by non-durable Render note-state export (PR-012D).
 - [x] Durable destination note-state backup gate added before guarded Solana live submit (PR-012E).
+- [x] Fresh Base Sepolia -> Solana Devnet bridge completed with durable note-state backup, guarded submit, FIFO settlement, withdraw, and duplicate-withdraw rejection (PR-012F).
+- [x] Hosted settlement/withdraw preflight added for zkey checksum verification, durable note-state validation, FIFO planning, wallet authority checks, and non-secret report export (PR-012G).
+- [x] Hosted settlement/withdraw job wrapper added with fresh preflight report requirement, dry-run default, explicit execute flag, safety blockers, and non-secret result export (PR-012H).
+- [x] Hosted settlement/withdraw operator job index added with preflight SHA256 binding, dry-run audit entries, duplicate execution guard, and non-secret index/show commands (PR-012I).
+- [x] Hosted settlement/withdraw resume/recovery mode added with persisted phases, preflight hash binding, recovery reports, and ambiguous-state blockers (PR-012J).
+- [x] Read-only live recovery snapshot command added for direct Solana tx, PDA, pending/FIFO, note-state, preflight, and job-index checks before resume execution (PR-012K).
+- [x] Hosted settlement/withdraw execute/resume mode now requires a fresh recovery snapshot report with SHA256 binding, recommended-action gating, and safe no-op handling for already-complete state (PR-012L).
+- [x] Recovery snapshot now derives the expected spent-nullifier PDA directly from validated destination note-state and checks it without printing note secrets or nullifier secrets (PR-012M).
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.

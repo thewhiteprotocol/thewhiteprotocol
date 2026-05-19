@@ -129,6 +129,44 @@ Use this checklist before approving any bridge daemon message for a future live-
     - The operator records the backup location outside git.
     - No note secret, nullifier, witness, or private field is printed in logs.
 
+16. Hosted settlement/withdraw proving artifacts
+    - Required zkey files are present on durable operator-controlled storage, not `/tmp`.
+    - `merkle_batch_update.zkey` SHA256 is `107f6455153a9ca622ede842655f5e7b55aa0824b3d59c8ed050937b6966aac9`.
+    - `withdraw.zkey` SHA256 is `cc38b845b76e2cc66a0f027540c96669b162531f64bd51a675c18f62647e71d0`.
+    - The zkeys are symlinked or copied into the circuit build paths expected by hosted settlement/withdraw scripts.
+    - Any temporary public transfer URLs are deleted after the persistent-disk copy is verified.
+
+17. Hosted settlement/withdraw preflight
+    - `cd chains/solana && npm run bridge:preflight:settle-withdraw` has been run with the exact source hash, destination hash, destination commitment, and destination amount.
+    - The preflight report was written to `/data/bridge-results`.
+    - `readiness` is `ready`, or `blocked_fifo` is explicitly acknowledged before enabling FIFO prefix settlement in the mutating script.
+    - The report shows `transactionsSubmitted=false` and `secretsPrinted=false`.
+
+18. Hosted settlement/withdraw job wrapper
+    - `npm run bridge:job:settle-withdraw` dry-run succeeds before execute mode is considered.
+    - `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true` is set only for the approved mutating settlement/withdraw window.
+    - The wrapper uses a fresh preflight report for the exact destination BridgeMint hash.
+    - `BRIDGE_EXPECTED_PREFLIGHT_SHA256` is set when the operator has reviewed and pinned a specific preflight report.
+    - `/data/bridge-results/operator-job-index.json` records a dry-run job entry before execute mode is considered.
+    - `npm run bridge:job:index` or `npm run bridge:job:show` shows only non-secret job summaries.
+    - The wrapper report shows `BRIDGE_DAEMON_MODE=paper` and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
+
+19. Hosted settlement/withdraw resume/recovery
+    - `BRIDGE_SETTLE_WITHDRAW_RESUME=true` is used only for an existing partial/interrupted job.
+    - `cd chains/solana && npm run bridge:recovery:snapshot` has been run before resume execution.
+    - The snapshot report is written to `/data/bridge-results/recovery-snapshot-<destinationHash>.json`.
+    - The snapshot report shows `transactionsSubmitted=false`, `proofsGenerated=false`, and `secretsPrinted=false`.
+    - The snapshot report is fresh; default max age is 900 seconds unless `BRIDGE_RECOVERY_SNAPSHOT_MAX_AGE_SECONDS` is explicitly set.
+    - The snapshot derives the expected spent-nullifier PDA from validated destination note-state or blocks with a safe readiness code.
+    - The snapshot does not print `destSecret`, `destNullifier`, witness data, or raw nullifier hash.
+    - `BRIDGE_EXPECTED_RECOVERY_SNAPSHOT_SHA256` is set when the operator has reviewed and pinned a specific snapshot report.
+    - The wrapper job index records the snapshot path, SHA256, readiness, and recommended action before execute/resume mode.
+    - `no_action_already_complete` is treated as a safe no-op, not permission to submit another transaction.
+    - Resume mode is run first without `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true`.
+    - The recovery report is written to `/data/bridge-results/recovery-<destinationHash>.json`.
+    - The recovery report phase matches the job index phase and the latest read-only state.
+    - Ambiguous recovery state is treated as a stop condition, not as permission to retry.
+
 ## Stop Conditions
 
 Do not approve live submission if any of these are true:
@@ -163,6 +201,23 @@ Do not approve live submission if any of these are true:
 - The destination note-state file is only present in an ephemeral shell path with no operator backup.
 - `BRIDGE_NOTE_STATE_BACKUP_DIR` is unset, inside git, under `/tmp`, unreadable, or unwritable.
 - `npm run bridge:note-state:readback-check` has not passed after a fresh shell/container change.
+- Hosted settlement/withdraw is attempted before the required zkey files are present and checksum-verified on durable storage.
+- Hosted settlement/withdraw is attempted before a non-secret preflight report is exported for the exact destination BridgeMint hash.
+- Hosted settlement/withdraw is attempted directly without a successful `bridge:job:settle-withdraw` dry-run for the exact destination BridgeMint hash.
+- `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true` is set before the operator has reviewed the fresh preflight report.
+- The preflight report SHA256 differs from the reviewed hash or from `BRIDGE_EXPECTED_PREFLIGHT_SHA256`.
+- The preflight report changes after the job binds to it.
+- A prior successful settlement/withdraw job already exists in the operator job index for the same destination BridgeMint hash.
+- A partial settlement/withdraw job exists and `BRIDGE_SETTLE_WITHDRAW_RESUME=true` was not set.
+- Resume mode reports `recovery_required`, unknown tx status, inconsistent pending/FIFO state, or conflicting spent-nullifier state.
+- `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true` is set before a fresh recovery snapshot exists for the exact destination BridgeMint hash.
+- The recovery snapshot SHA256 differs from the reviewed hash or from `BRIDGE_EXPECTED_RECOVERY_SNAPSHOT_SHA256`.
+- The recovery snapshot changes after the job binds to it.
+- The recovery snapshot recommended action does not match the requested execute/resume phase.
+- The recovery snapshot reports `no_action_already_complete`; no further settlement/withdraw transaction should be submitted.
+- The recovery snapshot reports `blocked_note_state_invalid` or `blocked_spent_nullifier_unknown`.
+- The live recovery snapshot reports `tx_failed`, `tx_unknown`, `blocked_ambiguous_state`, or a destination hash mismatch.
+- The live recovery snapshot cannot validate destination note-state for the exact destination hash.
 
 ## Future Live-Testnet Approval Fields
 
