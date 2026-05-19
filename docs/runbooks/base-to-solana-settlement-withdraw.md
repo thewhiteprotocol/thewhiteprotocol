@@ -230,3 +230,25 @@ The wrapper enforces recovery snapshot recommendations:
 - `operator_review_required`, `run_preflight`, or `restore_note_state`: execution is blocked.
 
 The operator job index records the recovery snapshot path, SHA256, created timestamp, readiness, and recommended action alongside the preflight binding.
+
+## Hosted Dry-Run Evidence
+
+For already-settled targets, the recovery snapshot must not guess a leaf index. If the target is already settled and no trusted result/job evidence contains the target `nextLeafIndexBefore`, the snapshot reports:
+
+```text
+readiness=blocked_spent_nullifier_unknown
+recommendedAction=operator_review_required
+spentNullifier.error=leaf_index_missing
+```
+
+In that state, the dry-run job wrapper must block and record both report hashes:
+
+```text
+status=blocked
+readiness=blocked_recovery_snapshot_readiness
+execute=false
+wouldExecute=false
+transactionsSubmittedByWrapper=false
+```
+
+This is the expected safe result. Do not set `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true` until the missing evidence is restored and a fresh recovery snapshot recommends a permitted action.

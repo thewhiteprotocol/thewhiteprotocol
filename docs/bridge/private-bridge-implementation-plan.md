@@ -810,6 +810,7 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [x] Read-only live recovery snapshot command added for direct Solana tx, PDA, pending/FIFO, note-state, preflight, and job-index checks before resume execution (PR-012K).
 - [x] Hosted settlement/withdraw execute/resume mode now requires a fresh recovery snapshot report with SHA256 binding, recommended-action gating, and safe no-op handling for already-complete state (PR-012L).
 - [x] Recovery snapshot now derives the expected spent-nullifier PDA directly from validated destination note-state and checks it without printing note secrets or nullifier secrets (PR-012M).
+- [x] Hosted PR-012F preflight, live recovery snapshot, and dry-run job wrapper were run on Render; the wrapper safely blocked execution on missing leaf-index evidence for the already-settled target (PR-012N).
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.

@@ -167,6 +167,13 @@ Use this checklist before approving any bridge daemon message for a future live-
     - The recovery report phase matches the job index phase and the latest read-only state.
     - Ambiguous recovery state is treated as a stop condition, not as permission to retry.
 
+20. Hosted dry-run evidence
+    - The hosted preflight report SHA256 is recorded before reviewing the job wrapper result.
+    - The hosted recovery snapshot report SHA256 is recorded before reviewing the job wrapper result.
+    - The dry-run job wrapper records `execute=false`, `wouldExecute=false`, and `transactionsSubmittedByWrapper=false`.
+    - If the recovery snapshot reports `blocked_spent_nullifier_unknown`, the operator records the exact missing evidence, such as `leaf_index_missing`, and does not execute settlement/withdraw.
+    - A blocked dry-run is acceptable only when it blocks with an exact, non-secret reason and the operator records that no transaction was submitted.
+
 ## Stop Conditions
 
 Do not approve live submission if any of these are true:
