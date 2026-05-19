@@ -745,6 +745,16 @@ function defaultExecutor(input: { env: NodeJS.ProcessEnv; cwd: string }): { stat
   };
 }
 
+function shouldBindRecoverySnapshotDuringDryRun(input: {
+  env: Env;
+  destinationHash: string;
+}): boolean {
+  if (input.env.BRIDGE_REQUIRE_RECOVERY_SNAPSHOT_DRY_RUN === "true") return true;
+  if (input.env.BRIDGE_EXPECTED_RECOVERY_SNAPSHOT_SHA256?.trim()) return true;
+  const snapshotPath = recoverySnapshotPathFor(input.destinationHash, input.env);
+  return fs.existsSync(snapshotPath);
+}
+
 function sanitizeVerifyResult(value: any): Record<string, unknown> {
   const evidence = value?.evidence || {};
   return {
@@ -826,6 +836,47 @@ export async function runSettleWithdrawJob(input: {
   let recoverySnapshotGate: RecoverySnapshotGate | null = null;
 
   if (!validation.gates.execute) {
+    if (shouldBindRecoverySnapshotDuringDryRun({ env, destinationHash })) {
+      recoverySnapshotGate = validateRecoverySnapshotForJob({
+        env,
+        nowMs: input.nowMs,
+        destinationHash,
+        sourceHash: validation.gates.sourceHash,
+        resume,
+        existingJob,
+      });
+      if (!recoverySnapshotGate.ok) {
+        const snapshotGates: JobGateResult = {
+          ...validation.gates,
+          ok: false,
+          readiness: recoverySnapshotGate.readiness,
+          errors: [...validation.gates.errors, ...recoverySnapshotGate.errors],
+          wouldExecute: false,
+        };
+        const blocked: JobResult = {
+          ...snapshotGates,
+          jobId: jobIdFor(snapshotGates.destinationHash, snapshotGates.preflightReportSha256),
+          jobIndexPath,
+          status: "blocked",
+          resultPath: null,
+          recoverySnapshotPath: recoverySnapshotGate.path,
+          recoverySnapshotSha256: recoverySnapshotGate.sha256,
+          secretsPrinted: false,
+        };
+        const entry = jobEntryFromReport({
+          gates: snapshotGates,
+          report: validation.report,
+          status: "blocked",
+          recoverySnapshotGate,
+          nowIso,
+          existing: existingJob || undefined,
+        });
+        if (entry) upsertJobEntry(jobIndexPath, entry);
+        ensureNoSecretsRendered(blocked);
+        return blocked;
+      }
+    }
+
     let recoveryResult: { path: string; report: RecoveryReport } | null = null;
     if (resume && validation.report) {
       const checker = input.recoveryChecker || defaultRecoverySnapshot;
@@ -847,6 +898,8 @@ export async function runSettleWithdrawJob(input: {
       jobIndexPath,
       status: resume ? "recovery_ready" : "dry_run_ready",
       resultPath: null,
+      recoverySnapshotPath: recoverySnapshotGate?.path || null,
+      recoverySnapshotSha256: recoverySnapshotGate?.sha256 || null,
       recoveryReportPath: recoveryResult?.path || null,
       recovery: recoveryResult?.report,
       secretsPrinted: false,
@@ -857,6 +910,7 @@ export async function runSettleWithdrawJob(input: {
       status: resume ? (recoveryResult?.report.phaseAfterRecovery || "recovery_required") : "dry_run_ready",
       nowIso,
       existing: existingJob || undefined,
+      recoverySnapshotGate,
     });
     if (entry) {
       entry.recoveryReportPath = recoveryResult?.path || entry.recoveryReportPath;

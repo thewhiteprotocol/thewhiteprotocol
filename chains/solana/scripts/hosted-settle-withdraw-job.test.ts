@@ -276,6 +276,51 @@ async function run(): Promise<void> {
   {
     const dir = tmpDir();
     writeReport(dir, report());
+    const snapshotPath = writeRecoverySnapshot(dir);
+    const result = await runSettleWithdrawJob({ env: baseEnv(dir) });
+    assert.strictEqual(result.status, "dry_run_ready");
+    assert.strictEqual(result.recoverySnapshotPath, snapshotPath);
+    assert.strictEqual(result.recoverySnapshotSha256, sha256(snapshotPath));
+    const index = readIndex(dir);
+    assert.strictEqual(index.jobs[0].recoverySnapshotPath, snapshotPath);
+    assert.strictEqual(index.jobs[0].recoverySnapshotSha256, sha256(snapshotPath));
+  }
+
+  {
+    const dir = tmpDir();
+    writeReport(dir, report());
+    writeRecoverySnapshot(dir, recoverySnapshot({
+      readiness: "blocked_spent_nullifier_unknown",
+      recommendedAction: "operator_review_required",
+      spentNullifier: {
+        derived: false,
+        status: "missing_field",
+        spentNullifierPda: null,
+        leafIndex: null,
+        error: "leaf_index_missing",
+        exists: null,
+        checkedAt: null,
+        withdrawAlreadyConsumed: false,
+      },
+    }));
+    const result = await runSettleWithdrawJob({ env: baseEnv(dir) });
+    assertBlocked(result, "blocked_recovery_snapshot_readiness");
+    assert.ok(result.errors.some((error) => error.includes("blocked_spent_nullifier_unknown")));
+    assert.strictEqual(result.wouldExecute, false);
+  }
+
+  {
+    const dir = tmpDir();
+    writeReport(dir, report());
+    const result = await runSettleWithdrawJob({
+      env: { ...baseEnv(dir), BRIDGE_REQUIRE_RECOVERY_SNAPSHOT_DRY_RUN: "true" },
+    });
+    assertBlocked(result, "blocked_recovery_snapshot_missing");
+  }
+
+  {
+    const dir = tmpDir();
+    writeReport(dir, report());
     const env = {
       ...baseEnv(dir),
       BRIDGE_EXPECTED_PREFLIGHT_SHA256: "0".repeat(64),
