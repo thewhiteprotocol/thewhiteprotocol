@@ -19,6 +19,10 @@ import {
 } from "./hosted-settle-withdraw-preflight";
 import { jobIndexPathFor, type OperatorJobEntry, type OperatorJobIndex } from "./hosted-settle-withdraw-job";
 import {
+  readLeafIndexEvidence,
+  type LeafIndexEvidence,
+} from "./hosted-leaf-index-evidence";
+import {
   deriveSpentNullifierPdaFromNoteState,
   type SpentNullifierDerivation,
 } from "./hosted-spent-nullifier";
@@ -107,6 +111,14 @@ export type HostedRecoverySnapshot = {
     duplicateExecutionWouldBlock: boolean;
     resultReportPath: string | null;
     spentNullifier: string | null;
+  };
+  leafIndexEvidence: {
+    found: boolean;
+    path: string | null;
+    sha256: string | null;
+    source: string | null;
+    leafIndex: number | null;
+    errors: string[];
   };
   spentNullifier: SpentNullifierDerivation & {
     exists: boolean | null;
@@ -232,6 +244,19 @@ function defaultPreflightPath(destinationHash: string, env: Env): string {
 function readJson<T>(filePath: string): T | null {
   if (!fs.existsSync(filePath)) return null;
   return JSON.parse(fs.readFileSync(filePath, "utf8")) as T;
+}
+
+function leafIndexFromNoteStatePath(noteStatePath: string | null | undefined): number | null {
+  let state: any = null;
+  try {
+    state = readJson<any>(noteStatePath || "");
+  } catch {
+    return null;
+  }
+  const value = state?.leafIndex ?? state?.destinationLeafIndex ?? state?.destLeafIndex;
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === "string" && /^[0-9]+$/.test(value)) return Number(value);
+  return null;
 }
 
 function latestJobForDestination(indexPath: string, destinationHash: string): OperatorJobEntry | null {
@@ -502,6 +527,19 @@ export async function runRecoverySnapshot(input: {
   const indexPath = jobIndexPathFor(env);
   const latestJob = destinationHash ? latestJobForDestination(indexPath, destinationHash) : null;
   const spentNullifierFromPriorResult = spentNullifierFromResult(latestJob);
+  const leafIndexEvidence = destinationHash
+    ? readLeafIndexEvidence({
+        destinationHash,
+        env,
+        sourceHash,
+        destinationCommitment: destinationCommitmentHex,
+      })
+    : {
+        path: null,
+        sha256: null,
+        evidence: null as LeafIndexEvidence | null,
+        errors: ["destination_hash_missing"],
+      };
 
   const pdas: HostedRecoverySnapshot["pdas"] = {
     consumedMessage: null,
@@ -565,11 +603,13 @@ export async function runRecoverySnapshot(input: {
   };
   let spentNullifierRpcError = false;
   const leafIndexForNullifier =
-    pending.targetPending && pending.nextLeafIndex !== null && pending.fifoPrefixCount !== null
+    leafIndexFromNoteStatePath(noteState.statePath) ??
+    leafIndexEvidence.evidence?.leafIndex ??
+    (pending.targetPending && pending.nextLeafIndex !== null && pending.fifoPrefixCount !== null
       ? pending.nextLeafIndex + pending.fifoPrefixCount
       : pending.targetAlreadySettled
         ? leafIndexFromResult(latestJob)
-        : null;
+        : null);
   if (destinationHash) {
     spentNullifierDerivation = await deriveSpentNullifierPdaFromNoteState({
       noteStatePath: noteState.statePath,
@@ -641,6 +681,14 @@ export async function runRecoverySnapshot(input: {
     noteState: { ...noteState, present: noteStatePresent },
     preflight,
     jobIndex,
+    leafIndexEvidence: {
+      found: Boolean(leafIndexEvidence.evidence),
+      path: leafIndexEvidence.path,
+      sha256: leafIndexEvidence.sha256,
+      source: leafIndexEvidence.evidence?.evidenceSource || null,
+      leafIndex: leafIndexEvidence.evidence?.leafIndex ?? null,
+      errors: leafIndexEvidence.errors,
+    },
     spentNullifier: {
       ...spentNullifierDerivation,
       exists: pdas.spentNullifier?.exists ?? null,

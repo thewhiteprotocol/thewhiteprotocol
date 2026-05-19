@@ -28,6 +28,8 @@
     "ci:localnet": "bash scripts/ci-localnet-e2e.sh",
     "bridge:preflight:settle-withdraw": "npx tsx scripts/hosted-settle-withdraw-preflight.ts",
     "bridge:test-preflight:settle-withdraw": "npx tsx scripts/hosted-settle-withdraw-preflight.test.ts",
+    "bridge:leaf-index:evidence": "npx tsx scripts/hosted-leaf-index-evidence.ts",
+    "bridge:test-leaf-index:evidence": "npx tsx scripts/hosted-leaf-index-evidence.test.ts",
     "bridge:recovery:snapshot": "npx tsx scripts/hosted-recovery-snapshot.ts",
     "bridge:test-recovery:snapshot": "npx tsx scripts/hosted-recovery-snapshot.test.ts",
     "bridge:job:settle-withdraw": "npx tsx scripts/hosted-settle-withdraw-job.ts",

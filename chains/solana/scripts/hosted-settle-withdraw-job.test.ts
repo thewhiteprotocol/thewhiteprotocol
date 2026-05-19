@@ -147,6 +147,14 @@ function recoverySnapshot(overrides: Record<string, unknown> = {}): Record<strin
     sourceMessageHash: SOURCE_HASH,
     readiness: "ready_for_resume",
     recommendedAction: "resume_settlement",
+    leafIndexEvidence: {
+      found: true,
+      path: path.join("/tmp", "leaf-index.json"),
+      sha256: "a".repeat(64),
+      source: "settlement_result",
+      leafIndex: 9,
+      errors: [],
+    },
     spentNullifier: {
       derived: true,
       status: "derived",
@@ -284,6 +292,8 @@ async function run(): Promise<void> {
     const index = readIndex(dir);
     assert.strictEqual(index.jobs[0].recoverySnapshotPath, snapshotPath);
     assert.strictEqual(index.jobs[0].recoverySnapshotSha256, sha256(snapshotPath));
+    assert.strictEqual(index.jobs[0].leafIndexEvidenceSha256, "a".repeat(64));
+    assert.strictEqual(index.jobs[0].leafIndex, 9);
   }
 
   {

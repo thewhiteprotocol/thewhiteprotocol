@@ -206,6 +206,29 @@ The command does not submit transactions, settle, withdraw, or generate proofs. 
 
 The snapshot derives the expected spent-nullifier PDA directly from destination note-state when the target leaf index is known. It reports only non-secret metadata: `spentNullifierPda`, `leafIndex`, `exists`, `checkedAt`, and `withdrawAlreadyConsumed`. It never prints `destSecret`, `destNullifier`, witness data, or the raw nullifier hash.
 
+For already-settled targets, provide non-secret leaf-index evidence before rerunning the snapshot:
+
+```bash
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root/chains/solana"
+
+BRIDGE_RESULTS_DIR=/data/bridge-results \
+PR012B_SOURCE_MESSAGE_HASH=<source_bridge_out_hash> \
+PR012B_DESTINATION_MESSAGE_HASH=<destination_bridge_mint_hash> \
+BRIDGE_LEAF_INDEX_DESTINATION_COMMITMENT=<destination_commitment> \
+npm run bridge:leaf-index:evidence
+```
+
+The command writes:
+
+```text
+/data/bridge-results/leaf-index-<destinationHash>.json
+```
+
+Evidence can come from a successful settlement result report, a pre-settlement snapshot where the commitment was still pending, or an explicitly marked manual operator review. It must match the destination hash and destination commitment. It contains no note secrets, nullifier secrets, witnesses, private keys, or raw nullifier hash.
+
+After evidence exists, the recovery snapshot includes `leafIndexEvidence.*` fields and can derive the spent-nullifier PDA for already-settled targets.
+
 Readiness values include `ready_for_resume`, `blocked_note_state_missing`, `blocked_note_state_invalid`, `blocked_spent_nullifier_unknown`, `blocked_preflight_missing`, `blocked_preflight_stale`, `blocked_destination_hash_mismatch`, `blocked_pending_not_found`, `blocked_ambiguous_state`, `already_settled_pending_missing`, `already_withdrawn_spent_nullifier`, `tx_failed`, and `tx_unknown`.
 
 If the expected spent-nullifier PDA exists, the snapshot reports `already_withdrawn_spent_nullifier` with `recommendedAction=no_action_already_complete`; the job wrapper must not submit another withdraw.
@@ -252,3 +275,5 @@ transactionsSubmittedByWrapper=false
 ```
 
 This is the expected safe result. Do not set `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true` until the missing evidence is restored and a fresh recovery snapshot recommends a permitted action.
+
+If the missing evidence is the settled leaf index, generate or restore `/data/bridge-results/leaf-index-<destinationHash>.json`, then rerun the recovery snapshot and dry-run wrapper.

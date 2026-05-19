@@ -105,6 +105,10 @@ export type OperatorJobEntry = {
   recoverySnapshotCreatedAt?: string | null;
   recoverySnapshotReadiness?: string | null;
   recoverySnapshotRecommendedAction?: string | null;
+  leafIndexEvidencePath?: string | null;
+  leafIndexEvidenceSha256?: string | null;
+  leafIndexEvidenceSource?: string | null;
+  leafIndex?: number | null;
   noteStatePath: string | null;
   noteStateSha256: string | null;
   zkeyHashes: {
@@ -359,6 +363,14 @@ function jobEntryFromReport(input: {
     recoverySnapshotReadiness: input.recoverySnapshotGate?.snapshotReadiness || input.existing?.recoverySnapshotReadiness || null,
     recoverySnapshotRecommendedAction:
       input.recoverySnapshotGate?.recommendedAction || input.existing?.recoverySnapshotRecommendedAction || null,
+    leafIndexEvidencePath:
+      input.recoverySnapshotGate?.snapshot?.leafIndexEvidence?.path || input.existing?.leafIndexEvidencePath || null,
+    leafIndexEvidenceSha256:
+      input.recoverySnapshotGate?.snapshot?.leafIndexEvidence?.sha256 || input.existing?.leafIndexEvidenceSha256 || null,
+    leafIndexEvidenceSource:
+      input.recoverySnapshotGate?.snapshot?.leafIndexEvidence?.source || input.existing?.leafIndexEvidenceSource || null,
+    leafIndex:
+      input.recoverySnapshotGate?.snapshot?.leafIndexEvidence?.leafIndex ?? input.existing?.leafIndex ?? null,
     noteStatePath: report?.noteState?.statePath || null,
     noteStateSha256: null,
     zkeyHashes: {

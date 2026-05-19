@@ -172,6 +172,9 @@ Use this checklist before approving any bridge daemon message for a future live-
     - The hosted recovery snapshot report SHA256 is recorded before reviewing the job wrapper result.
     - The dry-run job wrapper records `execute=false`, `wouldExecute=false`, and `transactionsSubmittedByWrapper=false`.
     - If the recovery snapshot reports `blocked_spent_nullifier_unknown`, the operator records the exact missing evidence, such as `leaf_index_missing`, and does not execute settlement/withdraw.
+    - If leaf-index evidence is restored, `/data/bridge-results/leaf-index-<destinationHash>.json` exists and matches the destination hash, source hash if available, and destination commitment.
+    - Leaf-index evidence source is one of `settlement_result`, `pre_settlement_snapshot`, or `manual_operator_review`.
+    - Manual leaf-index evidence is accepted only with explicit operator review and must still match the destination hash and commitment.
     - A blocked dry-run is acceptable only when it blocks with an exact, non-secret reason and the operator records that no transaction was submitted.
 
 ## Stop Conditions
@@ -223,6 +226,7 @@ Do not approve live submission if any of these are true:
 - The recovery snapshot recommended action does not match the requested execute/resume phase.
 - The recovery snapshot reports `no_action_already_complete`; no further settlement/withdraw transaction should be submitted.
 - The recovery snapshot reports `blocked_note_state_invalid` or `blocked_spent_nullifier_unknown`.
+- Leaf-index evidence is missing, mismatched, or manually supplied without explicit operator review.
 - The live recovery snapshot reports `tx_failed`, `tx_unknown`, `blocked_ambiguous_state`, or a destination hash mismatch.
 - The live recovery snapshot cannot validate destination note-state for the exact destination hash.
 

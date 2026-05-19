@@ -74,6 +74,32 @@ function writeJobIndex(dir: string, job: Record<string, unknown>): void {
   );
 }
 
+function writeLeafIndexEvidence(dir: string, leafIndex = 9): void {
+  fs.writeFileSync(
+    path.join(dir, `leaf-index-${DESTINATION_HASH.slice(2)}.json`),
+    JSON.stringify(
+      {
+        destinationMessageHash: DESTINATION_HASH,
+        sourceMessageHash: SOURCE_HASH,
+        destinationCommitment: COMMITMENT_HEX,
+        settlementTx: "settleTx",
+        leafIndex,
+        pendingIndexBeforeSettlement: 0,
+        merkleNextLeafIndexBefore: leafIndex,
+        merkleNextLeafIndexAfter: leafIndex + 1,
+        rootBefore: "rootBefore",
+        rootAfter: "rootAfter",
+        evidenceSource: "settlement_result",
+        createdAt: new Date().toISOString(),
+        evidenceSha256: null,
+      },
+      null,
+      2
+    ),
+    { mode: 0o600 }
+  );
+}
+
 function baseEnv(dir: string): Record<string, string> {
   return {
     PR012B_DESTINATION_MESSAGE_HASH: DESTINATION_HASH,
@@ -311,6 +337,19 @@ async function run(): Promise<void> {
     assert.strictEqual(snapshot.readiness, "already_withdrawn_spent_nullifier");
     assert.strictEqual(snapshot.recommendedAction, "no_action_already_complete");
     assert.strictEqual(snapshot.spentNullifier.withdrawAlreadyConsumed, true);
+  }
+
+  {
+    const dir = tmpDir();
+    writeNoteState(dir);
+    writePreflight(dir);
+    writeLeafIndexEvidence(dir, 9);
+    const snapshot = await runRecoverySnapshot({ env: baseEnv(dir), reader: mockReader({ pendingIndex: -1, commitmentIndexExists: true }) as any });
+    assert.strictEqual(snapshot.leafIndexEvidence.found, true);
+    assert.strictEqual(snapshot.leafIndexEvidence.leafIndex, 9);
+    assert.strictEqual(snapshot.spentNullifier.derived, true);
+    assert.strictEqual(snapshot.spentNullifier.exists, false);
+    assert.strictEqual(snapshot.recommendedAction, "resume_withdraw");
   }
 
   {

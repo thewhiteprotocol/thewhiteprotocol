@@ -42,6 +42,7 @@ chains/evm/test/*bridge-state*.json
 **/operator-job-index.json
 **/preflight-*.json
 **/settle-withdraw-*.json
+**/leaf-index-*.json
 **/recovery-*.json
 **/recovery-snapshot-*.json
 **/.bridge-notes/**
