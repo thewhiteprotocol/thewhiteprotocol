@@ -86,9 +86,10 @@ run_case() {
 }
 
 fixture="$(make_fixture)"
-out="$(run_case "$fixture" env BRIDGE_HOSTED_STARTUP_BOOTSTRAP=false BRIDGE_RELAYER_START_COMMAND='npm run relayer:start' bash)"
+out="$(run_case "$fixture" env BRIDGE_HOSTED_STARTUP_BOOTSTRAP=false BRIDGE_HOSTED_STARTUP_STATUS_PATH="$fixture/startup.json" BRIDGE_RELAYER_START_COMMAND='npm run relayer:start' bash)"
 assert_contains "$out" "hosted_bootstrap_disabled"
 assert_contains "$out" "relayer-started"
+grep -q '"readiness": "ready"' "$fixture/startup.json"
 
 fixture="$(make_fixture)"
 set +e
@@ -100,9 +101,10 @@ assert_contains "$out" "zkey_bootstrap_failed"
 assert_not_contains "$out" "relayer-started"
 
 fixture="$(make_fixture)"
-out="$(run_case "$fixture" env BRIDGE_HOSTED_STARTUP_BOOTSTRAP=true BRIDGE_HOSTED_REQUIRE_ZKEYS=true BRIDGE_RELAYER_START_COMMAND='npm run relayer:start' bash)"
+out="$(run_case "$fixture" env BRIDGE_HOSTED_STARTUP_BOOTSTRAP=true BRIDGE_HOSTED_REQUIRE_ZKEYS=true BRIDGE_HOSTED_STARTUP_STATUS_PATH="$fixture/startup.json" BRIDGE_RELAYER_START_COMMAND='npm run relayer:start' bash)"
 assert_contains "$out" "startup_checks_passed"
 assert_contains "$out" "relayer-started"
+grep -q '"zkeyBootstrapOk": true' "$fixture/startup.json"
 
 fixture="$(make_fixture)"
 set +e

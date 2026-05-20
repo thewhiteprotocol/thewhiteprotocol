@@ -215,6 +215,8 @@ Do not approve live submission if any of these are true:
 - Render hosted startup is not using `bash scripts/hosted-relayer-start.sh` or an equivalent command that runs zkey bootstrap before relayer start.
 - `BRIDGE_HOSTED_STARTUP_BOOTSTRAP=true` and `BRIDGE_HOSTED_REQUIRE_ZKEYS=true` are not set for the hosted service that owns `/data`.
 - Hosted startup reports `zkey_bootstrap_failed`, `operator_prereq_failed`, or `live_submit_startup_guard`.
+- `GET /bridge/operator/readiness` does not show `startupStatusPresent=true`, zkey bootstrap success, symlink success, paper mode, and live submit disabled.
+- `GET /bridge/operator/readiness` exposes any RPC URL, operator token, private key, signer key, wallet file, note secret, nullifier secret, witness, or raw env value.
 - `npm run bridge:bootstrap:zkeys` has not passed after the latest Render deploy.
 - `npm run bridge:operator:prereq` has not passed for the current hosted shell and destination hash.
 - `npm run bridge:operator:status` does not report an expected readiness and recommended action for the exact destination hash.

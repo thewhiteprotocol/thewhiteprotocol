@@ -288,6 +288,35 @@ BRIDGE_NOTE_STATE_BACKUP_DIR=/data/white-bridge-note-state
 
 When hosted bootstrap is enabled, zkey bootstrap must pass before the relayer starts. If it fails and live submit is enabled, startup exits nonzero. If `BRIDGE_HOSTED_FAIL_CLOSED=false`, the wrapper starts only after forcing daemon-disabled, live-submit-disabled mode.
 
+The wrapper writes a non-secret startup status file:
+
+```text
+/data/bridge-results/hosted-startup-status.json
+```
+
+Operators can verify the running hosted service with:
+
+```bash
+curl -fsS https://relayer.thewhiteprotocol.com/bridge/operator/readiness
+```
+
+Expected safe startup fields include:
+
+```text
+startupStatusPresent=true
+zkeys.bootstrapOk=true
+zkeys.merkleHashOk=true
+zkeys.withdrawHashOk=true
+zkeys.merkleSymlinkOk=true
+zkeys.withdrawSymlinkOk=true
+safeMode.daemonMode=paper
+safeMode.liveSubmitEnabled=false
+liveSubmitGuard.ok=true
+transactionsSubmitted=false
+proofsGenerated=false
+secretsPrinted=false
+```
+
 For resume execution, add `BRIDGE_SETTLE_WITHDRAW_RESUME=true` only after the fresh recovery snapshot recommends `resume_settlement`, `resume_withdraw`, or `settle_fifo_prefix`.
 
 The wrapper enforces recovery snapshot recommendations:

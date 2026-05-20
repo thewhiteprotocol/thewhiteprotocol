@@ -22,6 +22,7 @@
     "bridge:daemon:paper:status": "ts-node src/bridge/daemon-paper-status.ts",
     "bridge:daemon:solana:simulate": "ts-node src/bridge/daemon-solana-simulate.ts",
     "bridge:daemon:solana:submit-approved": "ts-node src/bridge/daemon-solana-submit-approved.ts",
+    "bridge:operator:readiness": "ts-node src/bridge/operator-readiness-cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

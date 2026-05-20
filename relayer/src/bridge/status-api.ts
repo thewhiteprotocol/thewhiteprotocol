@@ -11,6 +11,7 @@ import { BridgeMessageStatus } from './types';
 import type { BridgeWatcherDaemon } from './watcher-daemon';
 import type { BridgeDaemon } from './daemon';
 import { createApiError } from '../chain-registry';
+import { buildHostedOperatorReadiness } from './operator-readiness';
 
 export interface BridgeStatusApiConfig {
   stateStore: BridgeStateStore;
@@ -152,6 +153,10 @@ export function createBridgeStatusRouter(config: BridgeStatusApiConfig): Router 
     const daemon = requireBridgeDaemon(req, res);
     if (!daemon) return;
     res.json(daemon.getStatus());
+  });
+
+  router.get('/bridge/operator/readiness', (req: Request, res: Response) => {
+    res.json(buildHostedOperatorReadiness());
   });
 
   router.get('/bridge/daemon/messages', (req: Request, res: Response) => {

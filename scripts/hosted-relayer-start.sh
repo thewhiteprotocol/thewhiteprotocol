@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 json_bool() {
   case "${1:-}" in
     true|1|yes) printf 'true' ;;
@@ -32,6 +34,10 @@ print_summary() {
   local root="${REPO_ROOT:-$(repo_root)}"
   local commit
   commit="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || printf 'unknown')"
+  BRIDGE_HOSTED_STARTUP_OK="$status" \
+    BRIDGE_HOSTED_STARTUP_DETAIL="$detail" \
+    BRIDGE_HOSTED_STARTUP_GIT_COMMIT="$commit" \
+    node "$SCRIPT_DIR/write-hosted-startup-status.js" >/dev/null 2>&1 || true
   printf '{\n'
   printf '  "ok": %s,\n' "$(json_bool "$status")"
   printf '  "repoCommit": "%s",\n' "$(json_escape "$commit")"
@@ -76,6 +82,7 @@ main() {
   REPO_ROOT="$(repo_root)"
   export REPO_ROOT
   cd "$REPO_ROOT"
+  rm -f /tmp/white-bridge-hosted-startup-zkeys.json /tmp/white-bridge-hosted-startup-prereq.json /tmp/white-bridge-hosted-startup-status.json
 
   if [ "${BRIDGE_HOSTED_STARTUP_BOOTSTRAP:-false}" != "true" ]; then
     print_summary true "hosted_bootstrap_disabled"

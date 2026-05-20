@@ -815,6 +815,7 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [x] Hosted zkey bootstrap and operator prerequisite commands added to recreate persistent-disk zkey symlinks and verify safe hosted readiness after Render deploys (PR-012P).
 - [x] Hosted operator status summary command added to report latest bootstrap, note-state, preflight, recovery snapshot, leaf-index evidence, job-index, and result readiness in one non-secret JSON artifact (PR-012Q).
 - [x] Hosted relayer startup wrapper added to run zkey bootstrap automatically on Render and fail closed before relayer start when required hosted bootstrap checks fail (PR-012R).
+- [x] Hosted relayer readiness endpoint added to expose non-secret startup/bootstrap, zkey symlink, safe-mode, live-submit guard, operator prerequisite, watcher, and job-index readiness from the running service (PR-012S).
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.
