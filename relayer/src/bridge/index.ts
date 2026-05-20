@@ -50,6 +50,7 @@ export { BridgeStateStore };
 export * from './types';
 export * from './evm-adapter';
 export * from './solana-adapter';
+export * from './solana-source-adapter';
 export * from './base-to-solana-route';
 export * from './policy';
 export * from './watcher';

@@ -29,7 +29,10 @@ import {
   hashBridgeMessageV1,
   type BridgeMessageV1,
 } from '@thewhiteprotocol/core';
-import { BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE } from '../base-to-solana-route';
+import {
+  BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE,
+  SOLANA_DEVNET_TO_BASE_SEPOLIA_ROUTE,
+} from '../base-to-solana-route';
 
 const TEST_PRIVATE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000001';
@@ -93,9 +96,9 @@ function makeSolanaMessage(overrides: Partial<BridgeMessageV1> = {}): BridgeMess
     destinationDomain: 0x02000002,
     sourceChainId: 0,
     destinationChainId: 84532,
-    canonicalAssetId: hex('11'),
-    sourceLocalAssetId: hex('12'),
-    destinationLocalAssetId: hex('13'),
+    canonicalAssetId: '004a067d98373879008ada3415ad678dcd5354c0b29b52233a604774c94a82e0',
+    sourceLocalAssetId: '004a067d98373879008ada3415ad678dcd5354c0b29b52233a604774c94a82e0',
+    destinationLocalAssetId: '00fb58d8ea79c42a023685014b8281e7508bd5ca5f570f336f5852a291d54a70',
     amount: 1000n,
     sourceNullifierHash: hex('14'),
     destinationCommitment: hex('15'),
@@ -152,12 +155,7 @@ function baseToSolanaRoute(): BridgeRouteConfig {
 }
 
 function solanaRoute(): BridgeRouteConfig {
-  return {
-    source: 'solana-devnet',
-    destination: 'base-sepolia',
-    enabled: true,
-    signerSetVersion: 1,
-  };
+  return SOLANA_DEVNET_TO_BASE_SEPOLIA_ROUTE;
 }
 
 function signer(): BridgeSignerService {
@@ -399,6 +397,45 @@ describe('BridgeDaemon', () => {
   test('Solana bridge_out_v1_with_proof is accepted', async () => {
     const { daemon, stateStore } = makeDaemon({ routes: [solanaRoute()] });
     const message = makeSolanaMessage();
+    const sourceHash = hashBridgeMessageV1(message);
+    daemon.recordObservation({
+      event: makeEvent(message, {
+        sourceEventKind: 'solana_bridge_out_v1_with_proof',
+        sourceBoundProofMarker: 'bridge_out_v1_with_proof',
+        confirmations: 40,
+      }),
+      sourceChain: 'solana-devnet',
+      destinationChain: 'base-sepolia',
+    });
+
+    await daemon.tick();
+    const destinationMessage = buildDestinationBridgeMintMessageFromSourceBridgeOut({
+      sourceMessage: message,
+      destinationDomain: message.destinationDomain,
+      destinationChainId: message.destinationChainId,
+      destinationLocalAssetId: message.destinationLocalAssetId,
+      destinationCommitment: message.destinationCommitment,
+      sourceDecimals: 9,
+      destinationDecimals: 18,
+      normalizationMode: 'exact-decimal',
+    });
+    const destinationHash = hashBridgeMessageV1(destinationMessage);
+    const state = stateStore.get(destinationHash);
+    expect(state?.status).toBe(BridgeMessageStatus.PAPER_READY_TO_SUBMIT);
+    expect(state?.messageHash).toBe(destinationHash);
+    expect(state?.sourceMessageHash).toBe(sourceHash);
+    expect(state?.destinationMessageHash).toBe(destinationHash);
+    expect(state?.amount).toBe('1000000000000');
+    expect(state?.signatures).toHaveLength(1);
+    expect(state?.submissionPreview?.family).toBe('evm');
+    expect(state?.submissionPreview?.method).toBe('acceptBridgeMint');
+    expect(state?.submissionPreview?.messageHash).toBe(destinationHash);
+    expect((state?.submissionPreview?.evm as any).calldataPreview).toContain(destinationHash);
+  });
+
+  test('Solana to Base normalization overflow is rejected before signing', async () => {
+    const { daemon, stateStore } = makeDaemon({ routes: [solanaRoute()] });
+    const message = makeSolanaMessage({ amount: (2n ** 128n) - 1n });
     daemon.recordObservation({
       event: makeEvent(message, {
         sourceEventKind: 'solana_bridge_out_v1_with_proof',
@@ -411,8 +448,9 @@ describe('BridgeDaemon', () => {
 
     await daemon.tick();
     const state = stateStore.get(hashBridgeMessageV1(message));
-    expect(state?.status).toBe(BridgeMessageStatus.PAPER_READY_TO_SUBMIT);
-    expect(state?.signatures).toHaveLength(1);
+    expect(state?.status).toBe(BridgeMessageStatus.REJECTED);
+    expect(state?.lastError).toMatch(/amount|uint128|cap|overflow/i);
+    expect(state?.signatures).toHaveLength(0);
   });
 
   test('EVM bridgeOutV1 is accepted', async () => {

@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { EvmSourceAdapter } from './evm-adapter';
+import { SolanaSourceAdapter } from './solana-source-adapter';
 import {
   BridgeDaemon,
   loadBridgeDaemonConfigFromEnv,
@@ -17,7 +18,10 @@ import {
 import { BridgeStateStore } from './state';
 import { BridgeWatcherFindingStore } from './watcher-store';
 import { BridgeSignerService, createBridgeSignerAdapterFromEnv } from './signer';
-import { BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE } from './base-to-solana-route';
+import {
+  BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE,
+  SOLANA_DEVNET_TO_BASE_SEPOLIA_ROUTE,
+} from './base-to-solana-route';
 import {
   BridgeMessageStatus,
   type BridgeMessageState,
@@ -114,6 +118,9 @@ function defaultRoute(source: string, destination: string): BridgeRouteConfig | 
   if (source === 'base-sepolia' && destination === 'solana-devnet') {
     return BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE;
   }
+  if (source === 'solana-devnet' && destination === 'base-sepolia') {
+    return SOLANA_DEVNET_TO_BASE_SEPOLIA_ROUTE;
+  }
   return undefined;
 }
 
@@ -145,11 +152,21 @@ export function checkBridgeDaemonReplayEnv(
   else missing.push('BRIDGE_DAEMON_SCAN_FROM_BLOCK');
   if (env.BRIDGE_DAEMON_SCAN_TO_BLOCK) present.push('BRIDGE_DAEMON_SCAN_TO_BLOCK');
   else missing.push('BRIDGE_DAEMON_SCAN_TO_BLOCK');
-  if (hasAny(env, ['BASE_SEPOLIA_RPC_URL', 'BASE_RPC_URL'])) {
-    if (env.BASE_SEPOLIA_RPC_URL) present.push('BASE_SEPOLIA_RPC_URL');
-    if (env.BASE_RPC_URL) present.push('BASE_RPC_URL');
+  if (routeInfo.source === 'base-sepolia') {
+    if (hasAny(env, ['BASE_SEPOLIA_RPC_URL', 'BASE_RPC_URL'])) {
+      if (env.BASE_SEPOLIA_RPC_URL) present.push('BASE_SEPOLIA_RPC_URL');
+      if (env.BASE_RPC_URL) present.push('BASE_RPC_URL');
+    } else {
+      missing.push('BASE_SEPOLIA_RPC_URL or BASE_RPC_URL');
+    }
+  } else if (routeInfo.source === 'solana-devnet') {
+    if (env.BRIDGE_SOLANA_SOURCE_EVENTS_PATH) {
+      present.push('BRIDGE_SOLANA_SOURCE_EVENTS_PATH');
+    } else {
+      missing.push('BRIDGE_SOLANA_SOURCE_EVENTS_PATH');
+    }
   } else {
-    missing.push('BASE_SEPOLIA_RPC_URL or BASE_RPC_URL');
+    missing.push(`source adapter for ${routeInfo.source}`);
   }
   if (hasAny(env, ['BRIDGE_SIGNER_KEY_FILE', 'BRIDGE_SIGNER_PRIVATE_KEYS_TESTNET'])) {
     if (env.BRIDGE_SIGNER_KEY_FILE) present.push('BRIDGE_SIGNER_KEY_FILE');
@@ -358,7 +375,10 @@ export async function runBridgeDaemonPaperReplay(input: {
     input.expectedSourceMessageHash,
     input.expectedDestinationMessageHash
   );
-  if ((input.expectedSourceMessageHash || input.expectedDestinationMessageHash) && !message) {
+  const sourceOnlyMessage = !message && input.expectedSourceMessageHash
+    ? findMessage(messages, input.expectedSourceMessageHash, undefined)
+    : undefined;
+  if ((input.expectedSourceMessageHash || input.expectedDestinationMessageHash) && !message && !sourceOnlyMessage) {
     return {
       ok: false,
       status: 'blocked',
@@ -379,7 +399,7 @@ export async function runBridgeDaemonPaperReplay(input: {
     };
   }
 
-  const selected = message ?? messages[0];
+  const selected = message ?? sourceOnlyMessage ?? messages[0];
   const expiredDeadline = selected?.lastError?.includes('expired_deadline') ||
     selected?.policyDecision?.reasons?.some((reason) => reason.includes('expired_deadline')) ||
     false;
@@ -425,14 +445,24 @@ async function main(): Promise<void> {
   if (!route) throw new Error('Replay route is not configured');
   const fromBlock = BigInt(process.env.BRIDGE_DAEMON_SCAN_FROM_BLOCK!);
   const toBlock = BigInt(process.env.BRIDGE_DAEMON_SCAN_TO_BLOCK!);
-  const baseRpcUrl = process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL!;
-  const sourceAdapter = new EvmSourceAdapter({
-    rpcUrl: baseRpcUrl,
-    bridgeOutboxAddress: loadBaseBridgeOutbox(),
-    chainId: 84532,
-    fromBlock,
-    toBlock,
-  });
+  let sourceAdapter: BridgeSourceAdapter;
+  if (route.source === 'base-sepolia') {
+    const baseRpcUrl = process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_RPC_URL!;
+    sourceAdapter = new EvmSourceAdapter({
+      rpcUrl: baseRpcUrl,
+      bridgeOutboxAddress: loadBaseBridgeOutbox(),
+      chainId: 84532,
+      fromBlock,
+      toBlock,
+    });
+  } else if (route.source === 'solana-devnet') {
+    sourceAdapter = SolanaSourceAdapter.fromFile(process.env.BRIDGE_SOLANA_SOURCE_EVENTS_PATH!, {
+      fromBlock,
+      toBlock,
+    });
+  } else {
+    throw new Error(`Replay source adapter is not configured for ${route.source}`);
+  }
   const result = await runBridgeDaemonPaperReplay({
     config: {
       ...envConfig,

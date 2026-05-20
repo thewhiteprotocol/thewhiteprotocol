@@ -22,6 +22,10 @@
     "bridge:daemon:paper:status": "ts-node src/bridge/daemon-paper-status.ts",
     "bridge:daemon:solana:simulate": "ts-node src/bridge/daemon-solana-simulate.ts",
     "bridge:daemon:solana:submit-approved": "ts-node src/bridge/daemon-solana-submit-approved.ts",
+    "bridge:solana-to-base:approval": "ts-node src/bridge/solana-to-base-approval.ts",
+    "bridge:solana-to-base:fixture-from-tx": "ts-node src/bridge/solana-to-base-fixture-from-tx.ts",
+    "bridge:solana-to-base:resign-approval": "ts-node src/bridge/solana-to-base-resign-approval.ts",
+    "bridge:solana-to-base:submit-approved": "ts-node src/bridge/solana-to-base-submit-approved.ts",
     "bridge:operator:readiness": "ts-node src/bridge/operator-readiness-cli.ts",
     "typecheck": "tsc --noEmit"
   },

@@ -25,6 +25,8 @@ export const SOLANA_DEVNET_WSOL_ASSET_ID =
 
 export const BASE_TO_SOLANA_MAX_MESSAGE_AMOUNT = 10_000_000_000_000n;
 export const BASE_TO_SOLANA_DAILY_CAP = 100_000_000_000_000n;
+export const SOLANA_TO_BASE_MAX_MESSAGE_AMOUNT = 10_000_000_000_000_000n;
+export const SOLANA_TO_BASE_DAILY_CAP = 100_000_000_000_000_000n;
 
 export const SOLANA_DEVNET_PROGRAM_ID =
   'DAoezX29ingBicFfrqboD7xBeLro2b6RL77dhEbXivVD';
@@ -56,6 +58,16 @@ export const BASE_SEPOLIA_TO_SOLANA_DEVNET_WSOL_ASSET: BridgeRouteAssetConfig = 
   capAmountUnits: 'destination',
 };
 
+export const SOLANA_DEVNET_TO_BASE_SEPOLIA_WSOL_ASSET: BridgeRouteAssetConfig = {
+  canonicalAssetId: SOLANA_DEVNET_WSOL_ASSET_ID,
+  sourceDecimals: SOLANA_DEVNET_WSOL_DECIMALS,
+  destinationDecimals: BASE_SEPOLIA_ETH_DECIMALS,
+  normalizationMode: 'exact-decimal',
+  maxMessageAmount: SOLANA_TO_BASE_MAX_MESSAGE_AMOUNT,
+  dailyCap: SOLANA_TO_BASE_DAILY_CAP,
+  capAmountUnits: 'destination',
+};
+
 export const BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE: BridgeRouteConfig = {
   source: 'base-sepolia',
   destination: 'solana-devnet',
@@ -75,4 +87,13 @@ export const BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE: BridgeRouteConfig = {
     pendingBuffer: SOLANA_DEVNET_PENDING_BUFFER,
     assetVault: SOLANA_DEVNET_ASSET_VAULT,
   },
+};
+
+export const SOLANA_DEVNET_TO_BASE_SEPOLIA_ROUTE: BridgeRouteConfig = {
+  source: 'solana-devnet',
+  destination: 'base-sepolia',
+  enabled: true,
+  status: 'test-only',
+  signerSetVersion: 1,
+  assets: [SOLANA_DEVNET_TO_BASE_SEPOLIA_WSOL_ASSET],
 };

@@ -49,7 +49,10 @@ import {
   buildAcceptBridgeV1MintAccounts,
   buildAcceptBridgeV1MintAccountMetas,
 } from './solana-adapter';
-import { BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE } from './base-to-solana-route';
+import {
+  BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE,
+  SOLANA_DEVNET_TO_BASE_SEPOLIA_ROUTE,
+} from './base-to-solana-route';
 
 export type BridgeDaemonMode = 'disabled' | 'paper' | 'live-testnet';
 
@@ -271,6 +274,9 @@ function parseRoutes(raw: string | undefined, signerSetVersion: number): BridgeR
 function getDefaultDaemonRoute(source: string, destination: string): BridgeRouteConfig | undefined {
   if (source === 'base-sepolia' && destination === 'solana-devnet') {
     return BASE_SEPOLIA_TO_SOLANA_DEVNET_ROUTE;
+  }
+  if (source === 'solana-devnet' && destination === 'base-sepolia') {
+    return SOLANA_DEVNET_TO_BASE_SEPOLIA_ROUTE;
   }
   return undefined;
 }

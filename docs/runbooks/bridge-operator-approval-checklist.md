@@ -182,6 +182,46 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Manual leaf-index evidence is accepted only with explicit operator review and must still match the destination hash and commitment.
     - A blocked dry-run is acceptable only when it blocks with an exact, non-secret reason and the operator records that no transaction was submitted.
 
+21. Solana -> Base guarded approval readiness
+    - The operator runs `cd relayer && npm run bridge:solana-to-base:approval` against the exact paper daemon state path.
+    - The approval command is run with `BRIDGE_DAEMON_MODE=paper` and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
+    - The expected destination hash is the Base BridgeMint hash, not the Solana source BridgeOut hash.
+    - The source hash is preserved separately as source evidence.
+    - Base BridgeInbox read-only checks confirm contract existence, route enabled, asset support, cap sufficiency, message not consumed, and message not frozen.
+    - `acceptBridgeMint` simulation must pass before any live destination submit window is considered.
+    - A simulation revert such as `InvalidSigner`, `InvalidSignature`, `ThresholdNotMet`, `DeadlineExpired`, or `MessageAlreadyConsumed` is a stop condition.
+    - PR-013B exact message status: destination hash `0xddcc4a5c4c4522ae983186dc8eb10f9e3ad4d2ba36f3ca31ef386d0528a62c83` passed Base read-only checks but simulation reverted with `InvalidSigner`; it is not approved for submit.
+    - PR-013C re-signed the same destination hash with deployed Base signer-set keys; recovered signers `0x9A34F10F5b9AD7770C30A3B41d95C4Dcb0B88820` and `0xbd7d34e42352BCe888394263A84CF21c85608beC` match signer set version `1`, threshold `2`, and simulation passed.
+    - Even after PR-013C, live destination submit still requires a separate explicit approval window and an immediate pre-submit rerun of this checklist.
+
+22. Solana -> Base guarded one-shot submit
+    - The operator runs `cd relayer && npm run bridge:solana-to-base:submit-approved` only for the exact approved destination BridgeMint hash.
+    - The command must be scoped to `BRIDGE_DAEMON_ROUTES=solana-devnet:base-sepolia:1`.
+    - The command must include `BRIDGE_APPROVED_MESSAGE_HASHES=solana-devnet->base-sepolia|<destinationBridgeMintHash>`.
+    - The command must include both `BRIDGE_SUBMIT_SOURCE_MESSAGE_HASH` and `BRIDGE_SUBMIT_DESTINATION_MESSAGE_HASH`; the destination hash is the signed and submitted hash.
+    - The command must load the approval-ready paper state, rerun signer-set checks, rerun Base read-only checks, rerun simulation, and then submit at most one Base destination transaction.
+    - PR-013D exact message status: the guarded command was added and attempted, but it blocked before any send because `/tmp/pr013a-solana-to-base-paper-state` was unavailable. No Base destination transaction was submitted.
+
+23. Solana -> Base durable approval state
+    - Do not use `/tmp` for approval state that may feed a live submit.
+    - The PR-013A fixture must be restored or reconstructed into `/data/bridge-results/solana-to-base-source-fixture-0x060b4eebabf5903359ce67a06587038e70857bca9533b7c33ff521777a9a64e2.json`.
+    - The paper replay state must be written to `/data/bridge-results/solana-to-base-paper-state`.
+    - If the fixture is missing, reconstruct it from the finalized Solana source transaction with `cd relayer && npm run bridge:solana-to-base:fixture-from-tx`.
+    - Rerun paper replay with explicit source slot `463688066`, expected source hash `0x060b4eebabf5903359ce67a06587038e70857bca9533b7c33ff521777a9a64e2`, and expected destination hash `0xddcc4a5c4c4522ae983186dc8eb10f9e3ad4d2ba36f3ca31ef386d0528a62c83`.
+    - Rerun approval and simulation from the durable paper state before any guarded submit.
+    - PR-013E local status: blocked before submit because `/data` was not mounted and neither durable nor old `/tmp` source fixture existed in this workspace.
+    - PR-013F status: fixture reconstruction from the finalized source tx succeeds, but the original PR-013A message now replays as `expired_deadline`; do not submit it.
+
+24. Solana -> Base fresh durable source event
+    - A fresh event must be explicitly approved before running the source-only command.
+    - The command must run with `PR012Z_SOURCE_ONLY=true`, `BRIDGE_DAEMON_MODE=paper`, and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
+    - The command must write directly to `/data/bridge-results` by setting `BRIDGE_SOLANA_SOURCE_FIXTURE_DIR=/data/bridge-results`.
+    - The generated fixture path must be `/data/bridge-results/solana-to-base-source-fixture-<sourceMessageHash>.json`.
+    - The source instruction must be `bridge_out_v1_with_proof`; `init_bridge_v1_out` is a stop condition.
+    - Replay the fixture into `/data/bridge-results/solana-to-base-paper-state`.
+    - Rerun approval and simulation from durable state before any submit window.
+    - PR-013G local status: fresh event generation is pending Render execution because `/data` and hosted RPC/signer/wallet env were absent locally.
+
 ## Stop Conditions
 
 Do not approve live submission if any of these are true:
@@ -197,11 +237,18 @@ Do not approve live submission if any of these are true:
 - Approval uses only the source BridgeOut hash.
 - Consumed message, frozen message, or commitment-index idempotency checks fail.
 - Simulation fails or returns unsafe/unknown status.
+- Solana -> Base approval simulation reverts with `InvalidSigner`, `InvalidSignature`, `ThresholdNotMet`, `InvalidSignerSetVersion`, or any undecoded error.
 - Hosted simulation env/state is missing.
 - Hosted daemon message list is empty or missing the approved message hash.
 - Hosted replay cannot write to the same persistent daemon state path.
 - Hosted bounded replay was not run with `BRIDGE_DAEMON_MODE=paper` and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
 - Hosted bounded replay was run without explicit expected source and destination message hashes for the approved message.
+- Guarded one-shot submit cannot load the exact approval-ready paper state.
+- Guarded one-shot submit is not scoped to exactly `solana-devnet:base-sepolia:1`.
+- Guarded one-shot submit is missing the route-scoped approved destination BridgeMint hash.
+- Solana -> Base approval state is stored only in `/tmp` or cannot be restored into `/data/bridge-results`.
+- Solana -> Base replay reports `expired_deadline` for the source message.
+- Fresh Solana -> Base source fixture was not written to `/data/bridge-results`.
 - Fresh low-value source-event generation was not explicitly approved by the operator.
 - Source wallet funding is insufficient for the fresh event and gas; request funds before retrying.
 - Source event, policy, finality, watcher, signer, or route evidence is missing.
