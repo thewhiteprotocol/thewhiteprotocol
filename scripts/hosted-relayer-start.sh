@@ -90,17 +90,17 @@ main() {
   fi
 
   if [ "${BRIDGE_HOSTED_REQUIRE_ZKEYS:-true}" = "true" ]; then
-    if ! run_cmd zkeys bash -c 'cd "$REPO_ROOT/chains/solana" && npm run bridge:bootstrap:zkeys'; then
+    if ! run_cmd zkeys bash -c 'cd "$REPO_ROOT/chains/solana" && npm --silent run bridge:bootstrap:zkeys'; then
       fail_or_safe_start "zkey_bootstrap_failed"
     fi
   fi
 
   if [ "${BRIDGE_HOSTED_REQUIRE_OPERATOR_PREREQ:-false}" = "true" ]; then
-    if ! run_cmd prereq bash -c 'cd "$REPO_ROOT/chains/solana" && npm run bridge:operator:prereq'; then
+    if ! run_cmd prereq bash -c 'cd "$REPO_ROOT/chains/solana" && npm --silent run bridge:operator:prereq'; then
       fail_or_safe_start "operator_prereq_failed"
     fi
   elif [ -n "${PR012B_DESTINATION_MESSAGE_HASH:-${BRIDGE_DESTINATION_MESSAGE_HASH:-}}" ]; then
-    run_cmd status bash -c 'cd "$REPO_ROOT/chains/solana" && npm run bridge:operator:status' || true
+    run_cmd status bash -c 'cd "$REPO_ROOT/chains/solana" && npm --silent run bridge:operator:status' || true
   fi
 
   print_summary true "startup_checks_passed"

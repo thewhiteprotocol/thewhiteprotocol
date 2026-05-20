@@ -29,21 +29,21 @@ SH
 #!/usr/bin/env bash
 cmd="$*"
 case "$cmd" in
-  "run bridge:bootstrap:zkeys")
+  "run bridge:bootstrap:zkeys"|"--silent run bridge:bootstrap:zkeys")
     if [ "${BOOTSTRAP_FAIL:-false}" = "true" ]; then
       echo '{"ok":false,"secretsPrinted":false}'
       exit 1
     fi
     echo '{"ok":true,"secretsPrinted":false}'
     ;;
-  "run bridge:operator:prereq")
+  "run bridge:operator:prereq"|"--silent run bridge:operator:prereq")
     if [ "${PREREQ_FAIL:-false}" = "true" ]; then
       echo '{"ok":false,"secretsPrinted":false}'
       exit 1
     fi
     echo '{"ok":true,"secretsPrinted":false}'
     ;;
-  "run bridge:operator:status")
+  "run bridge:operator:status"|"--silent run bridge:operator:status")
     echo '{"ok":true,"secretsPrinted":false}'
     ;;
   "run relayer:start")
