@@ -317,6 +317,8 @@ proofsGenerated=false
 secretsPrinted=false
 ```
 
+If the endpoint reports `startupStatusPresent=false` or `readiness=unknown_startup_status`, the service is running the readiness endpoint but has not produced wrapper startup evidence. Confirm the Render start command is `bash scripts/hosted-relayer-start.sh`, redeploy, then rerun `/health`, `/bridge/status`, `/bridge/daemon/status`, and `/bridge/operator/readiness`.
+
 For resume execution, add `BRIDGE_SETTLE_WITHDRAW_RESUME=true` only after the fresh recovery snapshot recommends `resume_settlement`, `resume_withdraw`, or `settle_fifo_prefix`.
 
 The wrapper enforces recovery snapshot recommendations:
