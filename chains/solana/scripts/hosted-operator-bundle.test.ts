@@ -75,6 +75,9 @@ function makeExecutor(dir: string, order: string[], options: MockOptions = {}) {
         reportPath: preflightPath,
         destinationBridgeMintHash: DESTINATION_HASH,
         sourceBridgeOutHash: SOURCE_HASH,
+        wallet: {
+          present: ["SOLANA_DEVNET_RPC_URL", "SOLANA_POOL_AUTHORITY_KEYPAIR"],
+        },
         noteState: options.includeSecretFields ? { destSecret: "super-secret", destNullifier: "super-nullifier" } : undefined,
         transactionsSubmitted: false,
         proofsGenerated: false,

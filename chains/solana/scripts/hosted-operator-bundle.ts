@@ -158,6 +158,10 @@ function parseJsonObject(stdout: string): Record<string, unknown> | null {
 }
 
 function redactParsed(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (/https?:\/\//i.test(value)) return "[redacted-url]";
+    return value;
+  }
   if (Array.isArray(value)) return value.map(redactParsed);
   if (!value || typeof value !== "object") return value;
   const redacted: Record<string, unknown> = {};
@@ -353,8 +357,8 @@ function assertNoSecretFields(report: HostedOperatorBundle): void {
     "seedPhrase",
     "witness",
     "operatorToken",
-    "RPC_URL",
-    "SOLANA_POOL_AUTHORITY_KEYPAIR",
+    "http://",
+    "https://",
   ]) {
     if (rendered.includes(sentinel)) throw new Error(`operator_bundle_contains_sensitive_field:${sentinel}`);
   }
