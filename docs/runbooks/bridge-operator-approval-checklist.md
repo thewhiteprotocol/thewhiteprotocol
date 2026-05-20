@@ -212,6 +212,9 @@ Do not approve live submission if any of these are true:
 - `BRIDGE_NOTE_STATE_BACKUP_DIR` is unset, inside git, under `/tmp`, unreadable, or unwritable.
 - `npm run bridge:note-state:readback-check` has not passed after a fresh shell/container change.
 - Hosted settlement/withdraw is attempted before the required zkey files are present and checksum-verified on durable storage.
+- `npm run bridge:bootstrap:zkeys` has not passed after the latest Render deploy.
+- `npm run bridge:operator:prereq` has not passed for the current hosted shell and destination hash.
+- Hosted zkeys, note-state, preflight reports, recovery snapshots, leaf-index evidence, or job-index state are under `/tmp`.
 - Hosted settlement/withdraw is attempted before a non-secret preflight report is exported for the exact destination BridgeMint hash.
 - Hosted settlement/withdraw is attempted directly without a successful `bridge:job:settle-withdraw` dry-run for the exact destination BridgeMint hash.
 - `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true` is set before the operator has reviewed the fresh preflight report.

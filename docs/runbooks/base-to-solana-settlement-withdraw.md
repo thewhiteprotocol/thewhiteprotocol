@@ -237,10 +237,21 @@ If the expected spent-nullifier PDA exists, the snapshot reports `already_withdr
 
 For every hosted settle/withdraw execution window, use this order:
 
-1. `npm run bridge:preflight:settle-withdraw`
-2. `npm run bridge:recovery:snapshot`
-3. `npm run bridge:job:settle-withdraw` without execute flags
-4. `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true npm run bridge:job:settle-withdraw`
+1. `npm run bridge:bootstrap:zkeys`
+2. `npm run bridge:operator:prereq`
+3. `npm run bridge:preflight:settle-withdraw`
+4. `npm run bridge:recovery:snapshot`
+5. `npm run bridge:job:settle-withdraw` without execute flags
+6. `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true npm run bridge:job:settle-withdraw`
+
+The bootstrap command recreates Render's ephemeral repo zkey symlinks from durable copies under `/data/circuit-artifacts` and verifies:
+
+```text
+merkle_batch_update.zkey = 107f6455153a9ca622ede842655f5e7b55aa0824b3d59c8ed050937b6966aac9
+withdraw.zkey            = cc38b845b76e2cc66a0f027540c96669b162531f64bd51a675c18f62647e71d0
+```
+
+The prerequisite command checks safe mode, zkeys, durable note-state, bridge results, leaf-index evidence, fresh preflight, fresh recovery snapshot, and wallet authority before operators proceed. Hosted readiness rejects `/tmp` for durable zkeys, note-state, reports, and evidence.
 
 For resume execution, add `BRIDGE_SETTLE_WITHDRAW_RESUME=true` only after the fresh recovery snapshot recommends `resume_settlement`, `resume_withdraw`, or `settle_fifo_prefix`.
 
