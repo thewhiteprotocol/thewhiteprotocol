@@ -212,6 +212,9 @@ Do not approve live submission if any of these are true:
 - `BRIDGE_NOTE_STATE_BACKUP_DIR` is unset, inside git, under `/tmp`, unreadable, or unwritable.
 - `npm run bridge:note-state:readback-check` has not passed after a fresh shell/container change.
 - Hosted settlement/withdraw is attempted before the required zkey files are present and checksum-verified on durable storage.
+- Render hosted startup is not using `bash scripts/hosted-relayer-start.sh` or an equivalent command that runs zkey bootstrap before relayer start.
+- `BRIDGE_HOSTED_STARTUP_BOOTSTRAP=true` and `BRIDGE_HOSTED_REQUIRE_ZKEYS=true` are not set for the hosted service that owns `/data`.
+- Hosted startup reports `zkey_bootstrap_failed`, `operator_prereq_failed`, or `live_submit_startup_guard`.
 - `npm run bridge:bootstrap:zkeys` has not passed after the latest Render deploy.
 - `npm run bridge:operator:prereq` has not passed for the current hosted shell and destination hash.
 - `npm run bridge:operator:status` does not report an expected readiness and recommended action for the exact destination hash.

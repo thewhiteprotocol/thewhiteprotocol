@@ -20,6 +20,8 @@
     "ci:solana": "cd chains/solana && npm run ci:solana",
     "ci:localnet": "cd chains/solana && npm run ci:localnet",
     "relayer:start": "cd relayer && npm start",
+    "relayer:start:hosted": "bash scripts/hosted-relayer-start.sh",
+    "test:hosted-start": "bash scripts/hosted-relayer-start.test.sh",
     "dev:site": "cd frontend && npm run dev",
     "dev:app": "cd app && npm run dev",
     "dev:relayer": "cd relayer && npm start",

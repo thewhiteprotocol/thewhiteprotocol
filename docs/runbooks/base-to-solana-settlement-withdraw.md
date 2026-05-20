@@ -237,7 +237,9 @@ If the expected spent-nullifier PDA exists, the snapshot reports `already_withdr
 
 For every hosted settle/withdraw execution window, use this order:
 
-1. `npm run bridge:bootstrap:zkeys`
+Startup: Render service startup runs `bash scripts/hosted-relayer-start.sh` with `BRIDGE_HOSTED_STARTUP_BOOTSTRAP=true` to recreate zkey symlinks automatically.
+
+1. `npm run bridge:bootstrap:zkeys` if running in an ad hoc shell or after changing persistent zkey files.
 2. `npm run bridge:operator:prereq`
 3. `npm run bridge:operator:status`
 4. `npm run bridge:preflight:settle-withdraw`
@@ -263,6 +265,28 @@ The status command summarizes the latest persistent bootstrap, note-state, prefl
 ```
 
 Use `final.readiness` and `final.recommendedAction` as the operator dashboard for the current target.
+
+## Hosted Startup Wrapper
+
+Render starts the relayer through:
+
+```bash
+bash scripts/hosted-relayer-start.sh
+```
+
+The wrapper is controlled by:
+
+```text
+BRIDGE_HOSTED_STARTUP_BOOTSTRAP=true
+BRIDGE_HOSTED_REQUIRE_ZKEYS=true
+BRIDGE_HOSTED_REQUIRE_OPERATOR_PREREQ=false
+BRIDGE_HOSTED_FAIL_CLOSED=true
+BRIDGE_CIRCUIT_ARTIFACT_DIR=/data/circuit-artifacts
+BRIDGE_RESULTS_DIR=/data/bridge-results
+BRIDGE_NOTE_STATE_BACKUP_DIR=/data/white-bridge-note-state
+```
+
+When hosted bootstrap is enabled, zkey bootstrap must pass before the relayer starts. If it fails and live submit is enabled, startup exits nonzero. If `BRIDGE_HOSTED_FAIL_CLOSED=false`, the wrapper starts only after forcing daemon-disabled, live-submit-disabled mode.
 
 For resume execution, add `BRIDGE_SETTLE_WITHDRAW_RESUME=true` only after the fresh recovery snapshot recommends `resume_settlement`, `resume_withdraw`, or `settle_fifo_prefix`.
 

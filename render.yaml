@@ -7,7 +7,7 @@ services:
     runtime: node
     plan: starter
     buildCommand: npm install --include=dev && npm run build:core && npm run build:relayer
-    startCommand: npm run relayer:start
+    startCommand: bash scripts/hosted-relayer-start.sh
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -16,6 +16,24 @@ services:
         value: "3000"
       - key: STATE_DIR
         value: /app/data
+      # Hosted startup bootstrap:
+      # - repairs repo-local zkey symlinks from the persistent disk before
+      #   starting the relayer
+      # - fails closed if required hosted bootstrap checks fail
+      - key: BRIDGE_HOSTED_STARTUP_BOOTSTRAP
+        value: "true"
+      - key: BRIDGE_HOSTED_REQUIRE_ZKEYS
+        value: "true"
+      - key: BRIDGE_HOSTED_REQUIRE_OPERATOR_PREREQ
+        value: "false"
+      - key: BRIDGE_HOSTED_FAIL_CLOSED
+        value: "true"
+      - key: BRIDGE_CIRCUIT_ARTIFACT_DIR
+        value: /data/circuit-artifacts
+      - key: BRIDGE_RESULTS_DIR
+        value: /data/bridge-results
+      - key: BRIDGE_NOTE_STATE_BACKUP_DIR
+        value: /data/white-bridge-note-state
       # Solana Devnet
       - key: RPC_ENDPOINT
         value: https://api.devnet.solana.com
