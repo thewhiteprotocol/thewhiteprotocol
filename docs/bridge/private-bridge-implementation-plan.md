@@ -819,6 +819,7 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [x] Render readiness endpoint verification confirmed commit `7f2e46b`, startup wrapper evidence, zkey bootstrap/symlink success, safe paper mode, live submit disabled, and no secret exposure; manual second relayer start failed only because port 3000 was already occupied (PR-012T).
 - [x] Hosted operator status, preflight, recovery snapshot, and dry-run job wrapper were run on Render; stale status refreshed to ready preflight, recovery reported already withdrawn, and the dry-run job reached `dry_run_ready` without execution (PR-012U).
 - [x] Hosted operator bundle command added to run status -> preflight -> recovery snapshot -> status -> dry-run job, force dry-run mode, export a non-secret bundle report, and map already-withdrawn targets to `no_action_already_complete` (PR-012V).
+- [x] Base Sepolia -> Solana Devnet hosted operator flow finalized with durable zkeys, durable note-state, hosted startup/bootstrap checks, operator bundle workflow, and final no-op evidence for destination `0xb8d97bd0a32097b26e6f1b6d0f555d9a5c3c7ae762180c027bf10f3507de8049`; the target is already withdrawn and requires no further action (PR-012W).
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.
