@@ -1,5 +1,5 @@
 {
-  "address": "C9GAJTFVgijNzB4SWZeNKmzruzjzrZ4H6J1DpKha9GoW",
+  "address": "DAoezX29ingBicFfrqboD7xBeLro2b6RL77dhEbXivVD",
   "metadata": {
     "name": "white_protocol",
     "version": "2.0.0",
@@ -36,6 +36,228 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "accept_bridge_v1_mint",
+      "docs": [
+        "Accept a bridge mint on the destination chain with threshold signatures."
+      ],
+      "discriminator": [
+        79,
+        132,
+        1,
+        28,
+        163,
+        249,
+        164,
+        51
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "bridge_v1_config",
+          "writable": true
+        },
+        {
+          "name": "signer_set",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  115,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  95,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "signer_set_version"
+              }
+            ]
+          }
+        },
+        {
+          "name": "consumed_message",
+          "writable": true
+        },
+        {
+          "name": "route_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  111,
+                  117,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "message.source_domain"
+              },
+              {
+                "kind": "arg",
+                "path": "message.destination_domain"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "writable": true
+        },
+        {
+          "name": "frozen_message"
+        },
+        {
+          "name": "pool_config",
+          "writable": true
+        },
+        {
+          "name": "merkle_tree",
+          "writable": true
+        },
+        {
+          "name": "pending_buffer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "message.destination_local_asset_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "commitment_index",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  109,
+                  105,
+                  116,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "message.destination_commitment"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "message",
+          "type": {
+            "defined": {
+              "name": "BridgeMessageV1"
+            }
+          }
+        },
+        {
+          "name": "signatures",
+          "type": {
+            "vec": {
+              "array": [
+                "u8",
+                65
+              ]
+            }
+          }
+        },
+        {
+          "name": "signer_set_version",
+          "type": "u32"
+        }
+      ]
     },
     {
       "name": "add_yield_mint",
@@ -248,6 +470,473 @@
         {
           "name": "max_to_process",
           "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "bridge_mint",
+      "docs": [
+        "Bridge mint: creates a commitment for inbound bridged funds."
+      ],
+      "discriminator": [
+        71,
+        115,
+        241,
+        7,
+        103,
+        250,
+        26,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "bridge_authority",
+          "docs": [
+            "Bridge authority — must be the configured bridge authority"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "bridge_config",
+          "docs": [
+            "Bridge configuration"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool configuration"
+          ],
+          "writable": true
+        },
+        {
+          "name": "merkle_tree",
+          "docs": [
+            "Merkle tree for commitments"
+          ],
+          "writable": true,
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "pending_buffer",
+          "docs": [
+            "Pending deposits buffer"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_vault",
+          "docs": [
+            "Asset vault"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "asset_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_token_account",
+          "docs": [
+            "Pool vault token account (receives tokens)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "bridge_token_account",
+          "docs": [
+            "Bridge token account (source of tokens)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "Mint for this asset"
+          ]
+        },
+        {
+          "name": "commitment_index",
+          "docs": [
+            "Commitment index (prevents duplicates)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  109,
+                  109,
+                  105,
+                  116,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "commitment"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "docs": [
+            "Token program"
+          ],
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "commitment",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "asset_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "bridge_withdraw",
+      "docs": [
+        "Bridge withdraw: burns/nullifies a commitment for outbound bridging."
+      ],
+      "discriminator": [
+        250,
+        99,
+        215,
+        166,
+        81,
+        93,
+        185,
+        229
+      ],
+      "accounts": [
+        {
+          "name": "bridge_authority",
+          "docs": [
+            "Bridge authority — must be the configured bridge authority"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "bridge_config",
+          "docs": [
+            "Bridge configuration"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool configuration"
+          ],
+          "writable": true
+        },
+        {
+          "name": "merkle_tree",
+          "docs": [
+            "Merkle tree account"
+          ],
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "vk_account",
+          "docs": [
+            "Verification key for withdraw proofs"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  107,
+                  95,
+                  119,
+                  105,
+                  116,
+                  104,
+                  100,
+                  114,
+                  97,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_vault",
+          "docs": [
+            "Asset vault account"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "asset_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_token_account",
+          "docs": [
+            "Vault's token account (source)"
+          ],
+          "writable": true
+        },
+        {
+          "name": "recipient_token_account",
+          "docs": [
+            "Recipient's token account (destination) — typically the bridge vault"
+          ],
+          "writable": true
+        },
+        {
+          "name": "spent_nullifier",
+          "docs": [
+            "Spent nullifier account (PDA, created on first use)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  117,
+                  108,
+                  108,
+                  105,
+                  102,
+                  105,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              },
+              {
+                "kind": "arg",
+                "path": "nullifier_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "docs": [
+            "Token program"
+          ],
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "proof_data",
+          "type": "bytes"
+        },
+        {
+          "name": "merkle_root",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "nullifier_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "type": "pubkey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "asset_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "public_data_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
         }
       ]
     },
@@ -910,6 +1599,217 @@
       ]
     },
     {
+      "name": "freeze_bridge_v1_message",
+      "docs": [
+        "Freeze or unfreeze a specific bridge message."
+      ],
+      "discriminator": [
+        207,
+        157,
+        166,
+        176,
+        34,
+        33,
+        153,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "bridge_v1_config"
+        },
+        {
+          "name": "frozen_message",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  102,
+                  114,
+                  111,
+                  122,
+                  101,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "message_hash"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "message_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "frozen",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "init_bridge_v1_config",
+      "docs": [
+        "Initialize global bridge v1 configuration."
+      ],
+      "discriminator": [
+        142,
+        223,
+        166,
+        200,
+        250,
+        85,
+        102,
+        148
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "bridge_v1_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  118,
+                  49,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "domain_id",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "init_bridge_v1_out",
+      "docs": [
+        "Initialize a bridge out message on the source chain."
+      ],
+      "discriminator": [
+        204,
+        228,
+        49,
+        25,
+        231,
+        179,
+        211,
+        177
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "bridge_v1_config",
+          "writable": true
+        },
+        {
+          "name": "route_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  111,
+                  117,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "message.source_domain"
+              },
+              {
+                "kind": "arg",
+                "path": "message.destination_domain"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset_config",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "message",
+          "type": {
+            "defined": {
+              "name": "BridgeMessageV1"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "init_yield_registry",
       "docs": [
         "Initialize Yield Registry"
@@ -984,6 +1884,88 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "initialize_bridge_config",
+      "docs": [
+        "Initialize bridge configuration for a pool."
+      ],
+      "discriminator": [
+        255,
+        120,
+        94,
+        187,
+        104,
+        236,
+        19,
+        13
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Pool authority (must sign)"
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "pool_config"
+          ]
+        },
+        {
+          "name": "pool_config",
+          "docs": [
+            "Pool configuration"
+          ],
+          "writable": true
+        },
+        {
+          "name": "bridge_config",
+          "docs": [
+            "Bridge config account (PDA, created here)"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program"
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "bridge_authority",
+          "type": "pubkey"
+        }
+      ]
     },
     {
       "name": "initialize_pending_deposits_buffer",
@@ -1827,6 +2809,299 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "set_bridge_v1_asset",
+      "docs": [
+        "Configure a bridge asset."
+      ],
+      "discriminator": [
+        83,
+        132,
+        149,
+        35,
+        32,
+        221,
+        84,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "bridge_v1_config"
+        },
+        {
+          "name": "asset_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "canonical_asset_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "canonical_asset_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "supported",
+          "type": "bool"
+        },
+        {
+          "name": "max_message_amount",
+          "type": "u128"
+        },
+        {
+          "name": "daily_cap",
+          "type": "u128"
+        }
+      ]
+    },
+    {
+      "name": "set_bridge_v1_global_pause",
+      "docs": [
+        "Set global pause state for bridge v1."
+      ],
+      "discriminator": [
+        113,
+        227,
+        3,
+        71,
+        174,
+        209,
+        143,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "bridge_v1_config",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_bridge_v1_route",
+      "docs": [
+        "Configure a bridge route."
+      ],
+      "discriminator": [
+        158,
+        229,
+        206,
+        168,
+        70,
+        133,
+        114,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "bridge_v1_config"
+        },
+        {
+          "name": "route_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  114,
+                  111,
+                  117,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "source_domain"
+              },
+              {
+                "kind": "arg",
+                "path": "destination_domain"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "source_domain",
+          "type": "u32"
+        },
+        {
+          "name": "destination_domain",
+          "type": "u32"
+        },
+        {
+          "name": "enabled",
+          "type": "bool"
+        },
+        {
+          "name": "paused",
+          "type": "bool"
+        },
+        {
+          "name": "max_message_amount",
+          "type": "u128"
+        },
+        {
+          "name": "daily_inflow_cap",
+          "type": "u128"
+        },
+        {
+          "name": "daily_outflow_cap",
+          "type": "u128"
+        }
+      ]
+    },
+    {
+      "name": "set_bridge_v1_signer_set",
+      "docs": [
+        "Set or update a signer set for threshold attestation."
+      ],
+      "discriminator": [
+        1,
+        148,
+        233,
+        176,
+        58,
+        134,
+        54,
+        139
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "bridge_v1_config",
+          "writable": true
+        },
+        {
+          "name": "signer_set",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  114,
+                  105,
+                  100,
+                  103,
+                  101,
+                  95,
+                  115,
+                  105,
+                  103,
+                  110,
+                  101,
+                  114,
+                  95,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "version"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "threshold",
+          "type": "u8"
+        },
+        {
+          "name": "signers",
+          "type": {
+            "vec": {
+              "array": [
+                "u8",
+                20
+              ]
+            }
+          }
+        }
+      ]
     },
     {
       "name": "set_verification_key_v2",
@@ -3266,6 +4541,71 @@
       ]
     },
     {
+      "name": "BridgeAssetConfig",
+      "discriminator": [
+        144,
+        187,
+        46,
+        123,
+        212,
+        251,
+        216,
+        163
+      ]
+    },
+    {
+      "name": "BridgeConfig",
+      "discriminator": [
+        40,
+        206,
+        51,
+        233,
+        246,
+        40,
+        178,
+        85
+      ]
+    },
+    {
+      "name": "BridgeRouteConfig",
+      "discriminator": [
+        122,
+        214,
+        62,
+        167,
+        110,
+        119,
+        223,
+        49
+      ]
+    },
+    {
+      "name": "BridgeSignerSet",
+      "discriminator": [
+        91,
+        197,
+        60,
+        248,
+        142,
+        187,
+        15,
+        239
+      ]
+    },
+    {
+      "name": "BridgeV1Config",
+      "discriminator": [
+        140,
+        184,
+        178,
+        172,
+        172,
+        41,
+        244,
+        196
+      ]
+    },
+    {
       "name": "CommitmentIndex",
       "discriminator": [
         48,
@@ -3289,6 +4629,32 @@
         41,
         75,
         251
+      ]
+    },
+    {
+      "name": "ConsumedBridgeMessage",
+      "discriminator": [
+        239,
+        232,
+        187,
+        177,
+        16,
+        58,
+        201,
+        83
+      ]
+    },
+    {
+      "name": "FrozenBridgeMessage",
+      "discriminator": [
+        255,
+        154,
+        129,
+        179,
+        103,
+        21,
+        234,
+        164
       ]
     },
     {
@@ -3502,6 +4868,110 @@
       ]
     },
     {
+      "name": "BridgeAssetConfigured",
+      "discriminator": [
+        31,
+        119,
+        90,
+        43,
+        165,
+        55,
+        102,
+        193
+      ]
+    },
+    {
+      "name": "BridgeGlobalPauseSet",
+      "discriminator": [
+        137,
+        166,
+        59,
+        50,
+        179,
+        143,
+        191,
+        66
+      ]
+    },
+    {
+      "name": "BridgeMessageFrozen",
+      "discriminator": [
+        152,
+        100,
+        206,
+        126,
+        159,
+        203,
+        249,
+        127
+      ]
+    },
+    {
+      "name": "BridgeMintAccepted",
+      "discriminator": [
+        177,
+        87,
+        50,
+        8,
+        225,
+        218,
+        83,
+        239
+      ]
+    },
+    {
+      "name": "BridgeOutInitiated",
+      "discriminator": [
+        189,
+        61,
+        71,
+        105,
+        49,
+        84,
+        57,
+        129
+      ]
+    },
+    {
+      "name": "BridgeRouteConfigured",
+      "discriminator": [
+        121,
+        114,
+        235,
+        162,
+        126,
+        80,
+        204,
+        15
+      ]
+    },
+    {
+      "name": "BridgeSignerSetUpdated",
+      "discriminator": [
+        137,
+        64,
+        43,
+        155,
+        38,
+        23,
+        142,
+        48
+      ]
+    },
+    {
+      "name": "BridgeV1ConfigInitialized",
+      "discriminator": [
+        28,
+        77,
+        215,
+        137,
+        189,
+        132,
+        19,
+        159
+      ]
+    },
+    {
       "name": "CommitmentInsertedEvent",
       "discriminator": [
         179,
@@ -3538,6 +5008,19 @@
         86,
         32,
         98
+      ]
+    },
+    {
+      "name": "DepositQueuedEvent",
+      "discriminator": [
+        121,
+        154,
+        126,
+        64,
+        37,
+        119,
+        212,
+        64
       ]
     },
     {
@@ -3869,358 +5352,478 @@
     },
     {
       "code": 6026,
+      "name": "InvalidAddress",
+      "msg": "Invalid address: cannot be default / zero pubkey"
+    },
+    {
+      "code": 6027,
       "name": "InvalidAmount",
       "msg": "Invalid amount: must be greater than zero"
     },
     {
-      "code": 6027,
+      "code": 6028,
       "name": "InsufficientBalance",
       "msg": "Insufficient vault balance"
     },
     {
-      "code": 6028,
+      "code": 6029,
       "name": "RelayerFeeExceedsAmount",
       "msg": "Relayer fee exceeds withdrawal amount"
     },
     {
-      "code": 6029,
+      "code": 6030,
       "name": "BelowMinimumDeposit",
       "msg": "Amount below minimum deposit"
     },
     {
-      "code": 6030,
+      "code": 6031,
       "name": "ExceedsMaximumDeposit",
       "msg": "Amount exceeds maximum deposit"
     },
     {
-      "code": 6031,
+      "code": 6032,
       "name": "ArithmeticOverflow",
       "msg": "Arithmetic overflow"
     },
     {
-      "code": 6032,
+      "code": 6033,
       "name": "ValueConservationFailed",
       "msg": "Join-split value conservation failed"
     },
     {
-      "code": 6033,
+      "code": 6034,
       "name": "InvalidMint",
       "msg": "Token mint does not match pool configuration"
     },
     {
-      "code": 6034,
+      "code": 6035,
       "name": "AssetNotRegistered",
       "msg": "Asset not registered with pool"
     },
     {
-      "code": 6035,
+      "code": 6036,
       "name": "AssetNotActive",
       "msg": "Asset is not active"
     },
     {
-      "code": 6036,
+      "code": 6037,
       "name": "TooManyAssets",
       "msg": "Too many assets registered"
     },
     {
-      "code": 6037,
+      "code": 6038,
       "name": "AssetIdMismatch",
       "msg": "Asset ID mismatch"
     },
     {
-      "code": 6038,
+      "code": 6039,
       "name": "DepositsDisabled",
       "msg": "Deposits are disabled for this asset"
     },
     {
-      "code": 6039,
+      "code": 6040,
       "name": "WithdrawalsDisabled",
       "msg": "Withdrawals are disabled for this asset"
     },
     {
-      "code": 6040,
+      "code": 6041,
       "name": "InvalidAssetId",
       "msg": "Invalid asset ID: cannot be all zeros"
     },
     {
-      "code": 6041,
+      "code": 6042,
       "name": "InvalidVaultPool",
       "msg": "Invalid vault pool reference"
     },
     {
-      "code": 6042,
+      "code": 6043,
       "name": "InvalidVaultTokenAccount",
       "msg": "Invalid vault token account"
     },
     {
-      "code": 6043,
+      "code": 6044,
       "name": "InvalidCommitment",
       "msg": "Invalid commitment: cannot be all zeros"
     },
     {
-      "code": 6044,
+      "code": 6045,
       "name": "TooManyOutputs",
       "msg": "Too many output commitments for join-split (max 4)"
     },
     {
-      "code": 6045,
+      "code": 6046,
       "name": "DuplicateCommitment",
       "msg": "Duplicate commitment in output set"
     },
     {
-      "code": 6046,
+      "code": 6047,
       "name": "Unauthorized",
       "msg": "Unauthorized: caller is not pool authority"
     },
     {
-      "code": 6047,
+      "code": 6048,
       "name": "InvalidAuthority",
       "msg": "Invalid authority address"
     },
     {
-      "code": 6048,
+      "code": 6049,
       "name": "NoPendingAuthority",
       "msg": "No pending authority transfer"
     },
     {
-      "code": 6049,
+      "code": 6050,
       "name": "RecipientMismatch",
       "msg": "Recipient does not match proof public inputs"
     },
     {
-      "code": 6050,
+      "code": 6051,
       "name": "MissingAccount",
       "msg": "Required account is missing"
     },
     {
-      "code": 6051,
+      "code": 6052,
       "name": "RelayerMismatch",
       "msg": "Relayer token account owner does not match relayer signer"
     },
     {
-      "code": 6052,
+      "code": 6053,
       "name": "InvalidTokenOwner",
       "msg": "Invalid token owner"
     },
     {
-      "code": 6053,
+      "code": 6054,
       "name": "RelayerNotRegistered",
       "msg": "Relayer not registered"
     },
     {
-      "code": 6054,
+      "code": 6055,
       "name": "RelayerNotActive",
       "msg": "Relayer not active"
     },
     {
-      "code": 6055,
+      "code": 6056,
       "name": "RelayerFeeOutOfRange",
       "msg": "Relayer fee out of allowed range"
     },
     {
-      "code": 6056,
+      "code": 6057,
       "name": "RelayerFeeOverflow",
       "msg": "Relayer fee calculation overflow - fee is unreasonably large"
     },
     {
-      "code": 6057,
+      "code": 6058,
       "name": "InvalidFeeConfiguration",
       "msg": "Invalid fee configuration"
     },
     {
-      "code": 6058,
+      "code": 6059,
       "name": "RegistrationsClosed",
       "msg": "Relayer registrations are closed"
     },
     {
-      "code": 6059,
+      "code": 6060,
       "name": "InsufficientStake",
       "msg": "Insufficient relayer stake"
     },
     {
-      "code": 6060,
+      "code": 6061,
       "name": "InvalidRelayerNodePda",
       "msg": "Invalid RelayerNode PDA: derivation does not match expected seeds"
     },
     {
-      "code": 6061,
+      "code": 6062,
       "name": "RelayerNodeRegistryMismatch",
       "msg": "RelayerNode registry mismatch: node does not belong to expected registry"
     },
     {
-      "code": 6062,
+      "code": 6063,
       "name": "PoolPaused",
       "msg": "Pool is paused"
     },
     {
-      "code": 6063,
+      "code": 6064,
       "name": "PoolNotPaused",
       "msg": "Pool is not paused"
     },
     {
-      "code": 6064,
+      "code": 6065,
       "name": "PoolInactive",
       "msg": "Pool is not active"
     },
     {
-      "code": 6065,
+      "code": 6066,
       "name": "AlreadyInitialized",
       "msg": "Account already initialized"
     },
     {
-      "code": 6066,
+      "code": 6067,
       "name": "CorruptedData",
       "msg": "Account data corrupted"
     },
     {
-      "code": 6067,
+      "code": 6068,
       "name": "InvalidMetadata",
       "msg": "Invalid metadata format or content"
     },
     {
-      "code": 6068,
+      "code": 6069,
       "name": "InvalidInput",
       "msg": "Invalid input parameter"
     },
     {
-      "code": 6069,
+      "code": 6070,
       "name": "LimitExceeded",
       "msg": "Operation exceeds safe limits"
     },
     {
-      "code": 6070,
+      "code": 6071,
       "name": "InvalidTimestamp",
       "msg": "Invalid timestamp"
     },
     {
-      "code": 6071,
+      "code": 6072,
       "name": "BufferFull",
       "msg": "Pending deposits buffer is full"
     },
     {
-      "code": 6072,
+      "code": 6073,
       "name": "NoPendingDeposits",
       "msg": "No pending deposits to process"
     },
     {
-      "code": 6073,
+      "code": 6074,
       "name": "BatchNotReady",
       "msg": "Batch not ready for processing - timing constraints not met"
     },
     {
-      "code": 6074,
+      "code": 6075,
       "name": "InvalidBatchSize",
       "msg": "Invalid batch size - must be between 1 and MAX_BATCH_SIZE"
     },
     {
-      "code": 6075,
+      "code": 6076,
       "name": "FeatureDisabled",
       "msg": "Feature not enabled for this pool"
     },
     {
-      "code": 6076,
+      "code": 6077,
       "name": "NotImplemented",
       "msg": "Feature not implemented in this version"
     },
     {
-      "code": 6077,
+      "code": 6078,
       "name": "JoinSplitDisabled",
       "msg": "Join-split not enabled"
     },
     {
-      "code": 6078,
+      "code": 6079,
       "name": "MembershipProofsDisabled",
       "msg": "Membership proofs not enabled"
     },
     {
-      "code": 6079,
+      "code": 6080,
       "name": "ShieldedCpiDisabled",
       "msg": "Shielded CPI not enabled"
     },
     {
-      "code": 6080,
+      "code": 6081,
       "name": "EncryptedNoteRequired",
       "msg": "Encrypted note required for this pool"
     },
     {
-      "code": 6081,
+      "code": 6082,
       "name": "InvalidEncryptedNote",
       "msg": "Invalid encrypted note format"
     },
     {
-      "code": 6082,
+      "code": 6083,
       "name": "MetadataAlreadyAttached",
       "msg": "Audit metadata already attached"
     },
     {
-      "code": 6083,
+      "code": 6084,
       "name": "InputTooLarge",
       "msg": "Input exceeds maximum allowed length"
     },
     {
-      "code": 6084,
+      "code": 6085,
       "name": "InvalidOwner",
       "msg": "Invalid account owner"
     },
     {
-      "code": 6085,
+      "code": 6086,
       "name": "InvalidDiscriminator",
       "msg": "Invalid account discriminator"
     },
     {
-      "code": 6086,
+      "code": 6087,
       "name": "UnsupportedShieldedAction",
       "msg": "Shielded action not supported"
     },
     {
-      "code": 6087,
+      "code": 6088,
       "name": "CpiCallFailed",
       "msg": "CPI call failed"
     },
     {
-      "code": 6088,
+      "code": 6089,
       "name": "InvalidActionData",
       "msg": "Invalid action data"
     },
     {
-      "code": 6089,
+      "code": 6090,
       "name": "YieldAssetRequiresYieldExit",
       "msg": "Yield asset must use withdraw_yield_v2 instruction"
     },
     {
-      "code": 6090,
+      "code": 6091,
       "name": "YieldMintsExceeded",
       "msg": "Maximum yield mints exceeded"
     },
     {
-      "code": 6091,
+      "code": 6092,
       "name": "YieldMintAlreadyExists",
       "msg": "Yield mint already exists in registry"
     },
     {
-      "code": 6092,
+      "code": 6093,
       "name": "YieldMintNotFound",
       "msg": "Yield mint not found in registry"
     },
     {
-      "code": 6093,
+      "code": 6094,
       "name": "NonYieldAssetCannotUseYieldExit",
       "msg": "Non-yield asset cannot use yield exit"
     },
     {
-      "code": 6094,
+      "code": 6095,
       "name": "YieldRegistryRequired",
       "msg": "Yield registry required when yield enforcement is enabled"
     },
     {
-      "code": 6095,
+      "code": 6096,
       "name": "InvalidFeatureFlag",
       "msg": "Invalid feature flag"
     },
     {
-      "code": 6096,
+      "code": 6097,
       "name": "CannotDisableCoreFeature",
       "msg": "Cannot disable core feature"
+    },
+    {
+      "code": 6098,
+      "name": "CommitmentAlreadyExists",
+      "msg": "Commitment already exists in pending buffer or Merkle tree"
+    },
+    {
+      "code": 6099,
+      "name": "BridgeV1NotInitialized",
+      "msg": "Bridge v1 config not initialized"
+    },
+    {
+      "code": 6100,
+      "name": "BridgeV1AlreadyInitialized",
+      "msg": "Bridge v1 config already initialized"
+    },
+    {
+      "code": 6101,
+      "name": "InvalidBridgeSignerSet",
+      "msg": "Invalid bridge signer set"
+    },
+    {
+      "code": 6102,
+      "name": "SignerSetVersionMismatch",
+      "msg": "Signer set version mismatch"
+    },
+    {
+      "code": 6103,
+      "name": "ThresholdNotMet",
+      "msg": "Threshold not met: insufficient valid signatures"
+    },
+    {
+      "code": 6104,
+      "name": "SignaturesNotSorted",
+      "msg": "Signatures not sorted by signer address"
+    },
+    {
+      "code": 6105,
+      "name": "InvalidSigner",
+      "msg": "Invalid signer: recovered address not in signer set"
+    },
+    {
+      "code": 6106,
+      "name": "MessageAlreadyConsumed",
+      "msg": "Message already consumed"
+    },
+    {
+      "code": 6107,
+      "name": "MessageIsFrozen",
+      "msg": "Message is frozen"
+    },
+    {
+      "code": 6108,
+      "name": "BridgeRouteNotEnabled",
+      "msg": "Bridge route not enabled"
+    },
+    {
+      "code": 6109,
+      "name": "BridgeRoutePaused",
+      "msg": "Bridge route is paused"
+    },
+    {
+      "code": 6110,
+      "name": "BridgeAssetNotSupported",
+      "msg": "Bridge asset not supported"
+    },
+    {
+      "code": 6111,
+      "name": "BridgeMaxAmountExceeded",
+      "msg": "Bridge max message amount exceeded"
+    },
+    {
+      "code": 6112,
+      "name": "BridgeDailyCapExceeded",
+      "msg": "Bridge daily cap exceeded"
+    },
+    {
+      "code": 6113,
+      "name": "BridgeGlobalCapExceeded",
+      "msg": "Bridge global daily cap exceeded"
+    },
+    {
+      "code": 6114,
+      "name": "BridgeDeadlineExpired",
+      "msg": "Bridge deadline expired"
+    },
+    {
+      "code": 6115,
+      "name": "BridgeInvalidNonce",
+      "msg": "Bridge invalid nonce"
+    },
+    {
+      "code": 6116,
+      "name": "BridgeMessageHashAlreadyRecorded",
+      "msg": "Bridge message hash already recorded"
+    },
+    {
+      "code": 6117,
+      "name": "InvalidSignatureCount",
+      "msg": "Invalid signature count"
+    },
+    {
+      "code": 6118,
+      "name": "ZeroSigner",
+      "msg": "Zero signer not allowed"
+    },
+    {
+      "code": 6119,
+      "name": "DuplicateSignerInSet",
+      "msg": "Duplicate signer in set"
+    },
+    {
+      "code": 6120,
+      "name": "SignerSetTooLarge",
+      "msg": "Signer set too large"
     }
   ],
   "types": [
@@ -4608,9 +6211,6 @@
     },
     {
       "name": "BatchSettledEvent",
-      "docs": [
-        "Emitted when a batch of deposits is settled via off-chain proof"
-      ],
       "type": {
         "kind": "struct",
         "fields": [
@@ -4643,6 +6243,713 @@
                 32
               ]
             }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeAssetConfig",
+      "docs": [
+        "Per-asset configuration and cap tracking.",
+        "PDA seeds: `[\"bridge_asset\", canonical_asset_id]`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "canonical_asset_id",
+            "docs": [
+              "Canonical asset identifier (bytes32)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "supported",
+            "docs": [
+              "Asset is supported for bridging."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "max_message_amount",
+            "docs": [
+              "Maximum amount allowed in a single message."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "daily_cap",
+            "docs": [
+              "Daily cap for this asset (inflow + outflow combined tracking)."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "daily_used",
+            "docs": [
+              "Daily usage (current window)."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "daily_window_start",
+            "docs": [
+              "Start of current daily window (unix_timestamp / 86400)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeAssetConfigured",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "canonical_asset_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "supported",
+            "type": "bool"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeConfig",
+      "docs": [
+        "Bridge configuration for cross-chain bridging.",
+        "",
+        "Stores the bridge authority (typically a PDA from the WhiteBridgeSolana program)",
+        "that is allowed to call `bridge_withdraw` and `bridge_mint`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "docs": [
+              "Reference to parent pool"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "bridge_authority",
+            "docs": [
+              "Bridge authority — must sign bridge instructions"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeGlobalPauseSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeMessageFrozen",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "message_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "frozen",
+            "type": "bool"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeMessageV1",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "protocol_version",
+            "type": "u16"
+          },
+          {
+            "name": "message_type",
+            "type": "u8"
+          },
+          {
+            "name": "source_domain",
+            "type": "u32"
+          },
+          {
+            "name": "destination_domain",
+            "type": "u32"
+          },
+          {
+            "name": "source_chain_id",
+            "type": "u64"
+          },
+          {
+            "name": "destination_chain_id",
+            "type": "u64"
+          },
+          {
+            "name": "canonical_asset_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "source_local_asset_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "destination_local_asset_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "amount",
+            "type": "u128"
+          },
+          {
+            "name": "source_nullifier_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "destination_commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "source_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "source_leaf_index",
+            "type": "u64"
+          },
+          {
+            "name": "source_tx_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "source_block_number",
+            "type": "u64"
+          },
+          {
+            "name": "source_finality_block",
+            "type": "u64"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "deadline",
+            "type": "u64"
+          },
+          {
+            "name": "relayer_fee",
+            "type": "u128"
+          },
+          {
+            "name": "recipient_stealth_metadata_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "memo_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "reserved0",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "reserved1",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeMintAccepted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "message_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "source_domain",
+            "type": "u32"
+          },
+          {
+            "name": "destination_domain",
+            "type": "u32"
+          },
+          {
+            "name": "canonical_asset_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "amount",
+            "type": "u128"
+          },
+          {
+            "name": "destination_commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeOutInitiated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "message_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "source_domain",
+            "type": "u32"
+          },
+          {
+            "name": "destination_domain",
+            "type": "u32"
+          },
+          {
+            "name": "canonical_asset_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "amount",
+            "type": "u128"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "encoded_message",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeRouteConfig",
+      "docs": [
+        "Per-route configuration and cap tracking.",
+        "PDA seeds: `[\"bridge_route\", source_domain (be), destination_domain (be)]`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "source_domain",
+            "type": "u32"
+          },
+          {
+            "name": "destination_domain",
+            "type": "u32"
+          },
+          {
+            "name": "enabled",
+            "docs": [
+              "Route is enabled for bridging."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "paused",
+            "docs": [
+              "Route is paused (emergency stop)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "max_message_amount",
+            "docs": [
+              "Maximum amount allowed in a single message."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "daily_inflow_cap",
+            "docs": [
+              "Daily inflow cap for this route."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "daily_outflow_cap",
+            "docs": [
+              "Daily outflow cap for this route."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "daily_inflow_used",
+            "docs": [
+              "Daily inflow used (current window)."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "daily_outflow_used",
+            "docs": [
+              "Daily outflow used (current window)."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "daily_window_start",
+            "docs": [
+              "Start of current daily window (unix_timestamp / 86400)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeRouteConfigured",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "source_domain",
+            "type": "u32"
+          },
+          {
+            "name": "destination_domain",
+            "type": "u32"
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeSignerSet",
+      "docs": [
+        "Signer set for a specific version.",
+        "PDA seeds: `[\"bridge_signer_set\", version]`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "docs": [
+              "Version number (monotonically increasing)."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "threshold",
+            "docs": [
+              "Minimum signatures required."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "signer_count",
+            "docs": [
+              "Actual number of signers in the set."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "signers",
+            "docs": [
+              "Fixed-size array of 20-byte Ethereum addresses."
+            ],
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u8",
+                    20
+                  ]
+                },
+                11
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeSignerSetUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u32"
+          },
+          {
+            "name": "threshold",
+            "type": "u8"
+          },
+          {
+            "name": "signer_count",
+            "type": "u8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeV1Config",
+      "docs": [
+        "Global bridge v1 configuration.",
+        "Single instance per program, PDA seeds: `[\"bridge_v1_config\"]`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Authority that can manage signer sets, routes, assets, pause, freeze."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "domain_id",
+            "docs": [
+              "Local domain ID for this chain."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "signer_set_version",
+            "docs": [
+              "Current active signer set version."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "global_paused",
+            "docs": [
+              "Global pause flag — stops ALL bridge activity when true."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "Unix timestamp when config was created."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "updated_at",
+            "docs": [
+              "Unix timestamp when config was last updated."
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BridgeV1ConfigInitialized",
+      "docs": [
+        "Emitted when a batch of deposits is settled via off-chain proof"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "domain_id",
+            "type": "u32"
           },
           {
             "name": "timestamp",
@@ -4893,25 +7200,70 @@
       }
     },
     {
+      "name": "ConsumedBridgeMessage",
+      "docs": [
+        "Replay protection: marks a bridge message as already consumed on the destination chain.",
+        "PDA seeds: `[\"bridge_consumed\", message_hash]`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "message_hash",
+            "docs": [
+              "The message hash that was consumed."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "source_domain",
+            "docs": [
+              "Source domain."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "destination_domain",
+            "docs": [
+              "Destination domain."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "nonce",
+            "docs": [
+              "Nonce from the message."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "consumed_at",
+            "docs": [
+              "Unix timestamp when consumed."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "DepositMaspEvent",
       "docs": [
-        "Privacy-preserving deposit event.",
-        "",
-        "# Privacy Design",
-        "",
-        "This event intentionally does NOT include:",
-        "- `amount` - Would enable correlation attacks (matching deposit/withdrawal amounts)",
-        "- `depositor` - Would link on-chain identity to shielded commitment",
-        "",
-        "# Included Fields",
-        "",
-        "- `commitment` - Needed for users to track their deposits",
-        "- `leaf_index` - Required to construct withdrawal proofs",
-        "- `merkle_root` - Lets clients verify tree state",
-        "- `asset_id` - Asset type (does not reveal amount or depositor)",
-        "",
-        "While the depositor address is visible in transaction accounts, omitting it",
-        "from events makes large-scale indexing and correlation significantly harder."
+        "Emitted when a deposit is fully settled into the Merkle tree.",
+        "For batch settlements, BatchProcessedEvent and CommitmentInsertedEvent",
+        "are also emitted."
       ],
       "type": {
         "kind": "struct",
@@ -4972,6 +7324,107 @@
               "Event timestamp"
             ],
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DepositQueuedEvent",
+      "docs": [
+        "Privacy-preserving deposit event.",
+        "",
+        "# Privacy Design",
+        "",
+        "This event intentionally does NOT include:",
+        "- `amount` - Would enable correlation attacks (matching deposit/withdrawal amounts)",
+        "- `depositor` - Would link on-chain identity to shielded commitment",
+        "",
+        "# Included Fields",
+        "",
+        "- `commitment` - Needed for users to track their deposits",
+        "- `leaf_index` - Required to construct withdrawal proofs",
+        "- `merkle_root` - Lets clients verify tree state",
+        "- `asset_id` - Asset type (does not reveal amount or depositor)",
+        "",
+        "While the depositor address is visible in transaction accounts, omitting it",
+        "from events makes large-scale indexing and correlation significantly harder.",
+        "Emitted when a deposit is queued in the pending buffer.",
+        "Note: leaf_index is NOT available at this stage; use CommitmentInsertedEvent",
+        "or BatchProcessedEvent to learn the final leaf index after settlement."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "commitment",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "asset_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FrozenBridgeMessage",
+      "docs": [
+        "Message freeze status for challenge/watcher path.",
+        "PDA seeds: `[\"bridge_frozen\", message_hash]`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "message_hash",
+            "docs": [
+              "The message hash that is frozen."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "frozen",
+            "docs": [
+              "True if frozen, false if un-frozen."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "frozen_at",
+            "docs": [
+              "Unix timestamp when frozen status was last set."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed."
+            ],
+            "type": "u8"
           }
         ]
       }
