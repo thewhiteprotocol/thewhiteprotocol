@@ -816,7 +816,9 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [x] Hosted operator status summary command added to report latest bootstrap, note-state, preflight, recovery snapshot, leaf-index evidence, job-index, and result readiness in one non-secret JSON artifact (PR-012Q).
 - [x] Hosted relayer startup wrapper added to run zkey bootstrap automatically on Render and fail closed before relayer start when required hosted bootstrap checks fail (PR-012R).
 - [x] Hosted relayer readiness endpoint added to expose non-secret startup/bootstrap, zkey symlink, safe-mode, live-submit guard, operator prerequisite, watcher, and job-index readiness from the running service (PR-012S).
-- [ ] Render readiness endpoint verification found the endpoint live and safe-mode active, but startup status evidence was missing (`startupStatusPresent=false`), so wrapper start-command verification remains blocked (PR-012T).
+- [x] Render readiness endpoint verification confirmed commit `7f2e46b`, startup wrapper evidence, zkey bootstrap/symlink success, safe paper mode, live submit disabled, and no secret exposure; manual second relayer start failed only because port 3000 was already occupied (PR-012T).
+- [x] Hosted operator status, preflight, recovery snapshot, and dry-run job wrapper were run on Render; stale status refreshed to ready preflight, recovery reported already withdrawn, and the dry-run job reached `dry_run_ready` without execution (PR-012U).
+- [x] Hosted operator bundle command added to run status -> preflight -> recovery snapshot -> status -> dry-run job, force dry-run mode, export a non-secret bundle report, and map already-withdrawn targets to `no_action_already_complete` (PR-012V).
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.

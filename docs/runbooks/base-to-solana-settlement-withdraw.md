@@ -239,6 +239,22 @@ For every hosted settle/withdraw execution window, use this order:
 
 Startup: Render service startup runs `bash scripts/hosted-relayer-start.sh` with `BRIDGE_HOSTED_STARTUP_BOOTSTRAP=true` to recreate zkey symlinks automatically.
 
+The preferred read-only operator refresh is now the bundled command:
+
+```bash
+npm run bridge:operator:bundle
+```
+
+The bundle runs status -> preflight -> recovery snapshot -> status -> dry-run job wrapper, forces `BRIDGE_SETTLE_WITHDRAW_EXECUTE=false` for the job step, and exports:
+
+```text
+/data/bridge-results/operator-bundle-<destinationHash>.json
+```
+
+If the bundle reports `final.readiness=no_action_already_complete`, the target is already complete and no settlement/withdraw transaction should be submitted.
+
+Manual step-by-step execution remains available:
+
 1. `npm run bridge:bootstrap:zkeys` if running in an ad hoc shell or after changing persistent zkey files.
 2. `npm run bridge:operator:prereq`
 3. `npm run bridge:operator:status`

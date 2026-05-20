@@ -168,6 +168,11 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Ambiguous recovery state is treated as a stop condition, not as permission to retry.
 
 20. Hosted dry-run evidence
+    - `cd chains/solana && npm run bridge:operator:bundle` has been run for the exact destination BridgeMint hash, or the equivalent manual status -> preflight -> recovery snapshot -> status -> dry-run job sequence has been run.
+    - The bundle report exists at `/data/bridge-results/operator-bundle-<destinationHash>.json` when the bundled command is used.
+    - The bundle report shows `BRIDGE_SETTLE_WITHDRAW_EXECUTE=false` behavior through `dryRunJob.execute=false` and `dryRunJob.wouldExecute=false`.
+    - The bundle report shows `transactionsSubmitted=false`, `proofsGenerated=false`, and `secretsPrinted=false`.
+    - If the bundle reports `final.readiness=no_action_already_complete`, the operator records that no further settlement/withdraw transaction should be submitted.
     - The hosted preflight report SHA256 is recorded before reviewing the job wrapper result.
     - The hosted recovery snapshot report SHA256 is recorded before reviewing the job wrapper result.
     - The dry-run job wrapper records `execute=false`, `wouldExecute=false`, and `transactionsSubmittedByWrapper=false`.

@@ -33,6 +33,8 @@
     "bridge:test-operator:prereq": "npx tsx scripts/hosted-operator-prereq.test.ts",
     "bridge:operator:status": "npx tsx scripts/hosted-operator-status.ts",
     "bridge:test-operator:status": "npx tsx scripts/hosted-operator-status.test.ts",
+    "bridge:operator:bundle": "npx tsx scripts/hosted-operator-bundle.ts",
+    "bridge:test-operator:bundle": "npx tsx scripts/hosted-operator-bundle.test.ts",
     "bridge:leaf-index:evidence": "npx tsx scripts/hosted-leaf-index-evidence.ts",
     "bridge:test-leaf-index:evidence": "npx tsx scripts/hosted-leaf-index-evidence.test.ts",
     "bridge:recovery:snapshot": "npx tsx scripts/hosted-recovery-snapshot.ts",
