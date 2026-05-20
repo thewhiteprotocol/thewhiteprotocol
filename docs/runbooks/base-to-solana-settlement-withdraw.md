@@ -239,10 +239,13 @@ For every hosted settle/withdraw execution window, use this order:
 
 1. `npm run bridge:bootstrap:zkeys`
 2. `npm run bridge:operator:prereq`
-3. `npm run bridge:preflight:settle-withdraw`
-4. `npm run bridge:recovery:snapshot`
-5. `npm run bridge:job:settle-withdraw` without execute flags
-6. `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true npm run bridge:job:settle-withdraw`
+3. `npm run bridge:operator:status`
+4. `npm run bridge:preflight:settle-withdraw`
+5. `npm run bridge:recovery:snapshot`
+6. `npm run bridge:operator:status`
+7. `npm run bridge:job:settle-withdraw` without execute flags
+8. `npm run bridge:operator:status`
+9. `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true npm run bridge:job:settle-withdraw`
 
 The bootstrap command recreates Render's ephemeral repo zkey symlinks from durable copies under `/data/circuit-artifacts` and verifies:
 
@@ -252,6 +255,14 @@ withdraw.zkey            = cc38b845b76e2cc66a0f027540c96669b162531f64bd51a675c18
 ```
 
 The prerequisite command checks safe mode, zkeys, durable note-state, bridge results, leaf-index evidence, fresh preflight, fresh recovery snapshot, and wallet authority before operators proceed. Hosted readiness rejects `/tmp` for durable zkeys, note-state, reports, and evidence.
+
+The status command summarizes the latest persistent bootstrap, note-state, preflight, recovery snapshot, leaf-index evidence, job-index, and result-report state into one non-secret JSON document:
+
+```text
+/data/bridge-results/operator-status-<destinationHash>.json
+```
+
+Use `final.readiness` and `final.recommendedAction` as the operator dashboard for the current target.
 
 For resume execution, add `BRIDGE_SETTLE_WITHDRAW_RESUME=true` only after the fresh recovery snapshot recommends `resume_settlement`, `resume_withdraw`, or `settle_fifo_prefix`.
 

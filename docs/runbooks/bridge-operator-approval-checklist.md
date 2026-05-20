@@ -214,6 +214,7 @@ Do not approve live submission if any of these are true:
 - Hosted settlement/withdraw is attempted before the required zkey files are present and checksum-verified on durable storage.
 - `npm run bridge:bootstrap:zkeys` has not passed after the latest Render deploy.
 - `npm run bridge:operator:prereq` has not passed for the current hosted shell and destination hash.
+- `npm run bridge:operator:status` does not report an expected readiness and recommended action for the exact destination hash.
 - Hosted zkeys, note-state, preflight reports, recovery snapshots, leaf-index evidence, or job-index state are under `/tmp`.
 - Hosted settlement/withdraw is attempted before a non-secret preflight report is exported for the exact destination BridgeMint hash.
 - Hosted settlement/withdraw is attempted directly without a successful `bridge:job:settle-withdraw` dry-run for the exact destination BridgeMint hash.

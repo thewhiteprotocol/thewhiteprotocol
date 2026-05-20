@@ -31,6 +31,8 @@
     "bridge:bootstrap:zkeys": "npx tsx scripts/hosted-zkey-bootstrap.ts",
     "bridge:operator:prereq": "npx tsx scripts/hosted-operator-prereq.ts",
     "bridge:test-operator:prereq": "npx tsx scripts/hosted-operator-prereq.test.ts",
+    "bridge:operator:status": "npx tsx scripts/hosted-operator-status.ts",
+    "bridge:test-operator:status": "npx tsx scripts/hosted-operator-status.test.ts",
     "bridge:leaf-index:evidence": "npx tsx scripts/hosted-leaf-index-evidence.ts",
     "bridge:test-leaf-index:evidence": "npx tsx scripts/hosted-leaf-index-evidence.test.ts",
     "bridge:recovery:snapshot": "npx tsx scripts/hosted-recovery-snapshot.ts",

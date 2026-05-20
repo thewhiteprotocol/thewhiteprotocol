@@ -813,6 +813,7 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [x] Hosted PR-012F preflight, live recovery snapshot, and dry-run job wrapper were run on Render; the wrapper safely blocked execution on missing leaf-index evidence for the already-settled target (PR-012N).
 - [x] Non-secret settled leaf-index evidence files and command added so recovery snapshot can derive spent-nullifier PDAs for already-settled targets when trusted evidence exists (PR-012O).
 - [x] Hosted zkey bootstrap and operator prerequisite commands added to recreate persistent-disk zkey symlinks and verify safe hosted readiness after Render deploys (PR-012P).
+- [x] Hosted operator status summary command added to report latest bootstrap, note-state, preflight, recovery snapshot, leaf-index evidence, job-index, and result readiness in one non-secret JSON artifact (PR-012Q).
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
 - [ ] External audit package prepared.
