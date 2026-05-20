@@ -71,6 +71,18 @@ const SOURCE_FIXTURE_PATH_TEMPLATE =
   process.env.PR012Z_SOURCE_FIXTURE_PATH ||
   "/tmp/pr012z-solana-to-base-source-fixture.json";
 const SOURCE_FIXTURE_DIR = process.env.BRIDGE_SOLANA_SOURCE_FIXTURE_DIR;
+const SOURCE_PROGRESS_PATH =
+  process.env.BRIDGE_SOLANA_SOURCE_PROGRESS_PATH ||
+  process.env.PR012Z_SOURCE_PROGRESS_PATH ||
+  (SOURCE_FIXTURE_DIR
+    ? path.join(SOURCE_FIXTURE_DIR, "solana-to-base-source-progress-active.json")
+    : "/tmp/pr012z-solana-to-base-source-progress-active.json");
+const SOURCE_FORCE_NEW =
+  process.env.BRIDGE_SOLANA_SOURCE_FORCE_NEW === "true" ||
+  process.env.PR012Z_FORCE_NEW === "true";
+const SOURCE_SETTLE_PREEXISTING =
+  process.env.BRIDGE_SOLANA_SOURCE_SETTLE_PREEXISTING === "true" ||
+  process.env.PR012Z_SETTLE_PREEXISTING === "true";
 
 const SOLANA_DEVNET_DOMAIN = 0x01000002;
 const BASE_SEPOLIA_DOMAIN = 0x02000002;
@@ -472,6 +484,103 @@ function sourceFixturePath(sourceMessageHash: string): string {
     .replace("{sourceMessageHash}", sourceMessageHash);
 }
 
+function requiredSourceArtifacts(): string[] {
+  return [
+    DEPOSIT_WASM,
+    DEPOSIT_ZKEY,
+    MERKLE_BATCH_WASM,
+    MERKLE_BATCH_ZKEY,
+    WITHDRAW_WASM,
+    WITHDRAW_ZKEY,
+  ];
+}
+
+function assertSourceArtifactsPresent(): void {
+  const missing = requiredSourceArtifacts().filter((artifactPath) => !fs.existsSync(artifactPath));
+  if (missing.length === 0) return;
+  throw new Error(
+    [
+      "missing_source_fixture_artifacts",
+      ...missing.map((artifactPath) => `missing=${artifactPath}`),
+      "Run hosted zkey bootstrap and create the root circuit links before generating a source fixture.",
+      "Do this before retrying so the runner does not submit partial source-side transactions.",
+    ].join("; ")
+  );
+}
+
+function loadSourceProgress(): any | null {
+  if (!SOURCE_ONLY || SOURCE_FORCE_NEW || !fs.existsSync(SOURCE_PROGRESS_PATH)) {
+    return null;
+  }
+  const parsed = JSON.parse(fs.readFileSync(SOURCE_PROGRESS_PATH, "utf8"));
+  if (parsed?.schema !== "white-bridge-solana-source-progress-v1") {
+    throw new Error(`unexpected source progress schema at ${SOURCE_PROGRESS_PATH}`);
+  }
+  if (parsed.destinationTxSubmitted === true) {
+    throw new Error("source progress unexpectedly indicates destination submit");
+  }
+  return parsed;
+}
+
+function writeSourceProgress(progress: any): void {
+  if (!SOURCE_ONLY) return;
+  fs.mkdirSync(path.dirname(SOURCE_PROGRESS_PATH), { recursive: true });
+  const next = {
+    schema: "white-bridge-solana-source-progress-v1",
+    private: true,
+    warning: "contains private source/destination note material; do not print, commit, or share",
+    destinationTxSubmitted: false,
+    ...progress,
+    updatedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(SOURCE_PROGRESS_PATH, JSON.stringify(next, jsonReplacer, 2), { mode: 0o600 });
+  try {
+    fs.chmodSync(SOURCE_PROGRESS_PATH, 0o600);
+  } catch {
+    // Best effort on hosted filesystems.
+  }
+}
+
+function restoreSourceSettle(saved: any): {
+  tx: string;
+  oldRoot: bigint;
+  newRoot: bigint;
+  leafIndex: number;
+  commitment: bigint;
+  pathElements: bigint[];
+  pathIndices: number[];
+} {
+  return {
+    tx: String(saved.tx),
+    oldRoot: BigInt(saved.oldRoot),
+    newRoot: BigInt(saved.newRoot),
+    leafIndex: Number(saved.leafIndex),
+    commitment: BigInt(saved.commitment),
+    pathElements: (saved.pathElements || []).map((value: string) => BigInt(value)),
+    pathIndices: (saved.pathIndices || []).map((value: number) => Number(value)),
+  };
+}
+
+function serializeSourceSettle(settle: {
+  tx: string;
+  oldRoot: bigint;
+  newRoot: bigint;
+  leafIndex: number;
+  commitment: bigint;
+  pathElements: bigint[];
+  pathIndices: number[];
+}): any {
+  return {
+    tx: settle.tx,
+    oldRoot: settle.oldRoot.toString(),
+    newRoot: settle.newRoot.toString(),
+    leafIndex: settle.leafIndex,
+    commitment: settle.commitment.toString(),
+    pathElements: settle.pathElements.map((value) => value.toString()),
+    pathIndices: settle.pathIndices,
+  };
+}
+
 function loadSignerKeys(): string[] {
   const keys = [
     process.env.BRIDGE_SIGNER_1_PRIVATE_KEY,
@@ -800,6 +909,12 @@ async function main(): Promise<void> {
   };
   if (!SOURCE_ONLY) {
     evidence.solanaRpc = SOLANA_RPC_URL;
+  } else {
+    assertSourceArtifactsPresent();
+    evidence.sourceProgressPath = SOURCE_PROGRESS_PATH;
+    evidence.sourceProgressResumeEnabled = !SOURCE_FORCE_NEW;
+    console.log("Source fixture progress path:", SOURCE_PROGRESS_PATH);
+    console.log("Source fixture memory note: run proof generation outside the live 2GB web service.");
   }
 
   await initPoseidon();
@@ -1078,8 +1193,51 @@ async function main(): Promise<void> {
     evidence.baseChecks = baseChecks;
   }
 
+  const sourceProgress = loadSourceProgress();
+  if (SOURCE_ONLY && sourceProgress) {
+    console.log("Resuming source fixture from private progress file.");
+    if (sourceProgress.sourceFixturePath && fs.existsSync(sourceProgress.sourceFixturePath)) {
+      console.log(JSON.stringify({
+        ok: true,
+        mode: "source_only_fixture",
+        resumed: true,
+        status: "fixture_exported",
+        solanaDepositTx: sourceProgress.solanaDepositTx || null,
+        solanaSettlementTx: sourceProgress.sourceSettle?.tx || null,
+        solanaBridgeOutTx: sourceProgress.solanaBridgeOutTx || null,
+        sourceSlot: sourceProgress.sourceSlot || null,
+        sourceMessageHash: sourceProgress.sourceMessageHash || null,
+        destinationBridgeMintHash: sourceProgress.destinationBridgeMintHash || null,
+        sourceAmount: sourceProgress.sourceAmount || TEST_AMOUNT.toString(),
+        normalizedDestinationAmount: sourceProgress.normalizedDestinationAmount || null,
+        sourceNullifierSpent: Boolean(sourceProgress.sourceNullifierSpent),
+        sourceValueLocked: Boolean(sourceProgress.sourceValueLocked),
+        fixturePath: sourceProgress.sourceFixturePath,
+        progressPath: SOURCE_PROGRESS_PATH,
+        destinationTxSubmitted: false,
+        secretsPrinted: false,
+      }, null, 2));
+      return;
+    }
+  }
+
   let pendingData = await (program.account as any).pendingDepositsBuffer.fetch(pendingBuffer);
-  while (pendingCount(pendingData) > 0) {
+  const progressHasPendingDeposit =
+    SOURCE_ONLY &&
+    sourceProgress?.sourceCommitment &&
+    sourceProgress?.solanaDepositTx &&
+    !sourceProgress?.sourceSettle;
+  if (
+    SOURCE_ONLY &&
+    pendingCount(pendingData) > 0 &&
+    !progressHasPendingDeposit &&
+    !SOURCE_SETTLE_PREEXISTING
+  ) {
+    throw new Error(
+      "preexisting_pending_deposit_requires_explicit_settle; set BRIDGE_SOLANA_SOURCE_SETTLE_PREEXISTING=true to settle orphaned pending deposits before creating a fresh source fixture"
+    );
+  }
+  while (pendingCount(pendingData) > 0 && !progressHasPendingDeposit) {
     console.log("Settling pre-existing Solana pending deposit...");
     const result = await settleFirstPending({
       program,
@@ -1094,93 +1252,180 @@ async function main(): Promise<void> {
     pendingData = await (program.account as any).pendingDepositsBuffer.fetch(pendingBuffer);
   }
 
-  const sourceSecret = randomFieldElement();
-  const sourceNullifier = randomFieldElement();
+  const sourceSecret =
+    SOURCE_ONLY && sourceProgress?.sourceSecret && !SOURCE_FORCE_NEW
+      ? BigInt(sourceProgress.sourceSecret)
+      : randomFieldElement();
+  const sourceNullifier =
+    SOURCE_ONLY && sourceProgress?.sourceNullifier && !SOURCE_FORCE_NEW
+      ? BigInt(sourceProgress.sourceNullifier)
+      : randomFieldElement();
   const sourceCommitment = computeCommitment(sourceSecret, sourceNullifier, TEST_AMOUNT, sourceAssetId);
   const sourceCommitmentBytes = bigintToBytes32(sourceCommitment);
   const [commitmentIndex] = PublicKey.findProgramAddressSync(
     [Buffer.from("commitment"), poolConfig.toBuffer(), sourceCommitmentBytes],
     PROGRAM_ID
   );
+  if (SOURCE_ONLY && sourceProgress?.sourceCommitment && !SOURCE_FORCE_NEW) {
+    if (BigInt(sourceProgress.sourceCommitment) !== sourceCommitment) {
+      throw new Error("source progress commitment does not match restored note material");
+    }
+  }
 
-  const { proof: depositProof, publicSignals: depositSignals } = await snarkjs.groth16.fullProve(
-    {
-      secret: sourceSecret.toString(),
-      nullifier: sourceNullifier.toString(),
-      amount: TEST_AMOUNT.toString(),
-      asset_id: sourceAssetId.toString(),
-      commitment: sourceCommitment.toString(),
-    },
-    DEPOSIT_WASM,
-    DEPOSIT_ZKEY
-  );
-  if (depositSignals[0].toString() !== sourceCommitment.toString()) {
-    throw new Error("deposit proof commitment public signal mismatch");
+  if (SOURCE_ONLY && !sourceProgress?.sourceSecret) {
+    writeSourceProgress({
+      status: "source_note_prepared",
+      sourceSecret: sourceSecret.toString(),
+      sourceNullifier: sourceNullifier.toString(),
+      sourceCommitment: sourceCommitment.toString(),
+      sourceCommitmentHex: bytes32Hex(sourceCommitment),
+      sourceAmount: TEST_AMOUNT.toString(),
+      sourceAssetId: sourceAssetIdHex,
+    });
   }
 
   const userTokenAccount = bridgeCustodyTokenAccount;
-  const wrapTx = new Transaction().add(
-    SystemProgram.transfer({
-      fromPubkey: authority.publicKey,
-      toPubkey: userTokenAccount,
-      lamports: Number(TEST_AMOUNT),
-    }),
-    createSyncNativeInstruction(userTokenAccount)
-  );
-  const wrapSig = await sendAndConfirmTransaction(connection, wrapTx, [authority], {
-    commitment: "confirmed",
-  });
-  console.log("wrap_source_wsol:", wrapSig);
+  let depositTx = SOURCE_ONLY && sourceProgress?.solanaDepositTx && !SOURCE_FORCE_NEW
+    ? String(sourceProgress.solanaDepositTx)
+    : "";
+  if (!depositTx) {
+    const { proof: depositProof, publicSignals: depositSignals } = await snarkjs.groth16.fullProve(
+      {
+        secret: sourceSecret.toString(),
+        nullifier: sourceNullifier.toString(),
+        amount: TEST_AMOUNT.toString(),
+        asset_id: sourceAssetId.toString(),
+        commitment: sourceCommitment.toString(),
+      },
+      DEPOSIT_WASM,
+      DEPOSIT_ZKEY
+    );
+    if (depositSignals[0].toString() !== sourceCommitment.toString()) {
+      throw new Error("deposit proof commitment public signal mismatch");
+    }
 
-  const depositTx = await sendIx(
-    connection,
-    authority,
-    "deposit_masp_source",
-    await program.methods
-      .depositMasp(
-        bn(TEST_AMOUNT),
-        Array.from(sourceCommitmentBytes),
-        Array.from(sourceAssetIdBytes),
-        Buffer.from(serializeProofForSolana(depositProof)),
-        null
-      )
-      .accounts({
-        depositor: authority.publicKey,
-        poolConfig,
-        authority: authority.publicKey,
-        merkleTree,
-        pendingBuffer,
-        assetVault,
-        vaultTokenAccount,
-        userTokenAccount,
-        mint: NATIVE_MINT,
-        depositVk,
-        commitmentIndex,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .instruction(),
-    650_000
-  );
+    let wrapSig = SOURCE_ONLY && sourceProgress?.wrapSourceWsolTx && !SOURCE_FORCE_NEW
+      ? String(sourceProgress.wrapSourceWsolTx)
+      : "";
+    if (!wrapSig) {
+      const wrapTx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: authority.publicKey,
+          toPubkey: userTokenAccount,
+          lamports: Number(TEST_AMOUNT),
+        }),
+        createSyncNativeInstruction(userTokenAccount)
+      );
+      wrapSig = await sendAndConfirmTransaction(connection, wrapTx, [authority], {
+        commitment: "confirmed",
+      });
+      console.log("wrap_source_wsol:", wrapSig);
+      if (SOURCE_ONLY) {
+        writeSourceProgress({
+          ...loadSourceProgress(),
+          status: "source_wsol_wrapped",
+          wrapSourceWsolTx: wrapSig,
+          sourceSecret: sourceSecret.toString(),
+          sourceNullifier: sourceNullifier.toString(),
+          sourceCommitment: sourceCommitment.toString(),
+          sourceCommitmentHex: bytes32Hex(sourceCommitment),
+          sourceAmount: TEST_AMOUNT.toString(),
+          sourceAssetId: sourceAssetIdHex,
+        });
+      }
+    }
+
+    depositTx = await sendIx(
+      connection,
+      authority,
+      "deposit_masp_source",
+      await program.methods
+        .depositMasp(
+          bn(TEST_AMOUNT),
+          Array.from(sourceCommitmentBytes),
+          Array.from(sourceAssetIdBytes),
+          Buffer.from(serializeProofForSolana(depositProof)),
+          null
+        )
+        .accounts({
+          depositor: authority.publicKey,
+          poolConfig,
+          authority: authority.publicKey,
+          merkleTree,
+          pendingBuffer,
+          assetVault,
+          vaultTokenAccount,
+          userTokenAccount,
+          mint: NATIVE_MINT,
+          depositVk,
+          commitmentIndex,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+        })
+        .instruction(),
+      650_000
+    );
+    if (SOURCE_ONLY) {
+      writeSourceProgress({
+        ...loadSourceProgress(),
+        status: "source_deposited",
+        solanaDepositTx: depositTx,
+        sourceSecret: sourceSecret.toString(),
+        sourceNullifier: sourceNullifier.toString(),
+        sourceCommitment: sourceCommitment.toString(),
+        sourceCommitmentHex: bytes32Hex(sourceCommitment),
+        sourceAmount: TEST_AMOUNT.toString(),
+        sourceAssetId: sourceAssetIdHex,
+      });
+    }
+  } else {
+    console.log("Reusing source deposit from private progress file.");
+  }
   evidence.solanaDepositTx = depositTx;
   evidence.sourceCommitment = bytes32Hex(sourceCommitment);
 
-  const sourceSettle = await settleFirstPending({
-    program,
-    connection,
-    authority,
-    poolConfig,
-    merkleTree,
-    pendingBuffer,
-    batchVk,
-    expectedCommitment: sourceCommitment,
-  });
+  const sourceSettle =
+    SOURCE_ONLY && sourceProgress?.sourceSettle && !SOURCE_FORCE_NEW
+      ? restoreSourceSettle(sourceProgress.sourceSettle)
+      : await settleFirstPending({
+          program,
+          connection,
+          authority,
+          poolConfig,
+          merkleTree,
+          pendingBuffer,
+          batchVk,
+          expectedCommitment: sourceCommitment,
+        });
+  if (SOURCE_ONLY && !sourceProgress?.sourceSettle) {
+    writeSourceProgress({
+      ...loadSourceProgress(),
+      status: "source_settled",
+      solanaDepositTx: depositTx,
+      sourceSettle: serializeSourceSettle(sourceSettle),
+      sourceSecret: sourceSecret.toString(),
+      sourceNullifier: sourceNullifier.toString(),
+      sourceCommitment: sourceCommitment.toString(),
+      sourceCommitmentHex: bytes32Hex(sourceCommitment),
+      sourceAmount: TEST_AMOUNT.toString(),
+      sourceAssetId: sourceAssetIdHex,
+    });
+  } else if (SOURCE_ONLY && sourceProgress?.sourceSettle && !SOURCE_FORCE_NEW) {
+    console.log("Reusing source settlement from private progress file.");
+  }
   evidence.solanaSettlementTx = sourceSettle.tx;
   evidence.sourceLeafIndex = sourceSettle.leafIndex;
   evidence.sourceRoot = bytes32Hex(sourceSettle.newRoot);
 
-  const destSecret = randomFieldElement();
-  const destNullifier = randomFieldElement();
+  const latestProgress = SOURCE_ONLY ? loadSourceProgress() : null;
+  const destSecret =
+    SOURCE_ONLY && latestProgress?.destSecret && !SOURCE_FORCE_NEW
+      ? BigInt(latestProgress.destSecret)
+      : randomFieldElement();
+  const destNullifier =
+    SOURCE_ONLY && latestProgress?.destNullifier && !SOURCE_FORCE_NEW
+      ? BigInt(latestProgress.destNullifier)
+      : randomFieldElement();
   const normalizedDestinationAmount = normalizeSolanaToBaseAmount(TEST_AMOUNT);
   const destCommitment = computeCommitment(
     destSecret,
@@ -1195,7 +1440,10 @@ async function main(): Promise<void> {
   );
   const sourceNullifierHashBuffer = bigintToBytes32(sourceNullifierHash);
   const sourceRootBuffer = bigintToBytes32(sourceSettle.newRoot);
-  const deadline = Math.floor(Date.now() / 1000) + 3600;
+  const deadline =
+    SOURCE_ONLY && latestProgress?.deadline && !SOURCE_FORCE_NEW
+      ? Number(latestProgress.deadline)
+      : Math.floor(Date.now() / 1000) + 3600;
   const { message, messageHashHex, messageHashBytes } = fieldValidMessage({
     sourceAssetIdHex,
     baseAssetIdHex: baseNativeAssetIdHex,
@@ -1224,6 +1472,26 @@ async function main(): Promise<void> {
   };
   evidence.normalizedDestinationAmount = normalizedDestinationAmount.toString();
   evidence.messageHash = messageHashHex;
+  if (SOURCE_ONLY) {
+    writeSourceProgress({
+      ...loadSourceProgress(),
+      status: "bridge_message_prepared",
+      solanaDepositTx: depositTx,
+      sourceSettle: serializeSourceSettle(sourceSettle),
+      sourceSecret: sourceSecret.toString(),
+      sourceNullifier: sourceNullifier.toString(),
+      sourceCommitment: sourceCommitment.toString(),
+      sourceCommitmentHex: bytes32Hex(sourceCommitment),
+      sourceAmount: TEST_AMOUNT.toString(),
+      sourceAssetId: sourceAssetIdHex,
+      destSecret: destSecret.toString(),
+      destNullifier: destNullifier.toString(),
+      destinationCommitment: bytes32Hex(destCommitment),
+      normalizedDestinationAmount: normalizedDestinationAmount.toString(),
+      deadline,
+      sourceMessageHash: messageHashHex,
+    });
+  }
 
   const { proof: sourceWithdrawProof, publicSignals: sourceWithdrawSignals } =
     await snarkjs.groth16.fullProve(
@@ -1312,20 +1580,43 @@ async function main(): Promise<void> {
       spentNullifier,
     },
   });
-  const bridgeOutTx = await sendV0Ix(
-    connection,
-    authority,
-    lookupTable,
-    "bridge_out_v1_with_proof",
-    bridgeOutIx
-  );
-  const custodyAfterBridgeOut = await tokenAmount(connection, bridgeCustodyTokenAccount);
-  const vaultAfterBridgeOut = await tokenAmount(connection, vaultTokenAccount);
-  if (custodyAfterBridgeOut - custodyBeforeBridgeOut !== TEST_AMOUNT) {
-    throw new Error("Solana bridge custody balance did not increase by source amount");
-  }
-  if (vaultBeforeBridgeOut - vaultAfterBridgeOut !== TEST_AMOUNT) {
-    throw new Error("Solana source vault balance did not decrease by source amount");
+  const progressBeforeBridgeOut = SOURCE_ONLY ? loadSourceProgress() : null;
+  let bridgeOutTx =
+    SOURCE_ONLY && progressBeforeBridgeOut?.solanaBridgeOutTx && !SOURCE_FORCE_NEW
+      ? String(progressBeforeBridgeOut.solanaBridgeOutTx)
+      : "";
+  let custodyAfterBridgeOut = custodyBeforeBridgeOut;
+  let vaultAfterBridgeOut = vaultBeforeBridgeOut;
+  if (!bridgeOutTx) {
+    bridgeOutTx = await sendV0Ix(
+      connection,
+      authority,
+      lookupTable,
+      "bridge_out_v1_with_proof",
+      bridgeOutIx
+    );
+    custodyAfterBridgeOut = await tokenAmount(connection, bridgeCustodyTokenAccount);
+    vaultAfterBridgeOut = await tokenAmount(connection, vaultTokenAccount);
+    if (custodyAfterBridgeOut - custodyBeforeBridgeOut !== TEST_AMOUNT) {
+      throw new Error("Solana bridge custody balance did not increase by source amount");
+    }
+    if (vaultBeforeBridgeOut - vaultAfterBridgeOut !== TEST_AMOUNT) {
+      throw new Error("Solana source vault balance did not decrease by source amount");
+    }
+    if (SOURCE_ONLY) {
+      writeSourceProgress({
+        ...loadSourceProgress(),
+        status: "bridge_out_submitted",
+        solanaBridgeOutTx: bridgeOutTx,
+        outboundMessage: outboundMessage.toBase58(),
+        spentNullifier: spentNullifier.toBase58(),
+        sourceNullifierHash: bytes32Hex(sourceNullifierHash),
+        sourceValueLocked: true,
+        sourceNullifierSpent: true,
+      });
+    }
+  } else {
+    console.log("Reusing bridge_out_v1_with_proof tx from private progress file.");
   }
   if (!(await connection.getAccountInfo(outboundMessage, "confirmed"))) {
     throw new Error("OutboundBridgeMessage PDA was not created");
@@ -1404,6 +1695,17 @@ async function main(): Promise<void> {
     evidence.destinationTxSubmitted = false;
     evidence.proofsGenerated = true;
     evidence.secretsPrinted = false;
+    writeSourceProgress({
+      ...loadSourceProgress(),
+      status: "fixture_exported",
+      solanaBridgeOutTx: bridgeOutTx,
+      sourceFixturePath: fixturePath,
+      sourceSlot: finality.slot,
+      finalizedSlot: finality.finalizedSlot,
+      sourceConfirmations: finality.confirmations,
+      destinationBridgeMintHash,
+      destinationTxSubmitted: false,
+    });
     fs.mkdirSync(path.dirname(RESULT_PATH), { recursive: true });
     fs.writeFileSync(RESULT_PATH, JSON.stringify(evidence, jsonReplacer, 2));
     console.log(JSON.stringify({

@@ -6,6 +6,14 @@ PR-013G prepares the fresh Solana Devnet -> Base Sepolia source-event flow so th
 
 The fresh source event was **not generated in this local workspace** because `/data` is not mounted and the required hosted RPC/signer/wallet environment names are not present. No Base destination transaction was submitted.
 
+Follow-up hardening added after the first Render attempt:
+
+- the source-only runner validates all required proof artifacts before submitting any Solana source transaction;
+- the runner writes a private resumable progress file before and after each source-side step;
+- retries reuse the private progress file instead of creating a duplicate source deposit;
+- pre-existing pending deposits require explicit operator opt-in with `BRIDGE_SOLANA_SOURCE_SETTLE_PREEXISTING=true`;
+- operators should not run proof generation in the live 2 GB Render web service because `snarkjs` proof generation can exceed the instance memory limit while the relayer is running.
+
 ## Why PR-013G Follows PR-013F
 
 PR-013F proved the PR-013A fixture can be reconstructed from the finalized Solana source transaction, but the message now replays as `expired_deadline`.
@@ -26,6 +34,14 @@ BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false \
 BRIDGE_SOLANA_SOURCE_FIXTURE_DIR=/data/bridge-results \
 npm run bridge:solana-to-base:source-fixture
 ```
+
+Durable private progress file:
+
+```text
+/data/bridge-results/solana-to-base-source-progress-active.json
+```
+
+This progress file contains private source/destination note material needed for safe resume. It must not be printed, committed, or shared. It is separate from the non-secret fixture.
 
 The command writes the fixture as:
 
@@ -151,6 +167,7 @@ No simulation was run locally because no fresh durable paper state exists here.
 ## Remaining Limitations
 
 - Fresh source-event generation must run on Render or another approved shell with `/data`, Solana RPC, Base RPC, signer env, and funded Solana source wallet present.
+- The live Render web service uses a 2 GB standard instance; source proof generation should run in a separate worker/job or larger-memory environment, or with the relayer stopped, to avoid memory-limit restarts.
 - Approval and simulation remain pending until the fresh fixture is replayed into durable paper state.
 - Base destination submit remains intentionally unexecuted.
 
