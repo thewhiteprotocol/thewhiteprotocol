@@ -182,6 +182,26 @@
 - Message consumed: `true`
 - Duplicate submit: blocked with `already_submitted`; no second tx sent.
 
+## PR-013J Base Destination Withdraw Preparation
+
+- Target destination BridgeMint hash: `0x67804661cc1d5fe7c0a54cc1c572a8c990d5ef5137580898d2c58f5b8e3c6865`
+- Destination commitment: `0x12888fed12c64e6d6eebd6eb6c1859feb2ca45bc64319301ba9cdc6d562feef2`
+- Destination amount: `1000000000000000`
+- Base submit tx confirmed: `true`
+- Base submit block: `41791387`
+- Message consumed: `true`
+- Commitment inserted: `true`
+- Bridge commitment stored: `true`
+- Base `nextLeafIndex`: `42`
+- Vault balance check: passed
+- Destination note-state found: `false`
+- Withdraw proof readiness: `blocked_note_state_missing`
+- Withdraw simulation: `not_attempted`
+- Withdraw tx submitted: `false`
+- New read-only commands:
+  - `cd chains/evm && npm run bridge:validate-base-note-state`
+  - `cd chains/evm && npm run bridge:preflight-base-withdraw`
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.

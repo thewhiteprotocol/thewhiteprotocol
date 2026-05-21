@@ -246,6 +246,16 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Duplicate guarded submit blocks before sending because the paper state already has the submit tx hash and Base reports the message consumed.
     - Do not retry this destination hash after the successful submit.
 
+27. Solana -> Base destination withdraw preparation
+    - Use `docs/runbooks/solana-to-base-destination-withdraw.md` before any Base destination withdraw attempt.
+    - Run `cd chains/evm && npm run bridge:validate-base-note-state` for the exact source hash, destination BridgeMint hash, destination commitment, amount, and asset.
+    - Run `cd chains/evm && npm run bridge:preflight-base-withdraw` to confirm the Base submit tx, consumed status, inserted commitment, Base root/next leaf state, vault balance, and note-state readiness.
+    - PR-013J target destination commitment is `0x12888fed12c64e6d6eebd6eb6c1859feb2ca45bc64319301ba9cdc6d562feef2`.
+    - PR-013J read-only Base preflight confirms tx `0x72b972a211e4950d110798523f6522b402dea83306f6e12805259bdd8adec983` is confirmed, message consumed is `true`, commitment inserted is `true`, and vault balance is sufficient.
+    - PR-013J withdraw preparation is blocked because the exact destination note-state with destination secret and destination nullifier was not found.
+    - Do not generate a replacement destination note for the already-minted commitment.
+    - Do not generate a withdraw proof, run withdraw simulation, or submit a withdraw until the exact destination note-state is recovered and durably backed up outside git and outside `/tmp`.
+
 ## Stop Conditions
 
 Do not approve live submission if any of these are true:
@@ -286,6 +296,10 @@ Do not approve live submission if any of these are true:
 - The message already has `submitTxHash` in daemon state.
 - Destination note-state backup is missing or fails validation for the exact destination BridgeMint hash.
 - The destination note-state file is only present in an ephemeral shell path with no operator backup.
+- Solana -> Base destination withdraw prep cannot find exact note-state for the PR-013I source hash, destination BridgeMint hash, destination commitment, amount, and asset.
+- Solana -> Base destination withdraw prep finds a candidate note-state without destination secret or destination nullifier.
+- Solana -> Base destination withdraw prep reports `blocked_note_state_missing`.
+- Solana -> Base destination withdraw proof generation or simulation is requested before exact note-state validation passes.
 - `BRIDGE_NOTE_STATE_BACKUP_DIR` is unset, inside git, under `/tmp`, unreadable, or unwritable.
 - `npm run bridge:note-state:readback-check` has not passed after a fresh shell/container change.
 - Hosted settlement/withdraw is attempted before the required zkey files are present and checksum-verified on durable storage.

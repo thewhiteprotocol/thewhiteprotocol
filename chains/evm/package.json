@@ -37,7 +37,10 @@
     "bridge:validate-note-state": "tsx test/helpers/bridge-note-state-cli.ts validate",
     "bridge:export-note-state": "tsx test/helpers/bridge-note-state-cli.ts export",
     "bridge:note-state:readback-check": "tsx test/helpers/bridge-note-state-cli.ts readback",
-    "bridge:test-note-state": "tsx test/helpers/bridge-note-state-cli.ts self-test"
+    "bridge:test-note-state": "tsx test/helpers/bridge-note-state-cli.ts self-test",
+    "bridge:validate-base-note-state": "tsx test/helpers/solana-to-base-destination-withdraw-cli.ts validate-note-state",
+    "bridge:preflight-base-withdraw": "tsx test/helpers/solana-to-base-destination-withdraw-cli.ts preflight",
+    "bridge:test-base-withdraw-prep": "tsx test/helpers/solana-to-base-destination-withdraw-cli.ts self-test"
   },
   "dependencies": {
     "@thewhiteprotocol/core": "file:../../packages/core"
