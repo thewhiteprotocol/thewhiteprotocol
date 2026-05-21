@@ -16,6 +16,7 @@ import {
 } from '../solana-to-base-approval';
 import { runSolanaToBaseResignApproval } from '../solana-to-base-resign-approval';
 import {
+  BRIDGE_EVM_SUBMIT_CHECK_ONLY_ENV,
   BRIDGE_EVM_SUBMIT_DESTINATION_MESSAGE_HASH_ENV,
   BRIDGE_EVM_SUBMIT_SOURCE_MESSAGE_HASH_ENV,
   checkGuardedEvmSubmitEnv,
@@ -495,6 +496,23 @@ describe('Solana to Base approval readiness', () => {
     expect(check.warnings).toContain('BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT_must_be_true');
   });
 
+  test('submit env check allows paper check-only mode without submitter key', () => {
+    const msg = state();
+    const check = checkGuardedEvmSubmitEnv({
+      env: submitEnv('/tmp/state', msg, {
+        BRIDGE_DAEMON_MODE: 'paper',
+        BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT: 'false',
+        [BRIDGE_EVM_SUBMIT_CHECK_ONLY_ENV]: 'true',
+        BASE_SUBMITTER_PRIVATE_KEY: '',
+      }),
+      sourceHash: msg.sourceMessageHash!,
+      destinationHash: msg.destinationMessageHash!,
+    });
+    expect(check.ok).toBe(true);
+    expect(check.checkOnly).toBe(true);
+    expect(check.submitterKeyPresent).toBe(false);
+  });
+
   test('submit blocks if approved hash is missing', async () => {
     const msg = state();
     const report = await submitSolanaToBaseApprovedMessage({
@@ -583,6 +601,48 @@ describe('Solana to Base approval readiness', () => {
     expect(report.status).toBe('blocked_pre_submit_checks');
     expect(report.errors).toContain('base_destination_note_state_missing');
     expect(report.destinationTxSubmitted).toBe(false);
+  });
+
+  test('submit-approved check-only mode proves missing backup gate before writeContract', async () => {
+    const msg = state();
+    const missingDir = durableTestDir();
+    const mockClient = submitClient();
+    const report = await submitSolanaToBaseApprovedMessage({
+      env: submitEnv(writeStateFile(msg), msg, {
+        BRIDGE_BASE_NOTE_STATE_BACKUP_DIR: missingDir,
+        BRIDGE_DAEMON_MODE: 'paper',
+        BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT: 'false',
+        [BRIDGE_EVM_SUBMIT_CHECK_ONLY_ENV]: 'true',
+        BASE_SUBMITTER_PRIVATE_KEY: '',
+      }),
+      client: mockClient,
+    });
+    expect(report.ok).toBe(false);
+    expect(report.status).toBe('blocked_pre_submit_checks');
+    expect(report.errors).toContain('base_destination_note_state_missing');
+    expect(report.submitAttempted).toBe(false);
+    expect(report.destinationTxSubmitted).toBe(false);
+    expect(mockClient.writeContract).not.toHaveBeenCalled();
+  });
+
+  test('submit-approved check-only mode passes backup gate without sending', async () => {
+    const msg = state();
+    const mockClient = submitClient();
+    const report = await submitSolanaToBaseApprovedMessage({
+      env: submitEnv(writeStateFile(msg), msg, {
+        BRIDGE_DAEMON_MODE: 'paper',
+        BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT: 'false',
+        [BRIDGE_EVM_SUBMIT_CHECK_ONLY_ENV]: 'true',
+        BASE_SUBMITTER_PRIVATE_KEY: '',
+      }),
+      client: mockClient,
+    });
+    expect(report.ok).toBe(true);
+    expect(report.status).toBe('check_ready');
+    expect(report.baseDestinationNoteStateValid).toBe(true);
+    expect(report.submitAttempted).toBe(false);
+    expect(report.destinationTxSubmitted).toBe(false);
+    expect(mockClient.writeContract).not.toHaveBeenCalled();
   });
 
   test('submit blocks source and destination hash mismatch', async () => {

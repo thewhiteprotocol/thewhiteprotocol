@@ -131,3 +131,30 @@ PR-013K classification:
 - Exact destination note-state found: false
 - Recovery classification: currently unrecoverable unless exact note-state is restored
 - Future Solana -> Base live submits must pass the durable Base destination note-state backup gate before `acceptBridgeMint` can be sent.
+
+## Submit Gate Check-Only Exercise
+
+Before any future live submit, run the submit-approved command in check-only mode after the exact Base destination note-state has been exported and read back:
+
+```bash
+cd relayer
+
+BRIDGE_SUBMIT_APPROVED_CHECK_ONLY=true \
+BRIDGE_DAEMON_MODE=paper \
+BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false \
+BRIDGE_DAEMON_ROUTES=solana-devnet:base-sepolia:1 \
+BRIDGE_SOLANA_TO_BASE_APPROVAL_STATE_PATH=<paper-state-dir> \
+BRIDGE_APPROVED_MESSAGE_HASHES=solana-devnet->base-sepolia|<destinationBridgeMintHash> \
+BRIDGE_SUBMIT_SOURCE_MESSAGE_HASH=<sourceHash> \
+BRIDGE_SUBMIT_DESTINATION_MESSAGE_HASH=<destinationBridgeMintHash> \
+BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state \
+npm run bridge:solana-to-base:submit-approved
+```
+
+Expected successful dry check:
+
+- `status=check_ready`
+- `submitAttempted=false`
+- `destinationTxSubmitted=false`
+
+If the backup is missing or invalid, the command must block with `blocked_pre_submit_checks` before `writeContract`.

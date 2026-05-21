@@ -261,9 +261,11 @@ Use this checklist before approving any bridge daemon message for a future live-
     - `cd chains/evm && npm run bridge:export-base-note-state` must export the exact candidate note-state into the durable backup directory before live submit.
     - `cd chains/evm && npm run bridge:validate-base-note-state` must pass from the durable backup directory.
     - `cd chains/evm && npm run bridge:base-note-state:readback-check` must pass from a fresh shell.
+    - `BRIDGE_SUBMIT_APPROVED_CHECK_ONLY=true cd relayer && npm run bridge:solana-to-base:submit-approved` must reach `check_ready` before any live-submit window is opened.
     - `cd relayer && npm run bridge:solana-to-base:submit-approved` now reruns the Base destination note-state backup gate after final simulation and before `acceptBridgeMint`.
     - The submit command must block if the note-state is missing, invalid, under `/tmp`, inside git, or missing destination secret/nullifier fields.
     - PR-013K classifies the PR-013I destination commitment as currently unrecoverable because exact note-state was not found.
+    - PR-013L confirms missing backup blocks before `writeContract` and valid fixture backup reaches `check_ready` without a destination tx.
 
 ## Stop Conditions
 
@@ -311,6 +313,7 @@ Do not approve live submission if any of these are true:
 - Solana -> Base destination withdraw proof generation or simulation is requested before exact note-state validation passes.
 - Solana -> Base live submit is attempted without `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR` or without a valid exact note-state backup.
 - Solana -> Base submit-approved reports `base_destination_note_state_missing`, `base_destination_note_state_not_durable`, or any Base destination note-state mismatch.
+- Solana -> Base submit-approved check-only mode has not reached `check_ready` after the durable Base destination note-state readback check.
 - `BRIDGE_NOTE_STATE_BACKUP_DIR` is unset, inside git, under `/tmp`, unreadable, or unwritable.
 - `npm run bridge:note-state:readback-check` has not passed after a fresh shell/container change.
 - Hosted settlement/withdraw is attempted before the required zkey files are present and checksum-verified on durable storage.

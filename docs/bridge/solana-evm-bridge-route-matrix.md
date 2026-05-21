@@ -214,6 +214,16 @@
 - No withdraw attempted: `true`
 - No destination transaction submitted: `true`
 
+## PR-013L Durable Backup Gate Exercise
+
+- Submit-approved check-only mode: `BRIDGE_SUBMIT_APPROVED_CHECK_ONLY=true`
+- Check-only required daemon mode: `paper`
+- Check-only required live-submit flag: `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`
+- Missing-backup gate result: blocked before `writeContract` with `base_destination_note_state_missing`
+- Valid fixture backup result: `check_ready`
+- Destination tx submitted: `false`
+- Next action: generate a fresh Solana -> Base source event, export the exact Base destination note-state to `/data/base-destination-note-state`, run readback, then use check-only submit before any separately approved live submit.
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.

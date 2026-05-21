@@ -37,6 +37,8 @@ export const BRIDGE_EVM_SUBMIT_DESTINATION_MESSAGE_HASH_ENV =
   'BRIDGE_SUBMIT_DESTINATION_MESSAGE_HASH';
 export const BRIDGE_EVM_SUBMIT_SOURCE_MESSAGE_HASH_ENV =
   'BRIDGE_SUBMIT_SOURCE_MESSAGE_HASH';
+export const BRIDGE_EVM_SUBMIT_CHECK_ONLY_ENV =
+  'BRIDGE_SUBMIT_APPROVED_CHECK_ONLY';
 
 export interface EvmSubmitClient extends BaseApprovalClient {
   writeContract(args: {
@@ -59,6 +61,7 @@ export interface EvmSubmitClient extends BaseApprovalClient {
 
 export interface GuardedEvmSubmitEnvCheck {
   ok: boolean;
+  checkOnly: boolean;
   mode: string;
   liveSubmitEnabled: boolean;
   routeAllowed: boolean;
@@ -80,6 +83,7 @@ export interface GuardedEvmSubmitResult {
     | 'blocked_simulation'
     | 'already_submitted'
     | 'already_consumed'
+    | 'check_ready'
     | 'failed';
   sourceMessageHash: string;
   destinationBridgeMintHash: string;
@@ -112,6 +116,11 @@ function asBytes32(value: string): Hex {
 
 function truthy(value: string | undefined): boolean {
   return value === 'true' || value === '1' || value === 'yes';
+}
+
+function submitCheckOnly(env: Record<string, string | undefined>): boolean {
+  return truthy(env[BRIDGE_EVM_SUBMIT_CHECK_ONLY_ENV]) ||
+    truthy(env.BRIDGE_SOLANA_TO_BASE_SUBMIT_APPROVED_CHECK_ONLY);
 }
 
 function approvedHashPresent(env: Record<string, string | undefined>, destinationHash: string): boolean {
@@ -327,22 +336,29 @@ export function checkGuardedEvmSubmitEnv(input: {
   const warnings: string[] = [];
   const mode = env.BRIDGE_DAEMON_MODE || '';
   const liveSubmitEnabled = truthy(env.BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT);
+  const checkOnly = submitCheckOnly(env);
   const approvedDestinationHashPresent = approvedHashPresent(env, destinationHash);
   const expectedSourceHashPresent = isHash(sourceHash);
   const expectedDestinationHashPresent = isHash(destinationHash);
   const submitterKeyPresent = Boolean(submitterKey(env));
   const allowedRoute = routeAllowed(env);
 
-  if (mode !== 'live-testnet') warnings.push('BRIDGE_DAEMON_MODE_must_be_live-testnet');
-  if (!liveSubmitEnabled) warnings.push('BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT_must_be_true');
+  if (checkOnly) {
+    if (mode !== 'paper') warnings.push('BRIDGE_DAEMON_MODE_must_be_paper_for_check_only');
+    if (liveSubmitEnabled) warnings.push('BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT_must_be_false_for_check_only');
+  } else {
+    if (mode !== 'live-testnet') warnings.push('BRIDGE_DAEMON_MODE_must_be_live-testnet');
+    if (!liveSubmitEnabled) warnings.push('BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT_must_be_true');
+    if (!submitterKeyPresent) missing.push('BASE_SUBMITTER_PRIVATE_KEY_or_base_deployer_key');
+  }
   if (!allowedRoute) warnings.push('BRIDGE_DAEMON_ROUTES_must_be_exact_solana_to_base_route');
   if (!approvedDestinationHashPresent) missing.push('BRIDGE_APPROVED_MESSAGE_HASHES_route_scoped_destination_hash');
   if (!expectedSourceHashPresent) missing.push(BRIDGE_EVM_SUBMIT_SOURCE_MESSAGE_HASH_ENV);
   if (!expectedDestinationHashPresent) missing.push(BRIDGE_EVM_SUBMIT_DESTINATION_MESSAGE_HASH_ENV);
-  if (!submitterKeyPresent) missing.push('BASE_SUBMITTER_PRIVATE_KEY_or_base_deployer_key');
 
   return {
     ok: missing.length === 0 && warnings.length === 0,
+    checkOnly,
     mode,
     liveSubmitEnabled,
     routeAllowed: allowedRoute,
@@ -451,6 +467,7 @@ export async function submitSolanaToBaseApprovedMessage(input: {
   account?: Address | PrivateKeyAccount;
 }): Promise<GuardedEvmSubmitResult> {
   const env = input.env ?? process.env;
+  const checkOnly = submitCheckOnly(env);
   const sourceHash = normalizeHash(
     env[BRIDGE_EVM_SUBMIT_SOURCE_MESSAGE_HASH_ENV] || EXPECTED_PR013A_SOURCE_HASH
   );
@@ -599,6 +616,25 @@ export async function submitSolanaToBaseApprovedMessage(input: {
     };
   }
 
+  if (checkOnly) {
+    return {
+      ...baseResult,
+      ok: true,
+      status: 'check_ready',
+      finalChecks: true,
+      simulationRerun: true,
+      simulationOk: true,
+      submitAttempted: false,
+      messageConsumed: false,
+      commitmentInserted: null,
+      duplicateSubmitBlocked: false,
+      baseDestinationNoteStateValid: true,
+      baseDestinationNoteStatePath: noteStateGate.path,
+      liveSubmitDisabledAfterWindow: true,
+      destinationTxSubmitted: false,
+    };
+  }
+
   const account = input.account;
   if (!account) {
     errors.push('submitter_account_missing');
@@ -683,11 +719,12 @@ function loadAccount(env: Record<string, string | undefined>): PrivateKeyAccount
 
 async function main(): Promise<void> {
   const env = process.env;
-  const account = loadAccount(env);
   const rpcUrl = env.BASE_SEPOLIA_RPC_URL || env.BASE_RPC_URL || DEFAULT_BASE_SEPOLIA_RPC_URL;
   const publicClient = createPublicClient({ transport: http(rpcUrl) }) as PublicClient;
-  const walletClient = createWalletClient({
-    account,
+  const checkOnly = submitCheckOnly(env);
+  const account = checkOnly ? undefined : loadAccount(env);
+  const walletClient = checkOnly ? null : createWalletClient({
+    account: account!,
     transport: http(rpcUrl),
   }) as WalletClient;
   const client = {
@@ -695,7 +732,11 @@ async function main(): Promise<void> {
     readContract: publicClient.readContract.bind(publicClient),
     simulateContract: publicClient.simulateContract.bind(publicClient),
     estimateContractGas: publicClient.estimateContractGas.bind(publicClient),
-    writeContract: walletClient.writeContract.bind(walletClient),
+    writeContract: walletClient
+      ? walletClient.writeContract.bind(walletClient)
+      : (async () => {
+        throw new Error('writeContract disabled in check-only mode');
+      }),
     waitForTransactionReceipt: publicClient.waitForTransactionReceipt.bind(publicClient),
   } as unknown as EvmSubmitClient;
   const report = await submitSolanaToBaseApprovedMessage({ env, client, account });
