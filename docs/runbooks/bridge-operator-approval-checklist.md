@@ -267,7 +267,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - The submit command must block if the note-state is missing, invalid, under `/tmp`, inside git, or missing destination secret/nullifier fields.
     - PR-013K classifies the PR-013I destination commitment as currently unrecoverable because exact note-state was not found.
     - PR-013L confirms missing backup blocks before `writeContract` and valid fixture backup reaches `check_ready` without a destination tx.
-    - PR-013M updates the fresh Solana -> Base source-only runner to write the exact Base destination note-state backup directly when `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR` is set.
+    - PR-013M reached `check_ready` for destination hash `0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d` with validated outside-repo Base destination note-state and no Base destination tx submitted.
 
 ## Stop Conditions
 

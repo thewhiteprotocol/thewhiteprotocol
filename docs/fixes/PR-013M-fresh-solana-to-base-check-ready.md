@@ -1,12 +1,10 @@
-# PR-013M - Fresh Solana to Base Check-Ready Preparation
+# PR-013M - Fresh Solana to Base Check-Ready
 
 ## Summary
 
-PR-013M prepares the fresh Solana Devnet -> Base Sepolia no-submit flow required after PR-013L.
+PR-013M generated a fresh Solana Devnet -> Base Sepolia source event from Codespace, exported the exact Base destination note-state to an outside-repo operator directory, replayed the source fixture into durable paper state, reran Base approval/simulation, and ran guarded submit in check-only mode until it returned `check_ready`.
 
-The source-only Solana -> Base runner now exports the exact Base destination note-state directly into the durable backup directory when `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR` is set. The export includes the destination secret/nullifier metadata required by the PR-013K/PR-013L backup gate, writes with `0600` permissions where possible, refuses `/tmp` and repo-local paths, and prints only the file path.
-
-No Base destination transaction was submitted in this PR.
+No Base destination transaction was submitted.
 
 ## PR-013L Gate Status
 
@@ -21,140 +19,124 @@ Check-only mode:
 - Does not call `writeContract`.
 - Returns `check_ready` only after the backup gate passes.
 
-## Local Fresh Event Attempt
+## Fresh Source Event Evidence
 
-The Codespace environment did not have the live operator prerequisites needed to generate the fresh devnet source event:
+Execution environment: Codespace using `/workspaces/thewhiteprotocol/thewhiteprotocol.env`.
 
-- `SOLANA_DEVNET_RPC_URL`: not present
-- `BASE_SEPOLIA_RPC_URL`: not present
-- deployed signer env: not present
-- Solana source wallet env: not present
-- `/data/bridge-results`: not present
-- `/data/base-destination-note-state`: not present
-
-Because these prerequisites are absent, the fresh source event was not generated locally. This avoids unsafe partial live execution and avoids printing or handling missing private env contents.
-
-## Source Runner Change
-
-When running the source-only command with:
-
-```bash
-BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state
-BRIDGE_REQUIRE_BASE_NOTE_STATE_BACKUP=true
-```
-
-the runner exports:
+Operator data directory:
 
 ```text
-/data/base-destination-note-state/<destinationBridgeMintHash>.json
+/workspaces/thewhiteprotocol-operator-data
 ```
 
-The backup file contains private note material and must remain outside git. The command output reports only `baseDestinationNoteStatePath`.
+Fresh usable source event:
 
-The exported note-state includes:
+- Solana deposit tx: `3eQHcgwXygwpBuo4i3976oArtW3g5LxoGZHB7TFjM2NzLKcLbz8GDKwm1thnABVnRYgQ29z8ks6Wh2wXbDLfaWGc`
+- Solana settlement tx: `5SGqmQVM94Bz2sd2DKtyrnrDD4e2D5kC5c1VfuLwMcvSahHtbi2uMiR4u9bARcToTq7vYouVLiYBrGaQm7qGGf9Y`
+- Solana `bridge_out_v1_with_proof` tx: `54ErMCoDAw5Ed9vy5w1QyUzqCEpQB2bMmT1XuNmfZcQrby7kUinF3of59WK8Yk6nqQMrH1y6N3Wp53xSzHnAhvcr`
+- Source slot: `463875732`
+- Source hash: `0x0c0cc0672e9a485590d5e9db27a25413c55141fac2d9688c6caf59009b9abdc3`
+- Destination BridgeMint hash: `0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d`
+- Destination commitment: `0x0622f68a087014d4b920cf0c8224e11ef3b129f2f58ff4414c030e143ceeaf58`
+- Source amount: `1000000`
+- Normalized Base destination amount: `1000000000000000`
+- Deadline: `1779363691`
+- Source nullifier spent: `true`
+- Source value locked: `true`
+- Destination tx submitted: `false`
 
-- source hash
-- destination BridgeMint hash
-- destination commitment
-- normalized Base destination amount
-- destination asset ID
-- canonical asset ID
-- destination secret presence
-- destination nullifier presence
+The run first cleared one pre-existing Solana pending deposit with settlement tx `4XXSfs8ZG5KUQvamf4JVDnTNNRdkYW8oH8iNUGh9iAChMV77PUsKo7Xa4kM1XLHbZ2tp9zYGNCCqSGo1MbRdBstd`.
 
-Secret values are not printed.
+An earlier source-only attempt produced `bridge_out_v1_with_proof` tx `61dC3aHSoqxUfB1Ysy3ZZuZ3ZQ9AZVbu6ePcLLaPrhbN2g7ijGHMGfpVZhsWCjcRFB1YerxweJ22zmGzqvYHHGWt` but failed at the new backup gate because the local backup path was inside the git repo. No Base transaction was submitted for that attempt.
 
-## Render Operator Sequence
+## Durable Fixture Evidence
 
-Run this on the approved Render shell or another approved live shell.
+- Source fixture path: `/workspaces/thewhiteprotocol-operator-data/bridge-results/solana-to-base-source-fixture-0x0c0cc0672e9a485590d5e9db27a25413c55141fac2d9688c6caf59009b9abdc3.json`
+- Durable paper state path: `/workspaces/thewhiteprotocol-operator-data/bridge-results/solana-to-base-paper-state`
+- Base destination note-state path: `/workspaces/thewhiteprotocol-operator-data/base-destination-note-state/0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d.json`
 
-```bash
-repo_root="$(git rev-parse --show-toplevel)"
-cd "$repo_root/chains/solana"
+The note-state backup path is outside the git repo and not under `/tmp`.
 
-PR012Z_SOURCE_ONLY=true \
-BRIDGE_DAEMON_MODE=paper \
-BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false \
-BRIDGE_SOLANA_SOURCE_FIXTURE_DIR=/data/bridge-results \
-BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state \
-BRIDGE_REQUIRE_BASE_NOTE_STATE_BACKUP=true \
-npm run bridge:solana-to-base:source-fixture
-```
+## Note-State Validation and Readback
 
-Then validate and read back:
+Validation result:
 
-```bash
-cd "$repo_root/chains/evm"
+- Status: `note_state_valid`
+- Source hash matches: `true`
+- Destination hash matches: `true`
+- Destination commitment matches: `true`
+- Amount matches: `true`
+- Asset matches: `true`
+- Has destination secret: `true`
+- Has destination nullifier: `true`
+- Durable path: `true`
+- Secrets printed: `false`
 
-BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state \
-BRIDGE_SOLANA_TO_BASE_FIXTURE_PATH=<durable-source-fixture-path> \
-BRIDGE_SOLANA_TO_BASE_STATE_PATH=/data/bridge-results/solana-to-base-paper-state/bridge-messages.json \
-npm run bridge:validate-base-note-state
+Readback result:
 
-BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state \
-BRIDGE_SOLANA_TO_BASE_FIXTURE_PATH=<durable-source-fixture-path> \
-BRIDGE_SOLANA_TO_BASE_STATE_PATH=/data/bridge-results/solana-to-base-paper-state/bridge-messages.json \
-npm run bridge:base-note-state:readback-check
-```
+- Status: `readback_valid`
+- Destination note-state found: `true`
+- Durable note-state path: `/workspaces/thewhiteprotocol-operator-data/base-destination-note-state/0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d.json`
+- Secrets printed: `false`
 
-Replay into durable paper state:
+## Paper Replay Result
 
-```bash
-cd "$repo_root/relayer"
+- Route: `solana-devnet -> base-sepolia`
+- Source event parsed: `true`
+- Policy passed: `true`
+- Expired deadline: `false`
+- Finality satisfied: `true`
+- Signatures produced: `2`
+- Submit preview created: `true`
+- Message persisted: `true`
+- Status: `paper_ready_to_submit`
+- Destination tx submitted: `false`
+- Submit tx hash: `null`
 
-BRIDGE_DAEMON_REPLAY_ROUTE=solana-devnet:base-sepolia \
-BRIDGE_SOLANA_SOURCE_EVENTS_PATH=<durable-source-fixture-path> \
-BRIDGE_DAEMON_MODE=paper \
-BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false \
-BRIDGE_DAEMON_STATE_PATH=/data/bridge-results/solana-to-base-paper-state \
-BRIDGE_DAEMON_SCAN_FROM_BLOCK=<sourceSlot> \
-BRIDGE_DAEMON_SCAN_TO_BLOCK=<sourceSlot> \
-BRIDGE_DAEMON_EXPECTED_SOURCE_MESSAGE_HASH=<sourceHash> \
-BRIDGE_DAEMON_EXPECTED_DESTINATION_MESSAGE_HASH=<destinationBridgeMintHash> \
-npm run bridge:daemon:paper:replay
-```
+## Approval and Simulation Result
 
-Run approval:
+- Approval rerun: `approval_ready`
+- Base BridgeInbox: `0x4D4aDB460C5C882bEcbe95d0562769ECa812D1FC`
+- Signer set version: `1`
+- Signature count: `2`
+- Route enabled: `true`
+- Route paused: `false`
+- Asset supported: `true`
+- Message consumed: `false`
+- Message frozen: `false`
+- Amount cap passed: `true`
+- Simulation attempted: `true`
+- Simulation result: passed
+- Gas estimate: `969049`
+- Destination tx submitted: `false`
 
-```bash
-BRIDGE_DAEMON_MODE=paper \
-BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false \
-BRIDGE_SOLANA_TO_BASE_APPROVAL_STATE_PATH=/data/bridge-results/solana-to-base-paper-state \
-BRIDGE_EXPECTED_SOURCE_MESSAGE_HASH=<sourceHash> \
-BRIDGE_EXPECTED_DESTINATION_MESSAGE_HASH=<destinationBridgeMintHash> \
-npm run bridge:solana-to-base:approval
-```
+## Check-Only Submit Result
 
-Run check-only submit readiness:
+`bridge:solana-to-base:submit-approved` was run with:
 
-```bash
-BRIDGE_SUBMIT_APPROVED_CHECK_ONLY=true \
-BRIDGE_DAEMON_MODE=paper \
-BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false \
-BRIDGE_DAEMON_ROUTES=solana-devnet:base-sepolia:1 \
-BRIDGE_DAEMON_STATE_PATH=/data/bridge-results/solana-to-base-paper-state \
-BRIDGE_SOLANA_TO_BASE_APPROVAL_STATE_PATH=/data/bridge-results/solana-to-base-paper-state \
-BRIDGE_APPROVED_MESSAGE_HASHES=solana-devnet->base-sepolia|<destinationBridgeMintHash> \
-BRIDGE_SUBMIT_SOURCE_MESSAGE_HASH=<sourceHash> \
-BRIDGE_SUBMIT_DESTINATION_MESSAGE_HASH=<destinationBridgeMintHash> \
-BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state \
-npm run bridge:solana-to-base:submit-approved
-```
+- `BRIDGE_SUBMIT_APPROVED_CHECK_ONLY=true`
+- `BRIDGE_DAEMON_MODE=paper`
+- `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`
 
-Expected:
+Result:
 
-- status: `check_ready`
-- submit attempted: `false`
-- destination tx submitted: `false`
+- Status: `check_ready`
+- Final checks: `true`
+- Simulation rerun: `true`
+- Simulation ok: `true`
+- Base destination note-state valid: `true`
+- Submit attempted: `false`
+- Submit tx: `null`
+- Destination tx submitted: `false`
+- Secrets printed: `false`
 
 ## No-Submit Proof
 
-- `BRIDGE_DAEMON_MODE=paper`
-- `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`
-- `BRIDGE_SUBMIT_APPROVED_CHECK_ONLY=true`
-- no `writeContract`
-- no Base `acceptBridgeMint`
-- no Base destination tx
+- Live submit stayed disabled.
+- Check-only mode was used.
+- `writeContract` was not called.
+- No Base `acceptBridgeMint` transaction was submitted.
+- `destinationTxSubmitted=false`.
 
 ## Tests Run
 
@@ -168,10 +150,10 @@ Expected:
 
 ## Remaining Limitations
 
-- Fresh source event was not generated in this Codespace because live RPC, signer, wallet, and `/data` prerequisites are absent.
-- Render's 2 GB web service previously exceeded memory during source proof generation; use an approved shell with enough memory, or run proof generation outside the live web process.
-- The next PR should run the Render/operator sequence above and record the actual source tx, fixture path, note-state backup path, approval result, and check-only readiness.
+- The final guarded Base live submit is intentionally not performed in this PR.
+- One earlier source-only attempt exists with no Base destination submit because the first local note-state backup path was rejected as repo-local.
+- The Base destination note-state backup must be preserved until the eventual destination withdraw/recovery flow completes.
 
 ## Next Recommended PR
 
-PR-013N should run the PR-013M command sequence on an approved live shell and stop at `check_ready` with no Base destination submission. A later PR can perform the separately approved guarded live submit.
+PR-013N should perform the separately approved guarded one-shot Base `acceptBridgeMint` submit for destination hash `0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d`, then verify confirmation, consumed status, duplicate-submit rejection, and live-submit disabled after the window.

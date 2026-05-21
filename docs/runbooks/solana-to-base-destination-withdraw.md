@@ -176,3 +176,12 @@ npm run bridge:solana-to-base:source-fixture
 ```
 
 The runner must report `baseDestinationNoteStatePath`. The file contains private destination note material and must never be printed, committed, or copied into the repo.
+
+PR-013M check-ready target:
+
+- Source hash: `0x0c0cc0672e9a485590d5e9db27a25413c55141fac2d9688c6caf59009b9abdc3`
+- Destination BridgeMint hash: `0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d`
+- Destination commitment: `0x0622f68a087014d4b920cf0c8224e11ef3b129f2f58ff4414c030e143ceeaf58`
+- Base note-state validation/readback: passed
+- Submit-approved check-only: `check_ready`
+- Destination tx submitted: `false`

@@ -224,14 +224,16 @@
 - Destination tx submitted: `false`
 - Next action: generate a fresh Solana -> Base source event, export the exact Base destination note-state to `/data/base-destination-note-state`, run readback, then use check-only submit before any separately approved live submit.
 
-## PR-013M Fresh Source Backup Preparation
+## PR-013M Fresh Source Check-Ready Evidence
 
-- Source-only Solana -> Base runner now supports `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state`.
-- Set `BRIDGE_REQUIRE_BASE_NOTE_STATE_BACKUP=true` to fail closed if the backup directory is missing.
-- The exported file is named `<destinationBridgeMintHash>.json`.
-- The backup path must be outside git and not under `/tmp`.
-- The runner prints only `baseDestinationNoteStatePath`; it does not print note secrets or nullifier secrets.
-- Codespace execution was blocked by missing live RPC/signer/wallet env and absent `/data`.
+- Source tx: `54ErMCoDAw5Ed9vy5w1QyUzqCEpQB2bMmT1XuNmfZcQrby7kUinF3of59WK8Yk6nqQMrH1y6N3Wp53xSzHnAhvcr`
+- Source hash: `0x0c0cc0672e9a485590d5e9db27a25413c55141fac2d9688c6caf59009b9abdc3`
+- Destination BridgeMint hash: `0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d`
+- Destination commitment: `0x0622f68a087014d4b920cf0c8224e11ef3b129f2f58ff4414c030e143ceeaf58`
+- Durable note-state validation/readback: passed
+- Paper replay status: `paper_ready_to_submit`
+- Approval/simulation: passed, gas estimate `969049`
+- Submit-approved check-only: `check_ready`
 - Destination tx submitted: `false`
 
 ## Production Relayer Policy

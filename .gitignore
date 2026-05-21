@@ -48,6 +48,8 @@ chains/evm/test/*bridge-state*.json
 **/recovery-snapshot-*.json
 **/.bridge-notes/**
 .bridge-signers.env
+thewhiteprotocol.env
+.operator-data/
 *.orig
 *.rej
 
