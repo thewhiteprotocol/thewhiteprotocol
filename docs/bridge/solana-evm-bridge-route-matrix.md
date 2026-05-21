@@ -250,6 +250,20 @@
 - Duplicate submit: blocked as `already_submitted`; no second Base tx.
 - Safe mode after window: `BRIDGE_DAEMON_MODE=paper`, `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`
 
+## PR-013O Destination Withdraw Preparation
+
+- Durable Base note-state validation/readback: passed.
+- Base submit tx confirmed: `0x18b0d4a25ea9087630b0eed09d2399a33d16c8788290cad2d379619aedc96556`
+- Message consumed: `true`
+- Commitment inserted: `true`
+- Leaf index: `42`
+- Membership evidence: `leaf_index_derived_from_submit_block_nextLeafIndex_delta`
+- Nullifier spent: `false`
+- Vault balance check: passed.
+- Withdraw proof readiness: `blocked_merkle_path_unavailable`
+- Withdraw simulation: `not_attempted_missing_merkle_path`
+- Withdraw tx submitted: `false`
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.

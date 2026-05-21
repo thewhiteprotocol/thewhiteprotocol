@@ -196,3 +196,17 @@ PR-013N live-submit target:
 - Duplicate submit: blocked as `already_submitted`
 - Destination note-state backup: preserved outside git under the operator data directory.
 - Next withdraw preparation must validate this exact destination commitment and note-state before generating any proof or simulation.
+
+PR-013O withdraw-prep status:
+
+- Durable Base note-state validation/readback: passed
+- Base submit tx confirmed: `true`
+- Message consumed: `true`
+- Commitment inserted: `true`
+- Leaf index: `42`
+- Leaf-index evidence: `nextLeafIndex` moved from `42` before the submit block to `43` at submit block `41794491`, with matching `BridgeMintAccepted` and `BridgeMint` events.
+- Nullifier spent: `false`
+- Vault balance check: passed
+- Withdraw proof readiness: `blocked_merkle_path_unavailable`
+- Withdraw simulation: `not_attempted_missing_merkle_path`
+- Do not generate or submit a withdraw until a Base Merkle path/indexer snapshot for leaf `42` is available.

@@ -13,6 +13,8 @@ import {
   type Hex,
 } from "viem";
 
+const circomlibjs = require("circomlibjs");
+
 type JsonRecord = Record<string, any>;
 
 type ExpectedDestination = {
@@ -39,6 +41,13 @@ type NoteStateSummary = {
   durablePath: boolean;
   outsideRepo: boolean;
   nullifierHashPresent: boolean;
+};
+
+type RawNoteState = {
+  destSecret?: unknown;
+  destNullifier?: unknown;
+  secret?: unknown;
+  nullifier?: unknown;
 };
 
 const PR013I_SOURCE_HASH =
@@ -126,7 +135,13 @@ function resolveFixturePath(env = process.env): string | null {
 }
 
 function resolveStatePath(env = process.env): string | null {
-  if (env.BRIDGE_SOLANA_TO_BASE_STATE_PATH) return path.resolve(env.BRIDGE_SOLANA_TO_BASE_STATE_PATH);
+  if (env.BRIDGE_SOLANA_TO_BASE_STATE_PATH) {
+    const requested = path.resolve(env.BRIDGE_SOLANA_TO_BASE_STATE_PATH);
+    if (fs.existsSync(requested) && fs.statSync(requested).isDirectory()) {
+      return path.join(requested, "bridge-messages.json");
+    }
+    return requested;
+  }
   const candidate = findFirstExisting(DEFAULT_STATE_CANDIDATES);
   return candidate ? path.resolve(candidate) : null;
 }
@@ -313,11 +328,41 @@ function noteStateContentValid(summary: NoteStateSummary): boolean {
   );
 }
 
+function deriveLeafIndexFromNextLeafDelta(
+  beforeSubmit: bigint | null,
+  atSubmitBlock: bigint | null,
+  bridgeMintAccepted: boolean,
+  bridgeMintEvent: boolean
+): bigint | null {
+  if (!bridgeMintAccepted || !bridgeMintEvent || beforeSubmit === null || atSubmitBlock === null) return null;
+  return atSubmitBlock === beforeSubmit + 1n ? beforeSubmit : null;
+}
+
+function loadValidNoteState(summary: NoteStateSummary | null): RawNoteState | null {
+  if (!summary || !summary.exists || !noteStateContentValid(summary)) return null;
+  return readJson(summary.path) as RawNoteState;
+}
+
+async function computeDestinationNullifierHash(
+  noteState: RawNoteState,
+  leafIndex: bigint
+): Promise<bigint | null> {
+  const nullifier = normalizeScalar(noteState.destNullifier ?? noteState.nullifier);
+  const secret = normalizeScalar(noteState.destSecret ?? noteState.secret);
+  if (!nullifier || !secret) return null;
+  const poseidon = await circomlibjs.buildPoseidon();
+  const F = poseidon.F;
+  const inner = poseidon([F.e(nullifier), F.e(secret)]);
+  const outer = poseidon([inner, F.e(leafIndex.toString())]);
+  return BigInt(F.toString(outer));
+}
+
 function findNoteStateCandidates(env = process.env): string[] {
   const explicit = env.BRIDGE_BASE_NOTE_STATE_INPUT || env.BRIDGE_NOTE_STATE_INPUT;
   if (explicit) return [path.resolve(explicit)];
 
   const dirs = [
+    ...(env.BRIDGE_BASE_NOTE_STATE_BACKUP_DIR ? [env.BRIDGE_BASE_NOTE_STATE_BACKUP_DIR] : []),
     ...(env.BRIDGE_BASE_NOTE_STATE_SEARCH_DIRS || "")
       .split(",")
       .map((entry) => entry.trim())
@@ -333,6 +378,7 @@ function findNoteStateCandidates(env = process.env): string[] {
     /destination-note.*\.json$/i,
     /base.*note.*\.json$/i,
     /.*bridge-state.*\.json$/i,
+    /^0x[0-9a-fA-F]{64}\.json$/i,
   ];
   const found = new Set<string>();
 
@@ -531,6 +577,27 @@ async function runBasePreflight(env = process.env): Promise<Record<string, unkno
       client.getBalance({ address: whiteProtocol }),
     ]);
 
+  let nextLeafIndexBeforeTx: bigint | null = null;
+  let nextLeafIndexAtSubmitBlock: bigint | null = null;
+  if (receipt?.blockNumber && receipt.blockNumber > 0n) {
+    nextLeafIndexBeforeTx = await client
+      .readContract({
+        address: whiteProtocol,
+        abi: WHITE_PROTOCOL_ABI,
+        functionName: "nextLeafIndex",
+        blockNumber: receipt.blockNumber - 1n,
+      })
+      .catch(() => null) as bigint | null;
+    nextLeafIndexAtSubmitBlock = await client
+      .readContract({
+        address: whiteProtocol,
+        abi: WHITE_PROTOCOL_ABI,
+        functionName: "nextLeafIndex",
+        blockNumber: receipt.blockNumber,
+      })
+      .catch(() => null) as bigint | null;
+  }
+
   let bridgeMintAccepted = false;
   let bridgeMintEvent = false;
   if (receipt) {
@@ -571,10 +638,56 @@ async function runBasePreflight(env = process.env): Promise<Record<string, unkno
 
   const noteStateOk = Boolean((noteValidation as any).ok);
   const vaultBalanceOk = vaultBalance >= BigInt(expected.amount);
+  const leafIndex = deriveLeafIndexFromNextLeafDelta(
+    nextLeafIndexBeforeTx,
+    nextLeafIndexAtSubmitBlock,
+    bridgeMintAccepted,
+    bridgeMintEvent
+  );
+  const leafIndexSource = leafIndex === null ? "not_derivable_from_block_state" : "nextLeafIndex_at_submit_block_minus_one";
+  const exactNoteSummary = (noteValidation as any).validation as NoteStateSummary | null;
+  const exactNoteState = loadValidNoteState(exactNoteSummary);
+  const destinationNullifierHash =
+    exactNoteState && leafIndex !== null ? await computeDestinationNullifierHash(exactNoteState, leafIndex) : null;
+  const nullifierSpent =
+    destinationNullifierHash === null
+      ? null
+      : ((await client.readContract({
+          address: whiteProtocol,
+          abi: WHITE_PROTOCOL_ABI,
+          functionName: "spentNullifiers",
+          args: [destinationNullifierHash],
+        })) as boolean);
+  const membershipEvidence =
+    leafIndex === null
+      ? "blocked_leaf_index_unavailable"
+      : "leaf_index_derived_from_submit_block_nextLeafIndex_delta";
+  const withdrawProofReadiness =
+    !noteStateOk
+      ? "blocked_note_state_missing"
+      : leafIndex === null
+        ? "blocked_leaf_index_unavailable"
+        : "blocked_merkle_path_unavailable";
+
+  const preflightChecksPassed =
+    noteStateOk &&
+    Boolean(receipt && receipt.status === "success") &&
+    messageConsumed &&
+    commitmentInserted &&
+    leafIndex !== null &&
+    nullifierSpent === false &&
+    vaultBalanceOk;
 
   return {
-    ok: noteStateOk && Boolean(receipt && receipt.status === "success") && messageConsumed && commitmentInserted,
-    readiness: noteStateOk ? "withdraw_preflight_ready" : "blocked_note_state_missing",
+    ok: preflightChecksPassed && withdrawProofReadiness === "withdraw_proof_ready",
+    preflightChecksPassed,
+    readiness: !noteStateOk
+      ? "blocked_note_state_missing"
+      : leafIndex === null
+        ? "blocked_leaf_index_unavailable"
+        : nullifierSpent
+          ? "blocked_nullifier_already_spent"
+          : "blocked_merkle_path_unavailable",
     destinationCommitment: expected.destinationCommitment,
     sourceMessageHash: expected.sourceMessageHash,
     destinationBridgeMintHash: expected.destinationBridgeMintHash,
@@ -587,11 +700,14 @@ async function runBasePreflight(env = process.env): Promise<Record<string, unkno
     bridgeCommitmentStored: commitmentInserted,
     bridgeMintAcceptedEvent: bridgeMintAccepted,
     bridgeMintEvent,
-    leafIndex: null,
-    leafIndexSource: "not_indexed_in_preflight",
+    leafIndex: leafIndex?.toString() || null,
+    leafIndexSource,
+    membershipEvidence,
+    nextLeafIndexBeforeSubmit: nextLeafIndexBeforeTx?.toString() || null,
+    nextLeafIndexAtSubmitBlock: nextLeafIndexAtSubmitBlock?.toString() || null,
     currentBaseMerkleRoot: currentRoot.toString(),
     nextLeafIndex: nextLeafIndex.toString(),
-    nullifierSpent: null,
+    nullifierSpent,
     vaultBalanceCheck: {
       checked: true,
       ok: vaultBalanceOk,
@@ -601,8 +717,8 @@ async function runBasePreflight(env = process.env): Promise<Record<string, unkno
     },
     recipientConfigured: Boolean(env.BRIDGE_WITHDRAW_RECIPIENT),
     noteState: noteValidation,
-    withdrawProofReadiness: noteStateOk ? "not_attempted_by_pr013j" : "blocked_note_state_missing",
-    withdrawSimulation: noteStateOk ? "not_attempted_by_pr013j" : "not_attempted",
+    withdrawProofReadiness,
+    withdrawSimulation: withdrawProofReadiness === "blocked_merkle_path_unavailable" ? "not_attempted_missing_merkle_path" : "not_attempted",
     withdrawTxSubmitted: false,
     secretsPrinted: false,
   };
@@ -657,6 +773,12 @@ function runSelfTest(): void {
     false
   );
   assert.strictEqual(noteStateValid(summarizeNoteState(writeFixture(tempDir), expected)), false);
+  assert.strictEqual(
+    noteStateValid(summarizeNoteState(writeFixture(durableDir, { destinationCommitment: "0x" + "cd".repeat(32) }), expected), {
+      allowTmp: true,
+    }),
+    false
+  );
 
   const exported = exportNoteState({
     BRIDGE_BASE_NOTE_STATE_INPUT: validPath,
@@ -686,6 +808,9 @@ function runSelfTest(): void {
   assert.strictEqual(alreadySpent.nullifierSpent, true);
   const consumedPreflight = { messageConsumed: true };
   assert.strictEqual(consumedPreflight.messageConsumed, true);
+  assert.strictEqual(deriveLeafIndexFromNextLeafDelta(42n, 43n, true, true), 42n);
+  assert.strictEqual(deriveLeafIndexFromNextLeafDelta(42n, 44n, true, true), null);
+  assert.strictEqual(deriveLeafIndexFromNextLeafDelta(42n, 43n, true, false), null);
 
   console.log(JSON.stringify({ ok: true, status: "self_test_passed" }, null, 2));
 }
