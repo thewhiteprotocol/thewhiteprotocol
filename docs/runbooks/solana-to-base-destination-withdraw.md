@@ -158,3 +158,21 @@ Expected successful dry check:
 - `destinationTxSubmitted=false`
 
 If the backup is missing or invalid, the command must block with `blocked_pre_submit_checks` before `writeContract`.
+
+## Fresh Source Fixture With Durable Base Note-State
+
+For the next fresh Solana -> Base source event, require the source-only runner to export the Base destination note-state before any submit-readiness check:
+
+```bash
+cd chains/solana
+
+PR012Z_SOURCE_ONLY=true \
+BRIDGE_DAEMON_MODE=paper \
+BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false \
+BRIDGE_SOLANA_SOURCE_FIXTURE_DIR=/data/bridge-results \
+BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state \
+BRIDGE_REQUIRE_BASE_NOTE_STATE_BACKUP=true \
+npm run bridge:solana-to-base:source-fixture
+```
+
+The runner must report `baseDestinationNoteStatePath`. The file contains private destination note material and must never be printed, committed, or copied into the repo.

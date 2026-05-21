@@ -258,6 +258,7 @@ Use this checklist before approving any bridge daemon message for a future live-
 
 28. Solana -> Base durable Base destination note-state gate
     - Future Solana -> Base live submits must set `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR`, recommended hosted value `/data/base-destination-note-state`.
+    - Fresh source fixture generation should set `BRIDGE_REQUIRE_BASE_NOTE_STATE_BACKUP=true` so the source-only runner fails closed if the Base destination note-state cannot be written durably.
     - `cd chains/evm && npm run bridge:export-base-note-state` must export the exact candidate note-state into the durable backup directory before live submit.
     - `cd chains/evm && npm run bridge:validate-base-note-state` must pass from the durable backup directory.
     - `cd chains/evm && npm run bridge:base-note-state:readback-check` must pass from a fresh shell.
@@ -266,6 +267,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - The submit command must block if the note-state is missing, invalid, under `/tmp`, inside git, or missing destination secret/nullifier fields.
     - PR-013K classifies the PR-013I destination commitment as currently unrecoverable because exact note-state was not found.
     - PR-013L confirms missing backup blocks before `writeContract` and valid fixture backup reaches `check_ready` without a destination tx.
+    - PR-013M updates the fresh Solana -> Base source-only runner to write the exact Base destination note-state backup directly when `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR` is set.
 
 ## Stop Conditions
 
@@ -314,6 +316,7 @@ Do not approve live submission if any of these are true:
 - Solana -> Base live submit is attempted without `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR` or without a valid exact note-state backup.
 - Solana -> Base submit-approved reports `base_destination_note_state_missing`, `base_destination_note_state_not_durable`, or any Base destination note-state mismatch.
 - Solana -> Base submit-approved check-only mode has not reached `check_ready` after the durable Base destination note-state readback check.
+- Fresh Solana -> Base source fixture generation did not report a durable `baseDestinationNoteStatePath`.
 - `BRIDGE_NOTE_STATE_BACKUP_DIR` is unset, inside git, under `/tmp`, unreadable, or unwritable.
 - `npm run bridge:note-state:readback-check` has not passed after a fresh shell/container change.
 - Hosted settlement/withdraw is attempted before the required zkey files are present and checksum-verified on durable storage.

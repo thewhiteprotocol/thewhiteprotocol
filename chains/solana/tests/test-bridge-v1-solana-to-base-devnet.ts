@@ -91,6 +91,10 @@ const SOURCE_DEADLINE_SECONDS = Number(
 const SOURCE_DEADLINE_UNIX = process.env.BRIDGE_SOLANA_SOURCE_DEADLINE_UNIX
   ? Number(process.env.BRIDGE_SOLANA_SOURCE_DEADLINE_UNIX)
   : null;
+const BASE_NOTE_STATE_BACKUP_DIR = process.env.BRIDGE_BASE_NOTE_STATE_BACKUP_DIR;
+const REQUIRE_BASE_NOTE_STATE_BACKUP =
+  process.env.BRIDGE_REQUIRE_BASE_NOTE_STATE_BACKUP === "true" ||
+  process.env.PR013M_REQUIRE_BASE_NOTE_STATE_BACKUP === "true";
 
 const SOLANA_DEVNET_DOMAIN = 0x01000002;
 const BASE_SEPOLIA_DOMAIN = 0x02000002;
@@ -490,6 +494,77 @@ function sourceFixturePath(sourceMessageHash: string): string {
   return SOURCE_FIXTURE_PATH_TEMPLATE
     .replace("<sourceMessageHash>", sourceMessageHash)
     .replace("{sourceMessageHash}", sourceMessageHash);
+}
+
+function repoRoot(): string {
+  return path.resolve(__dirname, "../../..");
+}
+
+function isTmpPath(filePath: string): boolean {
+  const resolved = path.resolve(filePath);
+  const tmpRoot = path.resolve("/tmp");
+  return resolved === tmpRoot || resolved.startsWith(`${tmpRoot}${path.sep}`);
+}
+
+function isOutsideRepo(filePath: string): boolean {
+  const resolved = path.resolve(filePath);
+  const root = repoRoot();
+  return resolved !== root && !resolved.startsWith(`${root}${path.sep}`);
+}
+
+function exportBaseDestinationNoteState(input: {
+  sourceMessageHash: string;
+  destinationBridgeMintHash: string;
+  destinationCommitment: string;
+  destinationAmount: bigint;
+  destinationAssetId: string;
+  canonicalAssetId: string;
+  sourceTx: string;
+  sourceSlot: number;
+  destSecret: bigint;
+  destNullifier: bigint;
+  deadline: number;
+}): string | null {
+  if (!BASE_NOTE_STATE_BACKUP_DIR) {
+    if (REQUIRE_BASE_NOTE_STATE_BACKUP) {
+      throw new Error("BRIDGE_BASE_NOTE_STATE_BACKUP_DIR_required");
+    }
+    return null;
+  }
+  const backupDir = path.resolve(BASE_NOTE_STATE_BACKUP_DIR);
+  const outputPath = path.join(backupDir, `${input.destinationBridgeMintHash}.json`);
+  if (!isOutsideRepo(outputPath) || isTmpPath(outputPath)) {
+    throw new Error("base_destination_note_state_backup_path_not_durable");
+  }
+  fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
+  const noteState = {
+    schema: "white-bridge-base-destination-note-state-v1",
+    private: true,
+    warning: "contains private destination note material; do not print, commit, or share",
+    route: "solana-devnet->base-sepolia",
+    sourceChain: "solana-devnet",
+    destinationChain: "base-sepolia",
+    sourceTx: input.sourceTx,
+    sourceSlot: input.sourceSlot,
+    sourceMessageHash: input.sourceMessageHash,
+    destinationBridgeMintHash: input.destinationBridgeMintHash,
+    destinationCommitment: input.destinationCommitment,
+    destinationAmount: input.destinationAmount.toString(),
+    destinationAssetId: input.destinationAssetId,
+    canonicalAssetId: input.canonicalAssetId,
+    destSecret: input.destSecret.toString(),
+    destNullifier: input.destNullifier.toString(),
+    deadline: input.deadline,
+    destinationTxSubmitted: false,
+    createdAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(outputPath, JSON.stringify(noteState, jsonReplacer, 2), { mode: 0o600 });
+  try {
+    fs.chmodSync(outputPath, 0o600);
+  } catch {
+    // Best effort on hosted filesystems.
+  }
+  return outputPath;
 }
 
 function requiredSourceArtifacts(): string[] {
@@ -1698,7 +1773,21 @@ async function main(): Promise<void> {
     };
     fs.mkdirSync(path.dirname(fixturePath), { recursive: true });
     fs.writeFileSync(fixturePath, JSON.stringify(fixture, jsonReplacer, 2));
+    const baseDestinationNoteStatePath = exportBaseDestinationNoteState({
+      sourceMessageHash: messageHashHex,
+      destinationBridgeMintHash,
+      destinationCommitment: bytes32Hex(destCommitment),
+      destinationAmount: normalizedDestinationAmount,
+      destinationAssetId: baseNativeAssetIdHex,
+      canonicalAssetId: sourceAssetIdHex,
+      sourceTx: bridgeOutTx,
+      sourceSlot: finality.slot,
+      destSecret,
+      destNullifier,
+      deadline,
+    });
     evidence.sourceFixturePath = fixturePath;
+    evidence.baseDestinationNoteStatePath = baseDestinationNoteStatePath;
     evidence.destinationBridgeMintHash = destinationBridgeMintHash;
     evidence.sourceSlot = finality.slot;
     evidence.finalizedSlot = finality.finalizedSlot;
@@ -1713,6 +1802,7 @@ async function main(): Promise<void> {
       status: "fixture_exported",
       solanaBridgeOutTx: bridgeOutTx,
       sourceFixturePath: fixturePath,
+      baseDestinationNoteStatePath,
       sourceSlot: finality.slot,
       finalizedSlot: finality.finalizedSlot,
       sourceConfirmations: finality.confirmations,
@@ -1738,6 +1828,7 @@ async function main(): Promise<void> {
       sourceNullifierSpent: true,
       sourceValueLocked: true,
       fixturePath,
+      baseDestinationNoteStatePath,
       resultPath: RESULT_PATH,
       destinationTxSubmitted: false,
       secretsPrinted: false,

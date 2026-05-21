@@ -224,6 +224,16 @@
 - Destination tx submitted: `false`
 - Next action: generate a fresh Solana -> Base source event, export the exact Base destination note-state to `/data/base-destination-note-state`, run readback, then use check-only submit before any separately approved live submit.
 
+## PR-013M Fresh Source Backup Preparation
+
+- Source-only Solana -> Base runner now supports `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state`.
+- Set `BRIDGE_REQUIRE_BASE_NOTE_STATE_BACKUP=true` to fail closed if the backup directory is missing.
+- The exported file is named `<destinationBridgeMintHash>.json`.
+- The backup path must be outside git and not under `/tmp`.
+- The runner prints only `baseDestinationNoteStatePath`; it does not print note secrets or nullifier secrets.
+- Codespace execution was blocked by missing live RPC/signer/wallet env and absent `/data`.
+- Destination tx submitted: `false`
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.
