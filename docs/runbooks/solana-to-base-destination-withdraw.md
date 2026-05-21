@@ -53,10 +53,27 @@ Required result before continuing:
 If the exact note-state is found outside durable storage, copy it to:
 
 ```text
-/data/white-bridge-note-state/base-destination/0x67804661cc1d5fe7c0a54cc1c572a8c990d5ef5137580898d2c58f5b8e3c6865.json
+/data/base-destination-note-state/0x67804661cc1d5fe7c0a54cc1c572a8c990d5ef5137580898d2c58f5b8e3c6865.json
 ```
 
 Set file permissions to `0600` where possible. Do not print the file contents.
+
+Use the export/readback helpers:
+
+```bash
+cd chains/evm
+
+BRIDGE_BASE_NOTE_STATE_INPUT=<candidate-note-state-path> \
+BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state \
+BRIDGE_SOLANA_TO_BASE_FIXTURE_PATH=/data/bridge-results/solana-to-base-source-fixture-0x020276efc2aaeb0886f5c815f91233cb5e503439326990076b34a3cc1bffcd1e.json \
+BRIDGE_SOLANA_TO_BASE_STATE_PATH=/data/bridge-results/solana-to-base-paper-state/bridge-messages.json \
+npm run bridge:export-base-note-state
+
+BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state \
+BRIDGE_SOLANA_TO_BASE_FIXTURE_PATH=/data/bridge-results/solana-to-base-source-fixture-0x020276efc2aaeb0886f5c815f91233cb5e503439326990076b34a3cc1bffcd1e.json \
+BRIDGE_SOLANA_TO_BASE_STATE_PATH=/data/bridge-results/solana-to-base-paper-state/bridge-messages.json \
+npm run bridge:base-note-state:readback-check
+```
 
 ## Base Recovery Preflight
 
@@ -108,3 +125,9 @@ PR-013J is blocked at destination note-state recovery:
 - Withdraw proof readiness: `blocked_note_state_missing`
 - Withdraw simulation: `not_attempted`
 - Withdraw tx submitted: false
+
+PR-013K classification:
+
+- Exact destination note-state found: false
+- Recovery classification: currently unrecoverable unless exact note-state is restored
+- Future Solana -> Base live submits must pass the durable Base destination note-state backup gate before `acceptBridgeMint` can be sent.

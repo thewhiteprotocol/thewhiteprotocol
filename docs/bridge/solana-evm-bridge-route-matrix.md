@@ -202,6 +202,18 @@
   - `cd chains/evm && npm run bridge:validate-base-note-state`
   - `cd chains/evm && npm run bridge:preflight-base-withdraw`
 
+## PR-013K Note-State Recovery Classification and Submit Gate
+
+- Final recovery search: exact PR-013I destination note-state not found.
+- Recovery classification: `currently_unrecoverable_note_state_missing`
+- Future backup directory: `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR=/data/base-destination-note-state`
+- New export/readback commands:
+  - `cd chains/evm && npm run bridge:export-base-note-state`
+  - `cd chains/evm && npm run bridge:base-note-state:readback-check`
+- Solana -> Base guarded submit now blocks before `acceptBridgeMint` if the exact Base destination note-state is missing, invalid, under `/tmp`, inside git, or missing destination secret/nullifier metadata.
+- No withdraw attempted: `true`
+- No destination transaction submitted: `true`
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.

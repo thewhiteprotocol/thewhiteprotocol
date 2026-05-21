@@ -39,6 +39,7 @@ chains/solana/tests/*.json
 chains/evm/test/*bridge-state*.json
 **/*bridge-state*.json
 **/*note-state*.json
+**/base-destination-note-state/**
 **/operator-job-index.json
 **/preflight-*.json
 **/settle-withdraw-*.json

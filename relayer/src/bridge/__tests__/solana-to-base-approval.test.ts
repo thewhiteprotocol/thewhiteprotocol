@@ -20,6 +20,7 @@ import {
   BRIDGE_EVM_SUBMIT_SOURCE_MESSAGE_HASH_ENV,
   checkGuardedEvmSubmitEnv,
   submitSolanaToBaseApprovedMessage,
+  validateBaseDestinationNoteStateGate,
   type EvmSubmitClient,
 } from '../solana-to-base-submit-approved';
 
@@ -29,6 +30,10 @@ function hex(byte: string): string {
 
 function tmpStateDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'solana-to-base-approval-'));
+}
+
+function durableTestDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'solana-to-base-note-state-'));
 }
 
 function sourceMessage(overrides: Partial<BridgeMessageV1> = {}): BridgeMessageV1 {
@@ -156,6 +161,22 @@ function writeStateFile(message: BridgeMessageState): string {
   return dir;
 }
 
+function writeBaseNoteState(message: BridgeMessageState, overrides: Record<string, unknown> = {}): string {
+  const dir = durableTestDir();
+  const filePath = path.join(dir, `${message.destinationMessageHash}.json`);
+  fs.writeFileSync(filePath, JSON.stringify({
+    sourceMessageHash: message.sourceMessageHash,
+    destinationBridgeMintHash: message.destinationMessageHash,
+    destinationCommitment: message.destinationCommitment,
+    destinationAmount: message.amount,
+    destinationAssetId: message.message.destinationLocalAssetId,
+    destSecret: 'secret-sentinel',
+    destNullifier: 'nullifier-sentinel',
+    ...overrides,
+  }, null, 2));
+  return dir;
+}
+
 function client(overrides: {
   consumed?: boolean;
   frozen?: boolean;
@@ -253,6 +274,9 @@ async function approve(
 }
 
 function submitEnv(statePath: string, message: BridgeMessageState, overrides: Record<string, string> = {}) {
+  const noteStateDir = overrides.BRIDGE_BASE_NOTE_STATE_BACKUP_DIR !== undefined
+    ? overrides.BRIDGE_BASE_NOTE_STATE_BACKUP_DIR
+    : writeBaseNoteState(message);
   return {
     BRIDGE_DAEMON_MODE: 'live-testnet',
     BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT: 'true',
@@ -269,6 +293,9 @@ function submitEnv(statePath: string, message: BridgeMessageState, overrides: Re
       '0x3333333333333333333333333333333333333333',
     ].join(','),
     BASE_SUBMITTER_PRIVATE_KEY: '0x0000000000000000000000000000000000000000000000000000000000000001',
+    BRIDGE_BASE_NOTE_STATE_BACKUP_DIR: noteStateDir,
+    NODE_ENV: 'test',
+    BRIDGE_ALLOW_TMP_BASE_NOTE_STATE_FOR_TESTS: 'true',
     ...overrides,
   };
 }
@@ -477,6 +504,84 @@ describe('Solana to Base approval readiness', () => {
     });
     expect(report.ok).toBe(false);
     expect(report.errors).toContain('BRIDGE_APPROVED_MESSAGE_HASHES_route_scoped_destination_hash');
+    expect(report.destinationTxSubmitted).toBe(false);
+  });
+
+  test('base destination note-state gate passes with exact durable fixture', () => {
+    const msg = state();
+    const env = submitEnv(writeStateFile(msg), msg);
+    const gate = validateBaseDestinationNoteStateGate({
+      env,
+      sourceHash: msg.sourceMessageHash!,
+      destinationHash: msg.destinationMessageHash!,
+      message: msg.message,
+    });
+    expect(gate.ok).toBe(true);
+    expect(gate.summary.hasDestSecret).toBe(true);
+    expect(gate.summary.hasDestNullifier).toBe(true);
+    expect(JSON.stringify(gate)).not.toContain('secret-sentinel');
+    expect(JSON.stringify(gate)).not.toContain('nullifier-sentinel');
+  });
+
+  test('base destination note-state gate rejects mismatches and missing secret material', () => {
+    const msg = state();
+    for (const override of [
+      { sourceMessageHash: `0x${'44'.repeat(32)}` },
+      { destinationBridgeMintHash: `0x${'45'.repeat(32)}` },
+      { destinationCommitment: `0x${'46'.repeat(32)}` },
+      { destSecret: '' },
+      { destNullifier: '' },
+    ]) {
+      const env = submitEnv(writeStateFile(msg), msg, {
+        BRIDGE_BASE_NOTE_STATE_BACKUP_DIR: writeBaseNoteState(msg, override),
+      });
+      const gate = validateBaseDestinationNoteStateGate({
+        env,
+        sourceHash: msg.sourceMessageHash!,
+        destinationHash: msg.destinationMessageHash!,
+        message: msg.message,
+      });
+      expect(gate.ok).toBe(false);
+    }
+  });
+
+  test('base destination note-state gate rejects tmp backup path', () => {
+    const msg = state();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'base-note-state-'));
+    const filePath = path.join(tmpDir, `${msg.destinationMessageHash}.json`);
+    fs.writeFileSync(filePath, JSON.stringify({
+      sourceMessageHash: msg.sourceMessageHash,
+      destinationBridgeMintHash: msg.destinationMessageHash,
+      destinationCommitment: msg.destinationCommitment,
+      destinationAmount: msg.amount,
+      destinationAssetId: msg.message.destinationLocalAssetId,
+      destSecret: 'secret-sentinel',
+      destNullifier: 'nullifier-sentinel',
+    }));
+    const gate = validateBaseDestinationNoteStateGate({
+      env: submitEnv(writeStateFile(msg), msg, {
+        BRIDGE_BASE_NOTE_STATE_BACKUP_DIR: tmpDir,
+        BRIDGE_ALLOW_TMP_BASE_NOTE_STATE_FOR_TESTS: 'false',
+      }),
+      sourceHash: msg.sourceMessageHash!,
+      destinationHash: msg.destinationMessageHash!,
+      message: msg.message,
+    });
+    expect(gate.ok).toBe(false);
+    expect(gate.errors).toContain('base_destination_note_state_not_durable');
+  });
+
+  test('submit-approved blocks when base destination note-state is missing', async () => {
+    const msg = state();
+    const missingDir = durableTestDir();
+    const report = await submitSolanaToBaseApprovedMessage({
+      env: submitEnv(writeStateFile(msg), msg, { BRIDGE_BASE_NOTE_STATE_BACKUP_DIR: missingDir }),
+      client: submitClient(),
+      account: '0x000000000000000000000000000000000000dEaD',
+    });
+    expect(report.ok).toBe(false);
+    expect(report.status).toBe('blocked_pre_submit_checks');
+    expect(report.errors).toContain('base_destination_note_state_missing');
     expect(report.destinationTxSubmitted).toBe(false);
   });
 

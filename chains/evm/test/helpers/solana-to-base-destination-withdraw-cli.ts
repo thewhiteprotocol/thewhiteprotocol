@@ -225,6 +225,10 @@ function isOutsideRepo(filePath: string): boolean {
   return resolved !== root && !resolved.startsWith(root + path.sep);
 }
 
+function allowTmpBaseNoteStateForTests(env: NodeJS.ProcessEnv | Record<string, string | undefined>): boolean {
+  return env.NODE_ENV === "test" && env.BRIDGE_ALLOW_TMP_BASE_NOTE_STATE_FOR_TESTS === "true";
+}
+
 function summarizeNoteState(filePath: string, expected: ExpectedDestination): NoteStateSummary {
   if (!fs.existsSync(filePath)) {
     return {
@@ -293,6 +297,10 @@ function summarizeNoteState(filePath: string, expected: ExpectedDestination): No
 
 function noteStateValid(summary: NoteStateSummary, options: { allowTmp?: boolean } = {}): boolean {
   const durablePolicyOk = summary.durablePath || Boolean(options.allowTmp && summary.outsideRepo);
+  return noteStateContentValid(summary) && durablePolicyOk;
+}
+
+function noteStateContentValid(summary: NoteStateSummary): boolean {
   return (
     summary.exists &&
     summary.sourceHashMatches &&
@@ -301,8 +309,7 @@ function noteStateValid(summary: NoteStateSummary, options: { allowTmp?: boolean
     summary.amountMatches &&
     summary.assetMatches &&
     summary.hasSecret &&
-    summary.hasNullifier &&
-    durablePolicyOk
+    summary.hasNullifier
   );
 }
 
@@ -377,6 +384,87 @@ function validateNoteState(env = process.env): Record<string, unknown> {
     })),
     validation: exact || null,
     errors,
+    withdrawTxSubmitted: false,
+    secretsPrinted: false,
+  };
+}
+
+function resolveBackupDir(env = process.env): string {
+  return path.resolve(env.BRIDGE_BASE_NOTE_STATE_BACKUP_DIR || "/data/base-destination-note-state");
+}
+
+function exportNoteState(env = process.env): Record<string, unknown> {
+  const expected = expectedFromFixtureAndState(env);
+  const input = env.BRIDGE_BASE_NOTE_STATE_INPUT || env.BRIDGE_NOTE_STATE_INPUT;
+  if (!input) {
+    return {
+      ok: false,
+      status: "blocked_note_state_input_missing",
+      errors: ["BRIDGE_BASE_NOTE_STATE_INPUT_required"],
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+  const inputPath = path.resolve(input);
+  const summary = summarizeNoteState(inputPath, expected);
+  if (!noteStateContentValid(summary)) {
+    return {
+      ok: false,
+      status: "blocked_note_state_invalid",
+      inputPath,
+      validation: {
+        path: summary.path,
+        exists: summary.exists,
+        sourceHashMatches: summary.sourceHashMatches,
+        destinationHashMatches: summary.destinationHashMatches,
+        destinationCommitmentMatches: summary.destinationCommitmentMatches,
+        amountMatches: summary.amountMatches,
+        assetMatches: summary.assetMatches,
+        hasSecret: summary.hasSecret,
+        hasNullifier: summary.hasNullifier,
+      },
+      errors: ["destination_note_state_missing_or_invalid"],
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const backupDir = resolveBackupDir(env);
+  const outputPath = path.join(backupDir, `${expected.destinationBridgeMintHash}.json`);
+  const outputOutsideRepo = isOutsideRepo(outputPath);
+  const outputDurable = outputOutsideRepo && (!isTmpPath(outputPath) || allowTmpBaseNoteStateForTests(env));
+  if (!outputDurable) {
+    return {
+      ok: false,
+      status: "blocked_backup_path_not_durable",
+      outputPath,
+      errors: ["base_destination_note_state_backup_path_not_durable"],
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+  fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
+  fs.copyFileSync(inputPath, outputPath);
+  fs.chmodSync(outputPath, 0o600);
+  const readback = summarizeNoteState(outputPath, expected);
+  const ok = noteStateValid(readback, { allowTmp: allowTmpBaseNoteStateForTests(env) });
+  return {
+    ok,
+    status: ok ? "exported" : "blocked_readback_invalid",
+    outputPath,
+    readback: {
+      path: readback.path,
+      exists: readback.exists,
+      sourceHashMatches: readback.sourceHashMatches,
+      destinationHashMatches: readback.destinationHashMatches,
+      destinationCommitmentMatches: readback.destinationCommitmentMatches,
+      amountMatches: readback.amountMatches,
+      assetMatches: readback.assetMatches,
+      hasSecret: readback.hasSecret,
+      hasNullifier: readback.hasNullifier,
+      durablePath: readback.durablePath,
+    },
+    errors: ok ? [] : ["base_destination_note_state_readback_invalid"],
     withdrawTxSubmitted: false,
     secretsPrinted: false,
   };
@@ -547,7 +635,7 @@ function runSelfTest(): void {
     destinationLocalAssetId: ("0x" + "34".repeat(32)) as Hex,
     submitTxHash: PR013I_SUBMIT_TX,
   };
-  const durableDir = path.join(tempDir, "durable");
+  const durableDir = fs.mkdtempSync(path.join(os.tmpdir(), "base-destination-note-state-"));
   fs.mkdirSync(durableDir, { recursive: true });
   const validPath = writeFixture(durableDir);
 
@@ -569,6 +657,23 @@ function runSelfTest(): void {
     false
   );
   assert.strictEqual(noteStateValid(summarizeNoteState(writeFixture(tempDir), expected)), false);
+
+  const exported = exportNoteState({
+    BRIDGE_BASE_NOTE_STATE_INPUT: validPath,
+    BRIDGE_BASE_NOTE_STATE_BACKUP_DIR: durableDir,
+    BRIDGE_SOLANA_TO_BASE_FIXTURE_PATH: "",
+    BRIDGE_SOLANA_TO_BASE_STATE_PATH: "",
+    BRIDGE_EXPECTED_SOURCE_MESSAGE_HASH: PR013I_SOURCE_HASH,
+    BRIDGE_EXPECTED_DESTINATION_MESSAGE_HASH: PR013I_DESTINATION_HASH,
+    BRIDGE_EXPECTED_DESTINATION_COMMITMENT: expected.destinationCommitment,
+    BRIDGE_EXPECTED_DESTINATION_AMOUNT: expected.amount,
+    BRIDGE_EXPECTED_CANONICAL_ASSET_ID: expected.canonicalAssetId,
+    BRIDGE_EXPECTED_DESTINATION_ASSET_ID: expected.destinationLocalAssetId,
+    NODE_ENV: "test",
+    BRIDGE_ALLOW_TMP_BASE_NOTE_STATE_FOR_TESTS: "true",
+  } as any) as any;
+  assert.strictEqual(exported.ok, true);
+  assert.strictEqual(fs.existsSync(exported.outputPath), true);
 
   const rendered = JSON.stringify({
     ok: true,
@@ -598,6 +703,19 @@ async function main(): Promise<void> {
   if (command === "validate-note-state" || command === "validate") {
     const result = validateNoteState();
     print(result);
+    process.exit((result as any).ok ? 0 : 1);
+  }
+  if (command === "export-note-state" || command === "export") {
+    const result = exportNoteState();
+    print(result);
+    process.exit((result as any).ok ? 0 : 1);
+  }
+  if (command === "readback" || command === "readback-check") {
+    const result = validateNoteState();
+    print({
+      ...result,
+      status: (result as any).ok ? "readback_valid" : "readback_invalid",
+    });
     process.exit((result as any).ok ? 0 : 1);
   }
   if (command === "preflight" || command === "recovery-preflight") {
