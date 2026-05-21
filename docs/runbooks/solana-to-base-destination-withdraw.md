@@ -185,3 +185,14 @@ PR-013M check-ready target:
 - Base note-state validation/readback: passed
 - Submit-approved check-only: `check_ready`
 - Destination tx submitted: `false`
+
+PR-013N live-submit target:
+
+- Base submit tx: `0x18b0d4a25ea9087630b0eed09d2399a33d16c8788290cad2d379619aedc96556`
+- Confirmation: success, block `41794491`
+- Gas used: `957439`
+- Message consumed: `true`
+- Commitment inserted: `true`
+- Duplicate submit: blocked as `already_submitted`
+- Destination note-state backup: preserved outside git under the operator data directory.
+- Next withdraw preparation must validate this exact destination commitment and note-state before generating any proof or simulation.

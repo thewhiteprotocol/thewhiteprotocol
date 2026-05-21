@@ -236,6 +236,20 @@
 - Submit-approved check-only: `check_ready`
 - Destination tx submitted: `false`
 
+## PR-013N Guarded Live Submit With Note Backup
+
+- Destination BridgeMint hash: `0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d`
+- Destination commitment: `0x0622f68a087014d4b920cf0c8224e11ef3b129f2f58ff4414c030e143ceeaf58`
+- Final check-only result: `check_ready`
+- Base note-state gate: passed from outside-repo durable backup.
+- Base submit tx: `0x18b0d4a25ea9087630b0eed09d2399a33d16c8788290cad2d379619aedc96556`
+- Confirmation: success, block `41794491`
+- Gas used: `957439`
+- Message consumed: `true`
+- Commitment inserted: `true`
+- Duplicate submit: blocked as `already_submitted`; no second Base tx.
+- Safe mode after window: `BRIDGE_DAEMON_MODE=paper`, `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.
