@@ -502,6 +502,24 @@ describe('Solana to Base approval readiness', () => {
     });
     expect(report.ok).toBe(false);
     expect(report.status).toBe('already_consumed');
+    expect(report.duplicateSubmitBlocked).toBe(true);
+  });
+
+  test('submit blocks duplicate when state already has tx hash', async () => {
+    const msg = {
+      ...state(),
+      submitTxHash: `0x${'77'.repeat(32)}`,
+    };
+    const report = await submitSolanaToBaseApprovedMessage({
+      env: submitEnv(writeStateFile(msg), msg),
+      client: submitClient(),
+      account: '0x000000000000000000000000000000000000dEaD',
+    });
+    expect(report.ok).toBe(false);
+    expect(report.status).toBe('already_submitted');
+    expect(report.submitAttempted).toBe(false);
+    expect(report.duplicateSubmitBlocked).toBe(true);
+    expect(report.submitTx).toBe(msg.submitTxHash);
   });
 
   test('submit blocks when final simulation fails', async () => {

@@ -236,6 +236,29 @@ function toViemMessage(message: BridgeMessageV1): Record<string, unknown> {
   };
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function readMessageConsumedWithRetry(
+  client: EvmSubmitClient,
+  bridgeInbox: Address,
+  destinationHash: string,
+  attempts = 5
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i += 1) {
+    const consumed = await client.readContract({
+      address: bridgeInbox,
+      abi: BRIDGE_INBOX_ABI,
+      functionName: 'isMessageConsumed',
+      args: [destinationHash as Hex],
+    }) as boolean;
+    if (consumed || i === attempts - 1) return consumed;
+    await sleep(1_000);
+  }
+  return false;
+}
+
 function redactError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
   return raw
@@ -317,6 +340,7 @@ export async function submitSolanaToBaseApprovedMessage(input: {
       status: 'already_submitted',
       submitTx: state.submitTxHash,
       destinationTxSubmitted: true,
+      duplicateSubmitBlocked: true,
       errors: ['message_already_has_submit_tx_hash'],
     };
   }
@@ -327,7 +351,25 @@ export async function submitSolanaToBaseApprovedMessage(input: {
     return { ...baseResult, status: 'blocked_message_load' };
   }
 
-  const approval = await runSolanaToBaseApproval({ config, client: input.client });
+  const previousDaemonMode = process.env.BRIDGE_DAEMON_MODE;
+  const previousLiveSubmit = process.env.BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT;
+  process.env.BRIDGE_DAEMON_MODE = 'paper';
+  process.env.BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT = 'false';
+  let approval;
+  try {
+    approval = await runSolanaToBaseApproval({ config, client: input.client });
+  } finally {
+    if (previousDaemonMode === undefined) {
+      delete process.env.BRIDGE_DAEMON_MODE;
+    } else {
+      process.env.BRIDGE_DAEMON_MODE = previousDaemonMode;
+    }
+    if (previousLiveSubmit === undefined) {
+      delete process.env.BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT;
+    } else {
+      process.env.BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT = previousLiveSubmit;
+    }
+  }
   baseResult.finalChecks = approval.base.contractExists &&
     approval.base.routeEnabled === true &&
     approval.base.routePaused === false &&
@@ -344,13 +386,20 @@ export async function submitSolanaToBaseApprovedMessage(input: {
 
   if (approval.base.messageConsumed) {
     errors.push('base_message_consumed');
-    return { ...baseResult, status: 'already_consumed' };
+    return {
+      ...baseResult,
+      status: 'already_consumed',
+      messageConsumed: true,
+      duplicateSubmitBlocked: true,
+    };
   }
   if (!approval.ok) {
     errors.push(...approval.errors);
     return {
       ...baseResult,
       status: approval.simulation.attempted ? 'blocked_simulation' : 'blocked_pre_submit_checks',
+      duplicateSubmitBlocked: approval.errors.includes('base_message_consumed') ||
+        approval.errors.includes('message_already_has_submit_tx_hash'),
     };
   }
 
@@ -376,7 +425,12 @@ export async function submitSolanaToBaseApprovedMessage(input: {
     }) as boolean;
     if (beforeConsumed) {
       errors.push('base_message_consumed');
-      return { ...baseResult, status: 'already_consumed', messageConsumed: true };
+      return {
+        ...baseResult,
+        status: 'already_consumed',
+        messageConsumed: true,
+        duplicateSubmitBlocked: true,
+      };
     }
 
     baseResult.submitAttempted = true;
@@ -391,12 +445,11 @@ export async function submitSolanaToBaseApprovedMessage(input: {
       hash: txHash,
       confirmations: 1,
     });
-    const afterConsumed = await input.client.readContract({
-      address: config.bridgeInbox,
-      abi: BRIDGE_INBOX_ABI,
-      functionName: 'isMessageConsumed',
-      args: [destinationHash as Hex],
-    }) as boolean;
+    const afterConsumed = await readMessageConsumedWithRetry(
+      input.client,
+      config.bridgeInbox,
+      destinationHash
+    );
 
     state.submitTxHash = txHash;
     state.submittedAt = Date.now();

@@ -161,6 +161,27 @@
 - Base destination tx submitted: `false`
 - Current action: do not submit this destination hash; generate a fresh source event for the next submit attempt.
 
+## PR-013I Fresh Guarded Submit
+
+- Fresh source execution environment: Codespace, because Render's 2 GB web service exceeded memory during source proof generation.
+- Source instruction: `bridge_out_v1_with_proof`
+- Unsafe source instruction used: `false`
+- Solana deposit tx: `2cSvRgUe8YCbNQgZkqwetHYsojkoAggbhkyANnRhzQWTA6npE3BX7hNXqHHhBLPUQ4URHPfykocvjtmoLjUCrwvr`
+- Solana settlement tx: `3z7PkzjFBB9iSb8zLjcbcw1vDxmx4T1KkjGeD7kCS7J4Vfh2WiBzCPZhGmd71hxdqUMmCLm61CpKNMT3x9HeX4qz`
+- Solana bridge out tx: `5VcEKPVobXRJrNTV6SP9PVQMYPHSCSKH4aaybqvbenyFdbLG62tHzwbTXvsgDgj7x6S3gZDpYamoBrJrMCKsKHyj`
+- Source slot: `463860156`
+- Source message hash: `0x020276efc2aaeb0886f5c815f91233cb5e503439326990076b34a3cc1bffcd1e`
+- Destination BridgeMint hash: `0x67804661cc1d5fe7c0a54cc1c572a8c990d5ef5137580898d2c58f5b8e3c6865`
+- Deadline: `1779357790`
+- Paper replay: passed, status `paper_ready_to_submit`.
+- Approval rerun: `approval_ready`.
+- Final simulation: passed, gas estimate `986309`.
+- Time remaining before submit: `6742` seconds.
+- Base submit tx: `0x72b972a211e4950d110798523f6522b402dea83306f6e12805259bdd8adec983`
+- Confirmation: `success`, block `41791387`, gas used `974563`.
+- Message consumed: `true`
+- Duplicate submit: blocked with `already_submitted`; no second tx sent.
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.

@@ -236,6 +236,16 @@ Use this checklist before approving any bridge daemon message for a future live-
     - No Base destination transaction was submitted.
     - Do not submit this destination hash after `DeadlineExpired`; generate a fresh Solana source event and rerun the full durable paper replay and approval flow.
 
+26. Solana -> Base PR-013I timed submit
+    - Render's 2 GB web service exceeded memory during source proof generation; use Codespace or a larger one-off worker for source-side proof generation.
+    - PR-013I fresh source tx is `5VcEKPVobXRJrNTV6SP9PVQMYPHSCSKH4aaybqvbenyFdbLG62tHzwbTXvsgDgj7x6S3gZDpYamoBrJrMCKsKHyj`.
+    - PR-013I destination BridgeMint hash is `0x67804661cc1d5fe7c0a54cc1c572a8c990d5ef5137580898d2c58f5b8e3c6865`.
+    - The approval rerun must pass before submit, and the final simulation must pass with the destination hash unconsumed.
+    - PR-013I submitted exactly one Base tx: `0x72b972a211e4950d110798523f6522b402dea83306f6e12805259bdd8adec983`.
+    - Post-submit read-only checks confirmed the destination hash is consumed.
+    - Duplicate guarded submit blocks before sending because the paper state already has the submit tx hash and Base reports the message consumed.
+    - Do not retry this destination hash after the successful submit.
+
 ## Stop Conditions
 
 Do not approve live submission if any of these are true:
