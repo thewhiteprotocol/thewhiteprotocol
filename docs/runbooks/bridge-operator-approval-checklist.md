@@ -213,14 +213,28 @@ Use this checklist before approving any bridge daemon message for a future live-
     - PR-013F status: fixture reconstruction from the finalized source tx succeeds, but the original PR-013A message now replays as `expired_deadline`; do not submit it.
 
 24. Solana -> Base fresh durable source event
-    - A fresh event must be explicitly approved before running the source-only command.
+    - PR-013G Render status: complete; the fresh source event was generated, reconstructed into durable fixture storage, replayed into durable paper state, and approved in paper mode.
     - The command must run with `PR012Z_SOURCE_ONLY=true`, `BRIDGE_DAEMON_MODE=paper`, and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
     - The command must write directly to `/data/bridge-results` by setting `BRIDGE_SOLANA_SOURCE_FIXTURE_DIR=/data/bridge-results`.
-    - The generated fixture path must be `/data/bridge-results/solana-to-base-source-fixture-<sourceMessageHash>.json`.
+    - The generated fixture path is `/data/bridge-results/solana-to-base-source-fixture-0x0fd0e20315403767f28cac97ece9b8937c984aba43bc7f575219de681abda198.json`.
+    - Durable paper state path is `/data/bridge-results/solana-to-base-paper-state`.
+    - Source tx is `3uTMH3jsARmS49MF7SEqgq2Tv4ahosAdK9Vz4GP7BdPNS2mSsVDhwnTAsjiNPte6M5YCSBZwCgREqFvNJy8ZbbYF`.
+    - Source hash is `0x0fd0e20315403767f28cac97ece9b8937c984aba43bc7f575219de681abda198`.
+    - Destination BridgeMint hash is `0x33c44d710e08d02ebd15492219ec1fd6a15682b69440351c850af017750df93b`.
     - The source instruction must be `bridge_out_v1_with_proof`; `init_bridge_v1_out` is a stop condition.
-    - Replay the fixture into `/data/bridge-results/solana-to-base-paper-state`.
-    - Rerun approval and simulation from durable state before any submit window.
-    - PR-013G local status: fresh event generation is pending Render execution because `/data` and hosted RPC/signer/wallet env were absent locally.
+    - Paper replay status is `paper_ready_to_submit`.
+    - Approval rerun status is `approval_ready`.
+    - Simulation passed with gas estimate `986321`.
+    - Destination tx submitted is `false`; submit tx hash is `null`.
+    - Rerun approval and simulation from durable state immediately before any future submit window.
+
+25. Solana -> Base PR-013H submit precheck
+    - PR-013H reran approval from durable state for destination hash `0x33c44d710e08d02ebd15492219ec1fd6a15682b69440351c850af017750df93b`.
+    - Base read-only checks still passed: route enabled, route not paused, asset supported, cap passed, message not consumed, and message not frozen.
+    - Final `acceptBridgeMint` simulation failed with `DeadlineExpired`.
+    - The guarded submit command was not run.
+    - No Base destination transaction was submitted.
+    - Do not submit this destination hash after `DeadlineExpired`; generate a fresh Solana source event and rerun the full durable paper replay and approval flow.
 
 ## Stop Conditions
 
@@ -248,6 +262,7 @@ Do not approve live submission if any of these are true:
 - Guarded one-shot submit is missing the route-scoped approved destination BridgeMint hash.
 - Solana -> Base approval state is stored only in `/tmp` or cannot be restored into `/data/bridge-results`.
 - Solana -> Base replay reports `expired_deadline` for the source message.
+- Solana -> Base final approval simulation reports `DeadlineExpired`.
 - Fresh Solana -> Base source fixture was not written to `/data/bridge-results`.
 - Fresh low-value source-event generation was not explicitly approved by the operator.
 - Source wallet funding is insufficient for the fresh event and gas; request funds before retrying.

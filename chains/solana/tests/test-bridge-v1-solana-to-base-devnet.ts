@@ -83,6 +83,14 @@ const SOURCE_FORCE_NEW =
 const SOURCE_SETTLE_PREEXISTING =
   process.env.BRIDGE_SOLANA_SOURCE_SETTLE_PREEXISTING === "true" ||
   process.env.PR012Z_SETTLE_PREEXISTING === "true";
+const SOURCE_DEADLINE_SECONDS = Number(
+  process.env.BRIDGE_SOLANA_SOURCE_DEADLINE_SECONDS ||
+    process.env.PR012Z_SOURCE_DEADLINE_SECONDS ||
+    (SOURCE_ONLY ? "7200" : "3600")
+);
+const SOURCE_DEADLINE_UNIX = process.env.BRIDGE_SOLANA_SOURCE_DEADLINE_UNIX
+  ? Number(process.env.BRIDGE_SOLANA_SOURCE_DEADLINE_UNIX)
+  : null;
 
 const SOLANA_DEVNET_DOMAIN = 0x01000002;
 const BASE_SEPOLIA_DOMAIN = 0x02000002;
@@ -1443,7 +1451,12 @@ async function main(): Promise<void> {
   const deadline =
     SOURCE_ONLY && latestProgress?.deadline && !SOURCE_FORCE_NEW
       ? Number(latestProgress.deadline)
-      : Math.floor(Date.now() / 1000) + 3600;
+      : SOURCE_DEADLINE_UNIX && Number.isSafeInteger(SOURCE_DEADLINE_UNIX)
+        ? SOURCE_DEADLINE_UNIX
+        : Math.floor(Date.now() / 1000) + SOURCE_DEADLINE_SECONDS;
+  if (!Number.isSafeInteger(deadline) || deadline <= Math.floor(Date.now() / 1000)) {
+    throw new Error("Invalid Solana source bridge deadline");
+  }
   const { message, messageHashHex, messageHashBytes } = fieldValidMessage({
     sourceAssetIdHex,
     baseAssetIdHex: baseNativeAssetIdHex,
@@ -1720,6 +1733,8 @@ async function main(): Promise<void> {
       destinationBridgeMintHash,
       sourceAmount: TEST_AMOUNT.toString(),
       normalizedDestinationAmount: normalizedDestinationAmount.toString(),
+      deadline,
+      deadlineSecondsFromNow: Math.max(0, deadline - Math.floor(Date.now() / 1000)),
       sourceNullifierSpent: true,
       sourceValueLocked: true,
       fixturePath,

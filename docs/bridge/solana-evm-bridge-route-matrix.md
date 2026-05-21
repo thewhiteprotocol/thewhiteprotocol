@@ -132,13 +132,34 @@
 
 - Fresh source command: `cd chains/solana && npm run bridge:solana-to-base:source-fixture`
 - Durable fixture directory: `/data/bridge-results`
-- Fixture naming: `solana-to-base-source-fixture-<sourceMessageHash>.json`
+- Fixture path: `/data/bridge-results/solana-to-base-source-fixture-0x0fd0e20315403767f28cac97ece9b8937c984aba43bc7f575219de681abda198.json`
+- Paper state path: `/data/bridge-results/solana-to-base-paper-state`
 - Required source instruction: `bridge_out_v1_with_proof`
 - Unsafe source instruction: `init_bridge_v1_out` must not be used.
-- Local status: pending Render execution because `/data` and hosted RPC/signer/wallet env were absent locally.
-- Paper replay: pending fresh source event.
-- Approval rerun: pending fresh paper state.
+- Source tx: `3uTMH3jsARmS49MF7SEqgq2Tv4ahosAdK9Vz4GP7BdPNS2mSsVDhwnTAsjiNPte6M5YCSBZwCgREqFvNJy8ZbbYF`
+- Source slot: `463764443`
+- Source message hash: `0x0fd0e20315403767f28cac97ece9b8937c984aba43bc7f575219de681abda198`
+- Destination BridgeMint hash: `0x33c44d710e08d02ebd15492219ec1fd6a15682b69440351c850af017750df93b`
+- Amount normalization: `1000000` Solana 9-decimal units -> `1000000000000000` Base 18-decimal units.
+- Paper replay: passed, status `paper_ready_to_submit`.
+- Policy/finality: passed.
+- Signatures produced: `2`.
+- Base submit preview: created for `BridgeInbox.acceptBridgeMint`.
+- Approval rerun: `approval_ready`.
+- Simulation: passed, gas estimate `986321`.
 - Base destination tx submitted: `false`
+
+## PR-013H Guarded Submit Precheck
+
+- Approved source tx: `3uTMH3jsARmS49MF7SEqgq2Tv4ahosAdK9Vz4GP7BdPNS2mSsVDhwnTAsjiNPte6M5YCSBZwCgREqFvNJy8ZbbYF`
+- Source message hash: `0x0fd0e20315403767f28cac97ece9b8937c984aba43bc7f575219de681abda198`
+- Destination BridgeMint hash: `0x33c44d710e08d02ebd15492219ec1fd6a15682b69440351c850af017750df93b`
+- Durable paper state: `/data/bridge-results/solana-to-base-paper-state`
+- Final read-only checks: passed for route, asset, cap, consumed/frozen state, and signer-set version.
+- Final simulation: blocked with `DeadlineExpired` before any live submit window.
+- Guarded submit command: not run.
+- Base destination tx submitted: `false`
+- Current action: do not submit this destination hash; generate a fresh source event for the next submit attempt.
 
 ## Production Relayer Policy
 
