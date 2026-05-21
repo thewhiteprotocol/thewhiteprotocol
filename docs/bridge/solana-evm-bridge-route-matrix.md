@@ -264,6 +264,20 @@
 - Withdraw simulation: `not_attempted_missing_merkle_path`
 - Withdraw tx submitted: `false`
 
+## PR-013P Base Merkle Path And Withdraw Simulation
+
+- Merkle path recovered: `true`
+- Destination commitment: `0x0622f68a087014d4b920cf0c8224e11ef3b129f2f58ff4414c030e143ceeaf58`
+- Leaf index: `42`
+- Event range: `41794491-41794491`
+- Merkle root: `50015434963031949891316260787900094634376168319519755731383442155917094636`
+- Path validation: passed.
+- Durable path evidence hash: `779cf72cee09d21bc0912ebf8500478230718e95df535ddcf39d03aeed43921f`
+- Withdraw proof generated: `true`
+- Withdraw simulation: passed
+- Gas estimate: `329772`
+- Withdraw tx submitted: `false`
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.

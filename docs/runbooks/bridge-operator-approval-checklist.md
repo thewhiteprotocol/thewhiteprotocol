@@ -270,6 +270,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - PR-013M reached `check_ready` for destination hash `0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d` with validated outside-repo Base destination note-state and no Base destination tx submitted.
     - PR-013N submitted exactly one guarded Base tx `0x18b0d4a25ea9087630b0eed09d2399a33d16c8788290cad2d379619aedc96556` for that destination hash after final check-only and note-state gate passed; the tx confirmed in block `41794491`, message consumed is `true`, commitment inserted is `true`, duplicate submit is blocked, and live submit returned to paper/disabled after the command-scoped window.
     - PR-013O validates the durable Base note-state and derives leaf index `42`, but withdraw proof readiness is blocked until Base Merkle path/indexer evidence is available for that leaf.
+    - PR-013P recovered and validated the Base Merkle path for leaf `42`, generated the withdraw proof in memory, and passed read-only withdraw simulation with gas estimate `329772`; no withdraw tx was submitted.
 
 ## Stop Conditions
 

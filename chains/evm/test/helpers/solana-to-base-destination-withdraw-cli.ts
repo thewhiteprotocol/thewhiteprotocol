@@ -1,4 +1,5 @@
 import * as assert from "assert";
+import * as crypto from "crypto";
 import { execSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
@@ -6,6 +7,7 @@ import * as path from "path";
 import {
   createPublicClient,
   decodeEventLog,
+  encodeAbiParameters,
   getAddress,
   http,
   parseAbi,
@@ -13,7 +15,9 @@ import {
   type Hex,
 } from "viem";
 
+const snarkjs = require("snarkjs");
 const circomlibjs = require("circomlibjs");
+const TREE_DEPTH = 20;
 
 type JsonRecord = Record<string, any>;
 
@@ -77,8 +81,12 @@ const WHITE_PROTOCOL_ABI = parseAbi([
   "event BridgeMint(address indexed asset, uint256 amount, bytes32 indexed newCommitment)",
   "function getLastRoot() view returns (uint256)",
   "function nextLeafIndex() view returns (uint256)",
+  "function filledSubtrees(uint256) view returns (uint256)",
+  "function zeros(uint256) view returns (uint256)",
   "function spentNullifiers(uint256) view returns (bool)",
   "function bridgeCommitments(uint256) view returns (bool)",
+  "function isKnownRoot(uint256) view returns (bool)",
+  "function withdraw(bytes proof, uint256 nullifierHash, uint256 root, address recipient, address token, uint256 amount, uint256 fee, address relayer) external",
 ]);
 
 function repoRoot(): string {
@@ -93,6 +101,17 @@ function repoRoot(): string {
     dir = path.dirname(dir);
   }
   return process.cwd();
+}
+
+function monorepoRoot(): string {
+  let dir = process.cwd();
+  while (dir !== path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, "relayer/circuits/build")) && fs.existsSync(path.join(dir, "chains/evm"))) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+  return repoRoot();
 }
 
 function readJson(filePath: string): JsonRecord {
@@ -439,6 +458,109 @@ function resolveBackupDir(env = process.env): string {
   return path.resolve(env.BRIDGE_BASE_NOTE_STATE_BACKUP_DIR || "/data/base-destination-note-state");
 }
 
+function defaultBaseMerklePathDir(env = process.env): string {
+  return path.resolve(
+    env.BRIDGE_BASE_MERKLE_PATH_DIR ||
+      (fs.existsSync("/workspaces/thewhiteprotocol-operator-data")
+        ? "/workspaces/thewhiteprotocol-operator-data/base-merkle-paths"
+        : "/data/base-merkle-paths")
+  );
+}
+
+function resolveMerklePathEvidencePath(expected: ExpectedDestination, env = process.env): string {
+  if (env.BRIDGE_BASE_MERKLE_PATH_EVIDENCE_PATH) return path.resolve(env.BRIDGE_BASE_MERKLE_PATH_EVIDENCE_PATH);
+  return path.join(defaultBaseMerklePathDir(env), `${expected.destinationBridgeMintHash}.json`);
+}
+
+function sha256Json(value: unknown): string {
+  return crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+async function poseidonHash(left: bigint, right: bigint): Promise<bigint> {
+  const poseidon = await circomlibjs.buildPoseidon();
+  const F = poseidon.F;
+  return BigInt(F.toString(poseidon([F.e(left.toString()), F.e(right.toString())])));
+}
+
+function computePathFromFilledSubtrees(
+  leafIndex: number,
+  filledSubtrees: bigint[],
+  zeros: bigint[]
+): { pathElements: bigint[]; pathIndices: number[] } {
+  const pathElements: bigint[] = [];
+  const pathIndices: number[] = [];
+  for (let i = 0; i < TREE_DEPTH; i++) {
+    const isRight = (leafIndex >> i) & 1;
+    pathIndices.push(isRight);
+    pathElements.push(isRight ? filledSubtrees[i] : zeros[i]);
+  }
+  return { pathElements, pathIndices };
+}
+
+async function computeRootFromMerklePath(
+  commitment: bigint,
+  pathElements: bigint[],
+  pathIndices: number[]
+): Promise<bigint> {
+  let current = commitment;
+  for (let i = 0; i < TREE_DEPTH; i++) {
+    current = pathIndices[i] === 0
+      ? await poseidonHash(current, pathElements[i])
+      : await poseidonHash(pathElements[i], current);
+  }
+  return current;
+}
+
+function bigintHex32(value: bigint): Hex {
+  return `0x${value.toString(16).padStart(64, "0")}` as Hex;
+}
+
+function getLocalAssetAddress(env = process.env): Address {
+  const configured = env.BRIDGE_WITHDRAW_TOKEN || env.BASE_WITHDRAW_TOKEN || env.BRIDGE_DESTINATION_LOCAL_ASSET;
+  if (configured) return getAddress(configured);
+  return "0x0000000000000000000000000000000000000000";
+}
+
+function getWithdrawRecipient(env = process.env): Address {
+  const configured = env.BRIDGE_WITHDRAW_RECIPIENT || env.BASE_WITHDRAW_RECIPIENT;
+  if (configured) return getAddress(configured);
+  return "0x000000000000000000000000000000000000dEaD";
+}
+
+function withdrawCircuitDir(env = process.env): string {
+  const root = monorepoRoot();
+  const candidates = [
+    ...(env.BRIDGE_WITHDRAW_CIRCUIT_DIR ? [path.resolve(env.BRIDGE_WITHDRAW_CIRCUIT_DIR)] : []),
+    path.join(root, "circuits/withdraw/build"),
+    path.join(root, "relayer/circuits/build"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, "withdraw_js", "withdraw.wasm")) && fs.existsSync(path.join(candidate, "withdraw.zkey"))) {
+      return candidate;
+    }
+  }
+  return candidates[0];
+}
+
+async function proofToBytes(proof: any, publicSignals: any[]): Promise<Hex> {
+  const calldata = await snarkjs.groth16.exportSolidityCallData(proof, publicSignals);
+  const parsed = JSON.parse(`[${calldata.replace(/\(/g, "[").replace(/\)/g, "]")}]`);
+  const a = parsed[0];
+  const b = parsed[1];
+  const c = parsed[2];
+  const flatProof = [
+    BigInt(a[0]),
+    BigInt(a[1]),
+    BigInt(b[0][0]),
+    BigInt(b[0][1]),
+    BigInt(b[1][0]),
+    BigInt(b[1][1]),
+    BigInt(c[0]),
+    BigInt(c[1]),
+  ];
+  return encodeAbiParameters([{ type: "uint256[8]" }], [flatProof]) as Hex;
+}
+
 function exportNoteState(env = process.env): Record<string, unknown> {
   const expected = expectedFromFixtureAndState(env);
   const input = env.BRIDGE_BASE_NOTE_STATE_INPUT || env.BRIDGE_NOTE_STATE_INPUT;
@@ -724,6 +846,407 @@ async function runBasePreflight(env = process.env): Promise<Record<string, unkno
   };
 }
 
+async function recoverMerklePath(env = process.env): Promise<Record<string, unknown>> {
+  const expected = expectedFromFixtureAndState(env);
+  const rpcUrl = env.BASE_SEPOLIA_RPC_URL || env.RPC_URL;
+  if (!rpcUrl) {
+    return {
+      ok: false,
+      status: "blocked_base_rpc_missing",
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const client = createPublicClient({ transport: http(rpcUrl) });
+  const whiteProtocol = getWhiteProtocolAddress(env);
+  const receipt = await client.getTransactionReceipt({ hash: expected.submitTxHash }).catch(() => null);
+  if (!receipt || receipt.status !== "success") {
+    return {
+      ok: false,
+      status: "blocked_submit_tx_unconfirmed",
+      baseSubmitTx: expected.submitTxHash,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  let bridgeMintEvent = false;
+  for (const log of receipt.logs) {
+    try {
+      const decoded = decodeEventLog({ abi: WHITE_PROTOCOL_ABI, data: log.data, topics: log.topics });
+      if (
+        decoded.eventName === "BridgeMint" &&
+        (decoded.args as any).newCommitment?.toLowerCase() === expected.destinationCommitment
+      ) {
+        bridgeMintEvent = true;
+      }
+    } catch {
+      // Ignore logs from other contracts.
+    }
+  }
+
+  const [currentRoot, currentNextLeafIndex, commitmentInserted, nextLeafIndexBeforeSubmit, nextLeafIndexAtSubmitBlock] =
+    await Promise.all([
+      client.readContract({ address: whiteProtocol, abi: WHITE_PROTOCOL_ABI, functionName: "getLastRoot" }) as Promise<bigint>,
+      client.readContract({ address: whiteProtocol, abi: WHITE_PROTOCOL_ABI, functionName: "nextLeafIndex" }) as Promise<bigint>,
+      client.readContract({
+        address: whiteProtocol,
+        abi: WHITE_PROTOCOL_ABI,
+        functionName: "bridgeCommitments",
+        args: [BigInt(expected.destinationCommitment)],
+      }) as Promise<boolean>,
+      client.readContract({
+        address: whiteProtocol,
+        abi: WHITE_PROTOCOL_ABI,
+        functionName: "nextLeafIndex",
+        blockNumber: receipt.blockNumber - 1n,
+      }) as Promise<bigint>,
+      client.readContract({
+        address: whiteProtocol,
+        abi: WHITE_PROTOCOL_ABI,
+        functionName: "nextLeafIndex",
+        blockNumber: receipt.blockNumber,
+      }) as Promise<bigint>,
+    ]);
+
+  const leafIndex = deriveLeafIndexFromNextLeafDelta(
+    nextLeafIndexBeforeSubmit,
+    nextLeafIndexAtSubmitBlock,
+    true,
+    bridgeMintEvent
+  );
+  if (leafIndex === null) {
+    return {
+      ok: false,
+      status: "blocked_leaf_index_unavailable",
+      bridgeMintEvent,
+      nextLeafIndexBeforeSubmit: nextLeafIndexBeforeSubmit.toString(),
+      nextLeafIndexAtSubmitBlock: nextLeafIndexAtSubmitBlock.toString(),
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  if (currentNextLeafIndex !== nextLeafIndexAtSubmitBlock) {
+    return {
+      ok: false,
+      status: "blocked_tree_advanced_after_submit",
+      currentNextLeafIndex: currentNextLeafIndex.toString(),
+      nextLeafIndexAtSubmitBlock: nextLeafIndexAtSubmitBlock.toString(),
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const filledSubtrees: bigint[] = [];
+  const zeros: bigint[] = [];
+  for (let i = 0; i < TREE_DEPTH; i++) {
+    const [filled, zero] = await Promise.all([
+      client.readContract({ address: whiteProtocol, abi: WHITE_PROTOCOL_ABI, functionName: "filledSubtrees", args: [BigInt(i)] }) as Promise<bigint>,
+      client.readContract({ address: whiteProtocol, abi: WHITE_PROTOCOL_ABI, functionName: "zeros", args: [BigInt(i)] }) as Promise<bigint>,
+    ]);
+    filledSubtrees.push(filled);
+    zeros.push(zero);
+  }
+
+  const merklePath = computePathFromFilledSubtrees(Number(leafIndex), filledSubtrees, zeros);
+  const computedRoot = await computeRootFromMerklePath(
+    BigInt(expected.destinationCommitment),
+    merklePath.pathElements,
+    merklePath.pathIndices
+  );
+  const rootMatches = computedRoot === currentRoot;
+  const knownRoot = (await client.readContract({
+    address: whiteProtocol,
+    abi: WHITE_PROTOCOL_ABI,
+    functionName: "isKnownRoot",
+    args: [computedRoot],
+  })) as boolean;
+
+  const evidence = {
+    version: 1,
+    destinationBridgeMintHash: expected.destinationBridgeMintHash,
+    destinationCommitment: expected.destinationCommitment,
+    sourceMessageHash: expected.sourceMessageHash,
+    baseSubmitTx: expected.submitTxHash,
+    baseSubmitBlock: receipt.blockNumber.toString(),
+    whiteProtocol,
+    leafIndex: leafIndex.toString(),
+    treeDepth: TREE_DEPTH,
+    root: currentRoot.toString(),
+    rootHex: bigintHex32(currentRoot),
+    pathElements: merklePath.pathElements.map((entry) => entry.toString()),
+    pathIndices: merklePath.pathIndices.map((entry) => entry.toString()),
+    eventRange: {
+      fromBlock: receipt.blockNumber.toString(),
+      toBlock: receipt.blockNumber.toString(),
+      method: "submit_receipt_plus_current_tree_state",
+    },
+    source: {
+      bridgeMintEvent,
+      commitmentInserted,
+      nextLeafIndexBeforeSubmit: nextLeafIndexBeforeSubmit.toString(),
+      nextLeafIndexAtSubmitBlock: nextLeafIndexAtSubmitBlock.toString(),
+      currentNextLeafIndex: currentNextLeafIndex.toString(),
+    },
+  };
+  const evidenceHash = sha256Json(evidence);
+  const outputPath = resolveMerklePathEvidencePath(expected, env);
+  const outputDurable = isOutsideRepo(outputPath) && !isTmpPath(outputPath);
+  if (!outputDurable) {
+    return {
+      ok: false,
+      status: "blocked_merkle_path_output_not_durable",
+      outputPath,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(outputPath, JSON.stringify(evidence, null, 2), { mode: 0o600 });
+  try {
+    fs.chmodSync(outputPath, 0o600);
+  } catch {
+    // Best effort on platforms without chmod support.
+  }
+
+  const ok = rootMatches && knownRoot && bridgeMintEvent && commitmentInserted;
+  return {
+    ok,
+    status: ok ? "merkle_path_recovered" : "blocked_merkle_path_invalid",
+    destinationBridgeMintHash: expected.destinationBridgeMintHash,
+    destinationCommitment: expected.destinationCommitment,
+    leafIndex: leafIndex.toString(),
+    eventRange: `${receipt.blockNumber.toString()}-${receipt.blockNumber.toString()}`,
+    merkleRoot: currentRoot.toString(),
+    rootMatches,
+    knownRoot,
+    commitmentInserted,
+    bridgeMintEvent,
+    pathLength: merklePath.pathElements.length,
+    pathEvidencePath: outputPath,
+    pathEvidenceHash: evidenceHash,
+    withdrawTxSubmitted: false,
+    secretsPrinted: false,
+  };
+}
+
+async function validateMerklePath(env = process.env): Promise<Record<string, unknown>> {
+  const expected = expectedFromFixtureAndState(env);
+  const evidencePath = resolveMerklePathEvidencePath(expected, env);
+  if (!fs.existsSync(evidencePath)) {
+    return {
+      ok: false,
+      status: "blocked_merkle_path_missing",
+      pathEvidencePath: evidencePath,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+  const evidence = readJson(evidencePath);
+  const pathElements = Array.isArray(evidence.pathElements) ? evidence.pathElements.map((entry: unknown) => BigInt(String(entry))) : [];
+  const pathIndices = Array.isArray(evidence.pathIndices) ? evidence.pathIndices.map((entry: unknown) => Number(entry)) : [];
+  const computedRoot = pathElements.length === TREE_DEPTH && pathIndices.length === TREE_DEPTH
+    ? await computeRootFromMerklePath(BigInt(expected.destinationCommitment), pathElements, pathIndices)
+    : null;
+  const expectedRoot = normalizeScalar(evidence.root);
+  const checks = {
+    destinationHashMatches: normalizeHash(evidence.destinationBridgeMintHash) === expected.destinationBridgeMintHash,
+    destinationCommitmentMatches: normalizeHex32(evidence.destinationCommitment) === expected.destinationCommitment,
+    leafIndexMatches: normalizeScalar(evidence.leafIndex) === (process.env.BRIDGE_EXPECTED_LEAF_INDEX || "42"),
+    pathLengthMatches: pathElements.length === TREE_DEPTH && pathIndices.length === TREE_DEPTH,
+    rootMatches: computedRoot !== null && expectedRoot !== null && computedRoot.toString() === expectedRoot,
+    proofInputConsumable: computedRoot !== null,
+  };
+  const ok = Object.values(checks).every(Boolean);
+  return {
+    ok,
+    status: ok ? "merkle_path_valid" : "blocked_merkle_path_invalid",
+    destinationBridgeMintHash: expected.destinationBridgeMintHash,
+    destinationCommitment: expected.destinationCommitment,
+    leafIndex: evidence.leafIndex || null,
+    merkleRoot: evidence.root || null,
+    treeDepth: evidence.treeDepth || null,
+    pathEvidencePath: evidencePath,
+    pathEvidenceHash: sha256Json(evidence),
+    checks,
+    withdrawTxSubmitted: false,
+    secretsPrinted: false,
+  };
+}
+
+async function generateProofAndSimulate(env = process.env): Promise<Record<string, unknown>> {
+  const expected = expectedFromFixtureAndState(env);
+  const pathValidation = await validateMerklePath(env);
+  if (!(pathValidation as any).ok) {
+    return {
+      ok: false,
+      status: "blocked_merkle_path_invalid",
+      pathValidation,
+      withdrawProofReadiness: "blocked_merkle_path_invalid",
+      withdrawSimulation: "not_attempted",
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+  const noteValidation = validateNoteState(env);
+  const noteSummary = (noteValidation as any).validation as NoteStateSummary | null;
+  const noteState = loadValidNoteState(noteSummary);
+  if (!noteState) {
+    return {
+      ok: false,
+      status: "blocked_note_state_missing",
+      withdrawProofReadiness: "blocked_note_state_missing",
+      withdrawSimulation: "not_attempted",
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const evidence = readJson(resolveMerklePathEvidencePath(expected, env));
+  const leafIndex = BigInt(String(evidence.leafIndex));
+  const root = BigInt(String(evidence.root));
+  const destinationNullifierHash = await computeDestinationNullifierHash(noteState, leafIndex);
+  if (destinationNullifierHash === null) {
+    return {
+      ok: false,
+      status: "blocked_nullifier_hash_unavailable",
+      withdrawProofReadiness: "blocked_nullifier_hash_unavailable",
+      withdrawSimulation: "not_attempted",
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const recipient = getWithdrawRecipient(env);
+  const token = getLocalAssetAddress(env);
+  const relayer = "0x0000000000000000000000000000000000000000" as Address;
+  const fee = 0n;
+  const amount = BigInt(expected.amount);
+  const assetId = BigInt(expected.destinationLocalAssetId);
+  const withdrawInput = {
+    secret: normalizeScalar(noteState.destSecret ?? noteState.secret),
+    nullifier: normalizeScalar(noteState.destNullifier ?? noteState.nullifier),
+    amount: amount.toString(),
+    asset_id: assetId.toString(),
+    leaf_index: leafIndex.toString(),
+    merkle_root: root.toString(),
+    nullifier_hash: destinationNullifierHash.toString(),
+    merkle_path: (evidence.pathElements as string[]).map((entry) => BigInt(entry).toString()),
+    merkle_path_indices: (evidence.pathIndices as string[]).map((entry) => BigInt(entry).toString()),
+    recipient: BigInt(recipient).toString(),
+    relayer: "0",
+    relayer_fee: "0",
+    public_data_hash: "0",
+  };
+  const circuitDir = withdrawCircuitDir(env);
+  const wasmPath = path.join(circuitDir, "withdraw_js", "withdraw.wasm");
+  const zkeyPath = path.join(circuitDir, "withdraw.zkey");
+  if (!fs.existsSync(wasmPath) || !fs.existsSync(zkeyPath)) {
+    return {
+      ok: false,
+      status: "blocked_withdraw_circuit_artifact_missing",
+      missingArtifacts: {
+        wasm: !fs.existsSync(wasmPath),
+        zkey: !fs.existsSync(zkeyPath),
+      },
+      withdrawProofReadiness: "blocked_withdraw_circuit_artifact_missing",
+      withdrawSimulation: "not_attempted",
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const proofResult = await snarkjs.groth16.fullProve(withdrawInput, wasmPath, zkeyPath);
+  const proofBytes = await proofToBytes(proofResult.proof, proofResult.publicSignals);
+  const publicSignals = proofResult.publicSignals.map((entry: unknown) => BigInt(String(entry)).toString());
+  const publicInputChecks = {
+    root: publicSignals[0] === root.toString(),
+    nullifierHash: publicSignals[1] === destinationNullifierHash.toString(),
+    asset: publicSignals[2] === assetId.toString(),
+    recipient: publicSignals[3] === BigInt(recipient).toString(),
+    amount: publicSignals[4] === amount.toString(),
+    relayer: publicSignals[5] === "0",
+    relayerFee: publicSignals[6] === "0",
+  };
+
+  const rpcUrl = env.BASE_SEPOLIA_RPC_URL || env.RPC_URL;
+  if (!rpcUrl) {
+    return {
+      ok: false,
+      status: "blocked_base_rpc_missing",
+      proofInputBuilt: true,
+      proofGenerated: true,
+      publicInputChecks,
+      withdrawProofReadiness: "proof_generated",
+      withdrawSimulation: "not_attempted_base_rpc_missing",
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+  const client = createPublicClient({ transport: http(rpcUrl) });
+  const whiteProtocol = getWhiteProtocolAddress(env);
+  const nullifierSpent = (await client.readContract({
+    address: whiteProtocol,
+    abi: WHITE_PROTOCOL_ABI,
+    functionName: "spentNullifiers",
+    args: [destinationNullifierHash],
+  })) as boolean;
+  if (nullifierSpent) {
+    return {
+      ok: false,
+      status: "blocked_nullifier_already_spent",
+      proofInputBuilt: true,
+      proofGenerated: true,
+      publicInputChecks,
+      nullifierSpent: true,
+      withdrawSimulation: "not_attempted_nullifier_spent",
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  let simulationOk = false;
+  let gasEstimate: string | null = null;
+  let simulationError: string | null = null;
+  try {
+    await client.simulateContract({
+      address: whiteProtocol,
+      abi: WHITE_PROTOCOL_ABI,
+      functionName: "withdraw",
+      args: [proofBytes, destinationNullifierHash, root, recipient, token, amount, fee, relayer],
+      account: recipient,
+    });
+    simulationOk = true;
+    const gas = await client.estimateContractGas({
+      address: whiteProtocol,
+      abi: WHITE_PROTOCOL_ABI,
+      functionName: "withdraw",
+      args: [proofBytes, destinationNullifierHash, root, recipient, token, amount, fee, relayer],
+      account: recipient,
+    });
+    gasEstimate = gas.toString();
+  } catch (err) {
+    simulationError = err instanceof Error ? err.message.replace(/https?:\/\/\S+/g, "[redacted-url]") : String(err);
+  }
+
+  return {
+    ok: simulationOk,
+    status: simulationOk ? "withdraw_simulation_ready" : "blocked_withdraw_simulation_failed",
+    proofInputBuilt: true,
+    proofGenerated: true,
+    publicInputChecks,
+    nullifierSpent: false,
+    withdrawProofReadiness: "proof_generated",
+    withdrawSimulation: simulationOk ? "passed" : "failed",
+    gasEstimate,
+    simulationError,
+    withdrawTxSubmitted: false,
+    secretsPrinted: false,
+  };
+}
+
 function writeFixture(dir: string, overrides: JsonRecord = {}): string {
   const fixture = {
     sourceMessageHash: PR013I_SOURCE_HASH,
@@ -811,6 +1334,9 @@ function runSelfTest(): void {
   assert.strictEqual(deriveLeafIndexFromNextLeafDelta(42n, 43n, true, true), 42n);
   assert.strictEqual(deriveLeafIndexFromNextLeafDelta(42n, 44n, true, true), null);
   assert.strictEqual(deriveLeafIndexFromNextLeafDelta(42n, 43n, true, false), null);
+  const sampleMerklePath = computePathFromFilledSubtrees(1, [11n, 22n], [0n, 1n]);
+  assert.deepStrictEqual(sampleMerklePath.pathIndices.slice(0, 2), [1, 0]);
+  assert.deepStrictEqual(sampleMerklePath.pathElements.slice(0, 2), [11n, 1n]);
 
   console.log(JSON.stringify({ ok: true, status: "self_test_passed" }, null, 2));
 }
@@ -845,6 +1371,21 @@ async function main(): Promise<void> {
   }
   if (command === "preflight" || command === "recovery-preflight") {
     const result = await runBasePreflight();
+    print(result);
+    process.exit((result as any).ok ? 0 : 1);
+  }
+  if (command === "recover-merkle-path") {
+    const result = await recoverMerklePath();
+    print(result);
+    process.exit((result as any).ok ? 0 : 1);
+  }
+  if (command === "validate-merkle-path") {
+    const result = await validateMerklePath();
+    print(result);
+    process.exit((result as any).ok ? 0 : 1);
+  }
+  if (command === "simulate-withdraw" || command === "withdraw-simulation") {
+    const result = await generateProofAndSimulate();
     print(result);
     process.exit((result as any).ok ? 0 : 1);
   }

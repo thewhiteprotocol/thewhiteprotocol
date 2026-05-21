@@ -210,3 +210,16 @@ PR-013O withdraw-prep status:
 - Withdraw proof readiness: `blocked_merkle_path_unavailable`
 - Withdraw simulation: `not_attempted_missing_merkle_path`
 - Do not generate or submit a withdraw until a Base Merkle path/indexer snapshot for leaf `42` is available.
+
+PR-013P withdraw-simulation status:
+
+- Merkle path recovered: `true`
+- Durable path evidence: `/workspaces/thewhiteprotocol-operator-data/base-merkle-paths/0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d.json`
+- Path evidence hash: `779cf72cee09d21bc0912ebf8500478230718e95df535ddcf39d03aeed43921f`
+- Path validation: passed
+- Merkle root: `50015434963031949891316260787900094634376168319519755731383442155917094636`
+- Withdraw proof generated: `true`, in memory only
+- Withdraw simulation: passed
+- Gas estimate: `329772`
+- Withdraw tx submitted: `false`
+- Before any future withdraw execution, rerun path recovery/validation if Base `nextLeafIndex` has advanced beyond `43`.
