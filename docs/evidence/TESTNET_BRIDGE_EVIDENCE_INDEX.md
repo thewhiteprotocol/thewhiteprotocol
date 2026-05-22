@@ -55,6 +55,10 @@ No mainnet readiness claim is made.
 - Route matrix: `docs/bridge/solana-evm-bridge-route-matrix.md`
 - Security assumptions: `docs/audit/TESTNET_SECURITY_ASSUMPTIONS.md`
 - External audit checklist: `docs/audit/EXTERNAL_AUDIT_CHECKLIST.md`
+- Audit handoff package: `docs/audit/AUDIT_HANDOFF_PACKAGE.md`
+- Mainnet blocker register: `docs/audit/MAINNET_BLOCKER_REGISTER.md`
+- Mainnet remediation roadmap: `docs/audit/MAINNET_REMEDIATION_ROADMAP.md`
+- Auditor question list: `docs/audit/AUDITOR_QUESTIONS.md`
 - Bridge message format: `docs/bridge/private-bridge-message-format.md`
 - Bridge production policy: `docs/bridge/bridge-production-policy.md`
 - Watcher/freeze design: `docs/bridge/bridge-watcher-challenge-freeze.md`

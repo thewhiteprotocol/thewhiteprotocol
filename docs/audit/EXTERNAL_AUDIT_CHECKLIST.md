@@ -1,5 +1,12 @@
 # External Audit Checklist
 
+Related handoff docs:
+
+- `docs/audit/AUDIT_HANDOFF_PACKAGE.md`
+- `docs/audit/MAINNET_BLOCKER_REGISTER.md`
+- `docs/audit/MAINNET_REMEDIATION_ROADMAP.md`
+- `docs/audit/AUDITOR_QUESTIONS.md`
+
 ## 1. Contracts
 
 - Review `WhiteProtocol` deposit, withdraw, bridge mint, bridge withdraw, root, nullifier, and asset registry flows.
@@ -77,3 +84,4 @@
 - Production watcher/freeze/alerting posture approved.
 - Note-state custody and recovery process approved.
 - Circuit limitations remediated or explicitly accepted.
+- Blocker status reviewed against `docs/audit/MAINNET_BLOCKER_REGISTER.md`.

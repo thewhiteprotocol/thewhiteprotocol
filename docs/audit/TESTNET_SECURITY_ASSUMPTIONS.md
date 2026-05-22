@@ -4,6 +4,13 @@
 
 This document describes the assumptions behind the current testnet bridge evidence package. It is not a mainnet security claim.
 
+Related audit handoff docs:
+
+- `docs/audit/AUDIT_HANDOFF_PACKAGE.md`
+- `docs/audit/MAINNET_BLOCKER_REGISTER.md`
+- `docs/audit/MAINNET_REMEDIATION_ROADMAP.md`
+- `docs/audit/AUDITOR_QUESTIONS.md`
+
 ## Testnet-Only Status
 
 All lifecycle evidence is from Solana Devnet, Base Sepolia, Ethereum Sepolia, BSC Testnet, and Polygon Amoy. Testnet deployments, keys, RPCs, funds, and operational practices are not production controls.
@@ -66,4 +73,4 @@ All lifecycle evidence is from Solana Devnet, Base Sepolia, Ethereum Sepolia, BS
 
 ## Mainnet Readiness
 
-Mainnet remains blocked on production custody, external audit, deployment verification, incident runbooks, alerting, route caps, pause/freeze governance, and remediation or acceptance of known circuit limitations.
+Mainnet remains blocked on production custody, external audit, deployment verification, incident runbooks, alerting, route caps, pause/freeze governance, and remediation or acceptance of known circuit limitations. The tracked blocker register is `docs/audit/MAINNET_BLOCKER_REGISTER.md`.
