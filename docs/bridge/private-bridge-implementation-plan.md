@@ -844,4 +844,4 @@ See `docs/fixes/PR-010Z-solana-to-base-private-bridge-e2e.md` for full report.
 - [x] Full Solana Devnet -> Base Sepolia lifecycle evidence archived for PR-013T. Operator preflight and guarded withdraw now classify the completed target as `no_action_already_complete` / `already_withdrawn`, with `withdrawAllowed=false` and duplicate withdraw blocked before send.
 - [ ] Remaining Solana → EVM routes proven (Solana → Ethereum, BNB, Polygon).
 - [x] Reverse direction (Ethereum→Base) proven.
-- [ ] External audit package prepared.
+- [x] External audit/testnet evidence package prepared with non-secret evidence index, route matrix, security assumptions, audit checklist, and PR-014A report.

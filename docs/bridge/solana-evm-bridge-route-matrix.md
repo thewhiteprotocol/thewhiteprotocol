@@ -10,6 +10,29 @@
 | Solana | Devnet | `0x01000002` / `16777218` | `0` |
 | Base | Sepolia | `0x02000002` / `33554434` | `84532` |
 
+## Audit Route Status Matrix
+
+| Source | Destination | Status | Source Proof Path | Destination Accept Path | Settlement / Withdraw | Duplicate Protection | Evidence | Known Limitations |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Base Sepolia | Solana Devnet | Complete | EVM `bridgeOutV1` | Solana `accept_bridge_v1_mint` | Settled and withdrawn | Duplicate destination withdraw rejected; no-op status | `docs/fixes/PR-012W-base-to-solana-hosted-flow-finalized.md` | Testnet only |
+| Solana Devnet | Base Sepolia | Complete | Solana `bridge_out_v1_with_proof` | Base `BridgeInbox.acceptBridgeMint` | Base withdraw complete | Duplicate submit and duplicate withdraw rejected; no-op status | `docs/fixes/PR-013T-solana-to-base-lifecycle-final-evidence.md` | Testnet only; note-state must remain durable outside git |
+| Base Sepolia | Ethereum Sepolia | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010I-base-to-ethereum-full-bridge-e2e.md` | Testnet only |
+| Ethereum Sepolia | Base Sepolia | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010K-ethereum-to-base-full-bridge-e2e.md` | Testnet only |
+| Base Sepolia | BSC Testnet | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010O-bnb-polygon-to-base-bridge-e2e.md` | Testnet only |
+| BSC Testnet | Base Sepolia | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010O-bnb-polygon-to-base-bridge-e2e.md` | Testnet only |
+| Base Sepolia | Polygon Amoy | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010O-bnb-polygon-to-base-bridge-e2e.md` | Testnet only |
+| Polygon Amoy | Base Sepolia | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010O-bnb-polygon-to-base-bridge-e2e.md` | Testnet only |
+| Ethereum Sepolia | BSC Testnet | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010P-ethereum-to-bnb-polygon-bridge-e2e.md` | Testnet only |
+| Ethereum Sepolia | Polygon Amoy | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010P-ethereum-to-bnb-polygon-bridge-e2e.md` | Testnet only |
+| BSC Testnet | Ethereum Sepolia | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010Q-bnb-polygon-to-ethereum-bridge-e2e.md` | Testnet only |
+| Polygon Amoy | Ethereum Sepolia | Complete | EVM bridge out | EVM bridge mint | Destination withdraw proven | Duplicate replay/withdraw rejected | `docs/fixes/PR-010Q-bnb-polygon-to-ethereum-bridge-e2e.md` | Testnet only |
+| Solana Devnet | Ethereum Sepolia | Future | Solana `bridge_out_v1_with_proof` required | EVM `BridgeInbox.acceptBridgeMint` | Not run | Must enforce consumed-message and spent-nullifier checks | TBD | Route not yet proven |
+| Ethereum Sepolia | Solana Devnet | Future | EVM bridge out | Solana `accept_bridge_v1_mint` | Not run | Must enforce Solana message/nullifier no-op checks | TBD | Route not yet proven |
+| Solana Devnet | BSC Testnet | Future | Solana `bridge_out_v1_with_proof` required | EVM `BridgeInbox.acceptBridgeMint` | Not run | Must enforce consumed-message and spent-nullifier checks | TBD | Route not yet proven |
+| BSC Testnet | Solana Devnet | Future | EVM bridge out | Solana `accept_bridge_v1_mint` | Not run | Must enforce Solana message/nullifier no-op checks | TBD | Route not yet proven |
+| Solana Devnet | Polygon Amoy | Future | Solana `bridge_out_v1_with_proof` required | EVM `BridgeInbox.acceptBridgeMint` | Not run | Must enforce consumed-message and spent-nullifier checks | TBD | Route not yet proven |
+| Polygon Amoy | Solana Devnet | Future | EVM bridge out | Solana `accept_bridge_v1_mint` | Not run | Must enforce Solana message/nullifier no-op checks | TBD | Route not yet proven |
+
 ## Proven Routes
 
 | Route | Status | Source Path | Destination Path | Evidence |

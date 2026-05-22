@@ -354,6 +354,7 @@ Do not approve live submission if any of these are true:
 - `bridge:base:submit-withdraw` reports `blocked_withdraw_recipient_invalid` or `blocked_withdraw_recipient_zero_address`.
 - Solana -> Base destination withdraw is rerun after PR-013S for destination hash `0xc204c9e91bc6c6e98e2fe25b6a3475cd32efc0da84b8e9017a96947bfad3c67d`; the nullifier is already spent.
 - Solana -> Base operator status does not report `no_action_already_complete` and `withdrawAllowed=false` for the PR-013S already-withdrawn destination.
+- External evidence package includes private env files, note-state, witnesses, proof files, zkeys, wallet keypairs, signer keys, RPC URLs with keys, or operator tokens.
 
 ## Future Live-Testnet Approval Fields
 
