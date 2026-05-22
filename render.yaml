@@ -164,6 +164,28 @@ services:
         value: "1000000000000"
       - key: SUPPORTED_ASSETS
         value: So11111111111111111111111111111111111111112
+      # Production API policy:
+      # - RELAYER_ALLOWED_ORIGINS is the preferred CORS allowlist.
+      # - CORS_ORIGIN remains a legacy single-origin fallback.
+      # - Set RELAYER_RATE_LIMIT_ENABLED=false only for local diagnostics, not hosted public beta.
+      - key: RELAYER_ALLOWED_ORIGINS
+        value: https://app.thewhiteprotocol.com
+      - key: RELAYER_PUBLIC_ALLOWED_ORIGINS
+        value: ""
+      - key: RELAYER_RATE_LIMIT_ENABLED
+        value: "true"
+      - key: RELAYER_PUBLIC_RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RELAYER_PUBLIC_RATE_LIMIT_MAX
+        value: "300"
+      - key: RELAYER_OPERATOR_RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RELAYER_OPERATOR_RATE_LIMIT_MAX
+        value: "30"
+      - key: RELAYER_EXPENSIVE_RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RELAYER_EXPENSIVE_RATE_LIMIT_MAX
+        value: "5"
       - key: CORS_ORIGIN
         value: https://app.thewhiteprotocol.com
       # Stealth address scanner (Solana + Base only)

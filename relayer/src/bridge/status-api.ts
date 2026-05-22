@@ -12,6 +12,12 @@ import type { BridgeWatcherDaemon } from './watcher-daemon';
 import type { BridgeDaemon } from './daemon';
 import { createApiError } from '../chain-registry';
 import { buildHostedOperatorReadiness } from './operator-readiness';
+import {
+  isHexHash,
+  operatorTokenFromRequestHeaders,
+  parseBoundedInteger,
+  timingSafeEqualString,
+} from '../security';
 
 export interface BridgeStatusApiConfig {
   stateStore: BridgeStateStore;
@@ -31,9 +37,8 @@ export function createBridgeStatusRouter(config: BridgeStatusApiConfig): Router 
         .json(createApiError('OPERATOR_AUTH_NOT_CONFIGURED', 'Operator API token is not configured.'));
       return false;
     }
-    const bearer = req.header('authorization')?.replace(/^Bearer\s+/i, '');
-    const headerToken = req.header('x-bridge-operator-token');
-    if (bearer !== config.operatorApiToken && headerToken !== config.operatorApiToken) {
+    const token = operatorTokenFromRequestHeaders(req.headers as any);
+    if (!timingSafeEqualString(token, config.operatorApiToken)) {
       res.status(401).json(createApiError('UNAUTHORIZED', 'Operator API token is required.'));
       return false;
     }
@@ -98,6 +103,9 @@ export function createBridgeStatusRouter(config: BridgeStatusApiConfig): Router 
    * Single message state lookup
    */
   router.get('/bridge/messages/:hash', (req: Request, res: Response) => {
+    if (!isHexHash(req.params.hash)) {
+      return res.status(400).json(createApiError('INVALID_MESSAGE_HASH', 'Message hash must be a 32-byte hex string.'));
+    }
     const hash = req.params.hash.toLowerCase();
     const message = config.stateStore.get(hash);
     if (!message) {
@@ -119,12 +127,15 @@ export function createBridgeStatusRouter(config: BridgeStatusApiConfig): Router 
    */
   router.get('/bridge/messages', (req: Request, res: Response) => {
     const statusFilter = req.query.status as string | undefined;
-    const limit = Math.min(parseInt((req.query.limit as string) || '100', 10), 1000);
-    const offset = parseInt((req.query.offset as string) || '0', 10);
+    const limit = parseBoundedInteger(req.query.limit, 100, 1, 1000);
+    const offset = parseBoundedInteger(req.query.offset, 0, 0, 1_000_000);
 
     let messages = config.stateStore.list();
 
-    if (statusFilter && Object.values(BridgeMessageStatus).includes(statusFilter as BridgeMessageStatus)) {
+    if (statusFilter && !Object.values(BridgeMessageStatus).includes(statusFilter as BridgeMessageStatus)) {
+      return res.status(400).json(createApiError('INVALID_MESSAGE_STATUS', 'Unsupported bridge message status filter.'));
+    }
+    if (statusFilter) {
       messages = messages.filter((m) => m.status === statusFilter);
     }
 
@@ -166,6 +177,9 @@ export function createBridgeStatusRouter(config: BridgeStatusApiConfig): Router 
   });
 
   router.get('/bridge/daemon/messages/:hash', (req: Request, res: Response) => {
+    if (!isHexHash(req.params.hash)) {
+      return res.status(400).json(createApiError('INVALID_MESSAGE_HASH', 'Message hash must be a 32-byte hex string.'));
+    }
     const daemon = requireBridgeDaemon(req, res);
     if (!daemon) return;
     const message = daemon.getMessage(req.params.hash);
@@ -190,6 +204,9 @@ export function createBridgeStatusRouter(config: BridgeStatusApiConfig): Router 
   });
 
   router.post('/bridge/daemon/messages/:hash/retry', (req: Request, res: Response) => {
+    if (!isHexHash(req.params.hash)) {
+      return res.status(400).json(createApiError('INVALID_MESSAGE_HASH', 'Message hash must be a 32-byte hex string.'));
+    }
     const daemon = requireMutableBridgeDaemon(req, res);
     if (!daemon) return;
     try {
@@ -212,8 +229,14 @@ export function createBridgeStatusRouter(config: BridgeStatusApiConfig): Router 
     if (!watcher) return;
     const status = req.query.status as string | undefined;
     const severity = req.query.severity as string | undefined;
-    const limit = Math.min(parseInt((req.query.limit as string) || '100', 10), 1000);
-    const offset = parseInt((req.query.offset as string) || '0', 10);
+    const limit = parseBoundedInteger(req.query.limit, 100, 1, 1000);
+    const offset = parseBoundedInteger(req.query.offset, 0, 0, 1_000_000);
+    if (status && !['open', 'acknowledged', 'ignored', 'resolved', 'freeze_requested', 'freeze_submitted'].includes(status)) {
+      return res.status(400).json(createApiError('INVALID_WATCHER_STATUS', 'Unsupported watcher finding status filter.'));
+    }
+    if (severity && !['low', 'medium', 'high', 'critical'].includes(severity)) {
+      return res.status(400).json(createApiError('INVALID_WATCHER_SEVERITY', 'Unsupported watcher finding severity filter.'));
+    }
     const allFindings = watcher.getFindingStore().list({
       status: status as any,
       severity: severity as any,

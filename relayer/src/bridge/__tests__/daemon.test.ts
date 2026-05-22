@@ -739,6 +739,45 @@ describe('BridgeDaemon', () => {
     expect(authorized.body.enabled).toBe(true);
   });
 
+  test('operator tick endpoint rejects invalid auth without leaking token', async () => {
+    const { daemon, stateStore } = makeDaemon();
+    const app = express();
+    app.use(express.json());
+    app.use(
+      createBridgeStatusRouter({
+        stateStore,
+        routes: [evmRoute()],
+        bridgeDaemon: daemon,
+        operatorApiToken: 'operator-token',
+      })
+    );
+
+    const response = await invokeApp(app, '/bridge/daemon/tick', {
+      method: 'POST',
+      headers: { authorization: 'Bearer wrong-token' },
+    });
+    expect(response.status).toBe(401);
+    expect(JSON.stringify(response.body)).not.toContain('operator-token');
+  });
+
+  test('message lookup validates hash format', async () => {
+    const { daemon, stateStore } = makeDaemon();
+    const app = express();
+    app.use(express.json());
+    app.use(
+      createBridgeStatusRouter({
+        stateStore,
+        routes: [evmRoute()],
+        bridgeDaemon: daemon,
+        operatorApiToken: 'operator-token',
+      })
+    );
+
+    const response = await invokeApp(app, '/bridge/daemon/messages/not-a-hash');
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('INVALID_MESSAGE_HASH');
+  });
+
   test('status endpoint redacts secrets', async () => {
     const { daemon, stateStore } = makeDaemon();
     const app = express();

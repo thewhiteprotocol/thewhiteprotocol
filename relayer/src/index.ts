@@ -13,6 +13,12 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import {
+  buildCorsOptions,
+  createConfiguredRateLimiter,
+  rateLimitingEnabled,
+  securityHeaders,
+} from './security';
 import { createApiExtensions, RelayerApiExtensions } from './api-extensions';
 import { Sequencer } from './sequencer';
 import { MultiChainSequencer } from './sequencer/multi-chain';
@@ -541,45 +547,68 @@ export class RelayerService {
 
     // Security headers
     this.app.use(helmet());
+    this.app.use(securityHeaders());
     
-    // CORS — never default to wildcard in production
-    const corsOrigin = process.env.CORS_ORIGIN;
-    this.app.use(cors({
-      origin: corsOrigin ? corsOrigin.split(',').map(s => s.trim()) : false,
-      methods: ['GET', 'POST'],
-    }));
+    // CORS — never default to wildcard in production.
+    this.app.use(cors(buildCorsOptions(process.env)));
     
     // JSON parsing
     this.app.use(express.json({ limit: '1mb' }));
     
-    // Global backstop limiter (per IP, high cap, protects against total flood)
-    const globalLimiter = rateLimit({
-      windowMs: 60 * 1000, // 1 minute
-      max: 500,            // 500 requests/minute per IP
-      message: { error: 'Service temporarily unavailable' },
-    });
+    const publicLimiter = createConfiguredRateLimiter(
+      'public',
+      process.env,
+      'RELAYER_PUBLIC',
+      { windowMs: 60 * 1000, max: 300 }
+    );
+    const operatorLimiter = createConfiguredRateLimiter(
+      'operator',
+      process.env,
+      'RELAYER_OPERATOR',
+      { windowMs: 60 * 1000, max: 30 }
+    );
+    const expensiveLimiter = createConfiguredRateLimiter(
+      'expensive',
+      process.env,
+      'RELAYER_EXPENSIVE',
+      { windowMs: 60 * 1000, max: 5 }
+    );
 
-    // Per-key limiter (recipient for /withdraw, IP otherwise)
-    const perKeyLimiter = rateLimit({
-      windowMs: 60 * 1000, // 1 minute
-      max: 30,             // 30 requests per minute per key
-      message: { error: 'Too many requests, please slow down' },
-      keyGenerator: (req: Request) => {
-        // For withdraw we rate-limit by recipient, otherwise by IP
-        if (req.method === 'POST' && req.path === '/withdraw') {
-          const body = req.body as any;
-          if (body && typeof body.recipient === 'string' && body.recipient.length > 0) {
-            return `recipient:${body.recipient}`;
-          }
-        }
-        // Fallback: per-IP limiting
-        return req.ip || 'unknown';
-      },
-    });
+    this.app.use(
+      [
+        '/health',
+        '/metrics',
+        '/status',
+        '/quote',
+        '/assets',
+        '/bridge/status',
+        '/bridge/routes',
+        '/bridge/messages',
+        '/bridge/daemon/status',
+        '/bridge/daemon/messages',
+        '/bridge/operator/readiness',
+        '/api/asset-id',
+        '/api/pool-state',
+        '/api/merkle/proof',
+        '/api/note',
+        '/api/pubkey-to-scalar',
+      ],
+      publicLimiter
+    );
+    this.app.use(['/bridge/daemon/tick', '/bridge/watcher'], operatorLimiter);
+    this.app.use(/^\/bridge\/daemon\/messages\/[^/]+\/retry$/, operatorLimiter);
+    this.app.use(['/withdraw', '/api/deposit-proof', '/api/withdraw-proof', '/api/withdraw-v2-proof'], expensiveLimiter);
 
-    // Apply both: global then per-key
-    this.app.use(globalLimiter);
-    this.app.use(perKeyLimiter);
+    // Global backstop limiter (per IP, high cap, protects against total flood).
+    if (rateLimitingEnabled(process.env)) {
+      this.app.use(rateLimit({
+        windowMs: 60 * 1000,
+        max: 1_000,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: { error: 'RATE_LIMITED', message: 'Service temporarily unavailable' },
+      }));
+    }
     
     // Request logging and metrics
     this.app.use((req: Request, res: Response, next: NextFunction) => {

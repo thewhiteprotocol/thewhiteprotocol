@@ -14,7 +14,7 @@
  */
 
 import express, { Request, Response, Router, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
+import { createConfiguredRateLimiter, timingSafeEqualString } from './security';
 import { PublicKey, Connection } from '@solana/web3.js';
 import { BorshCoder, EventParser } from '@coral-xyz/anchor';
 import * as snarkjs from 'snarkjs';
@@ -697,20 +697,12 @@ export class RelayerApiExtensions {
   }
   
   private setupMiddleware(): void {
-    // Rate limiting (mirrors main relayer app)
-    const globalLimiter = rateLimit({
-      windowMs: 60 * 1000,
-      max: 500,
-      message: { error: 'Service temporarily unavailable' },
-    });
-    const perKeyLimiter = rateLimit({
-      windowMs: 60 * 1000,
-      max: 30,
-      message: { error: 'Too many requests, please slow down' },
-      keyGenerator: (req: Request) => req.ip || 'unknown',
-    });
-    this.router.use(globalLimiter);
-    this.router.use(perKeyLimiter);
+    // Rate limiting (mirrors main relayer app and remains configurable for tests).
+    this.router.use(createConfiguredRateLimiter('public', process.env, 'RELAYER_PUBLIC', { windowMs: 60 * 1000, max: 300 }));
+    this.router.use(
+      ['/deposit-proof', '/withdraw-proof', '/withdraw-v2-proof'],
+      createConfiguredRateLimiter('expensive', process.env, 'RELAYER_EXPENSIVE', { windowMs: 60 * 1000, max: 5 })
+    );
   }
   
   private requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -720,7 +712,8 @@ export class RelayerApiExtensions {
       return;
     }
     const provided = req.headers['x-sequencer-token'];
-    if (!provided || provided !== expected) {
+    const providedToken = Array.isArray(provided) ? provided[0] : provided;
+    if (!timingSafeEqualString(providedToken, expected)) {
       res.status(401).json({ error: 'Unauthorized: invalid or missing X-Sequencer-Token header' });
       return;
     }

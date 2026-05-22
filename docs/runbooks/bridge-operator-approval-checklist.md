@@ -43,23 +43,30 @@ Use this checklist before approving any bridge daemon message for a future live-
    - There is no global open critical finding that blocks bridge signing or submission.
    - Watcher dry-run/freeze report shows no unexpected live freeze transaction.
 
-6. Amount normalization check
+6. API/operator surface safety
+   - Hosted relayer CORS uses `RELAYER_ALLOWED_ORIGINS` or the legacy `CORS_ORIGIN` fallback; production wildcard CORS is not approved.
+   - `RELAYER_RATE_LIMIT_ENABLED=true` for hosted public beta or production-like deployments.
+   - Public, operator, and expensive endpoint limits are set through the `RELAYER_PUBLIC_*`, `RELAYER_OPERATOR_*`, and `RELAYER_EXPENSIVE_*` env groups.
+   - Operator mutation endpoints require `BRIDGE_OPERATOR_API_TOKEN`; proof-heavy API extension endpoints require `SEQUENCER_AUTH_TOKEN`.
+   - No operator token, RPC secret, private key, note-state, witness, proof, or raw env value appears in API responses or logs.
+
+7. Amount normalization check
    - Source amount, source decimals, destination decimals, destination amount, and normalization mode are recorded.
    - Cross-decimal conversion is exact.
    - No manual message edit was used.
 
-7. Signer set check
+8. Signer set check
    - The signer set version in the daemon state matches the deployed destination signer set version intended for submission.
    - The decoded destination `BridgeV1Config.signer_set_version` matches the decoded `BridgeSignerSet.version`.
    - The threshold is recorded.
    - The recovered signer addresses are members of the destination signer set.
 
-8. Signatures check
+9. Signatures check
    - The expected number of signatures is present.
    - Signatures are sorted by recovered signer address.
    - No private keys, signer files, or raw env values are present in logs, docs, or approval artifacts.
 
-9. Solana PDA/account check
+10. Solana PDA/account check
    - Program ID matches the deployed Solana Devnet program.
    - BridgeV1Config PDA exists.
    - BridgeSignerSet PDA exists and matches the signer set version.
@@ -70,17 +77,17 @@ Use this checklist before approving any bridge daemon message for a future live-
    - PendingDepositsBuffer PDA exists.
    - PoolConfig, MerkleTree, AssetVault, and CommitmentIndex inputs are real live-submit accounts, not placeholders.
 
-10. Route, asset, and cap check
+11. Route, asset, and cap check
     - Route is enabled and not paused.
     - Asset config is enabled and not paused.
     - Caps are sufficient for the destination amount.
     - Destination vault/account state is sufficient for the follow-on settlement/withdraw workflow.
 
-11. Destination not already consumed
+12. Destination not already consumed
     - The destination consumed-message PDA does not exist immediately before submission.
     - The destination frozen-message PDA does not indicate a freeze.
 
-12. Dry-run preview reviewed
+13. Dry-run preview reviewed
     - Submit preview method and target are correct.
     - Preview message hash is the destination BridgeMint hash intended for live submit.
     - Source BridgeOut hash is preserved separately as source evidence.
@@ -102,12 +109,12 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Preview has `dryRun=true`.
     - Preview has `liveSubmissionImplemented=true` only after the live submit adapter exists.
 
-13. Live submit flag still false before approval
+14. Live submit flag still false before approval
     - `BRIDGE_DAEMON_MODE=paper` during review.
     - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false` during review.
     - `submitTxHash=null` before approval.
 
-14. Guarded live-testnet submit window
+15. Guarded live-testnet submit window
     - `BRIDGE_DAEMON_MODE=live-testnet` is set only for the approved submit window.
     - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=true` is set only for the approved submit window.
     - `BRIDGE_DAEMON_ROUTES` includes only the intended testnet route, for example `base-sepolia:solana-devnet:3`.
@@ -118,7 +125,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false` is restored immediately after the submit attempt.
     - A duplicate submit command is run or reviewed to confirm it does not send a second transaction.
 
-15. Destination note-state backup
+16. Destination note-state backup
     - The destination note-state file exists before any live destination submit.
     - `BRIDGE_NOTE_STATE_BACKUP_DIR` points to a durable operator-controlled path such as `/data/white-bridge-note-state`.
     - `BRIDGE_REQUIRE_DURABLE_NOTE_STATE=true`.
@@ -129,20 +136,20 @@ Use this checklist before approving any bridge daemon message for a future live-
     - The operator records the backup location outside git.
     - No note secret, nullifier, witness, or private field is printed in logs.
 
-16. Hosted settlement/withdraw proving artifacts
+17. Hosted settlement/withdraw proving artifacts
     - Required zkey files are present on durable operator-controlled storage, not `/tmp`.
     - `merkle_batch_update.zkey` SHA256 is `107f6455153a9ca622ede842655f5e7b55aa0824b3d59c8ed050937b6966aac9`.
     - `withdraw.zkey` SHA256 is `cc38b845b76e2cc66a0f027540c96669b162531f64bd51a675c18f62647e71d0`.
     - The zkeys are symlinked or copied into the circuit build paths expected by hosted settlement/withdraw scripts.
     - Any temporary public transfer URLs are deleted after the persistent-disk copy is verified.
 
-17. Hosted settlement/withdraw preflight
+18. Hosted settlement/withdraw preflight
     - `cd chains/solana && npm run bridge:preflight:settle-withdraw` has been run with the exact source hash, destination hash, destination commitment, and destination amount.
     - The preflight report was written to `/data/bridge-results`.
     - `readiness` is `ready`, or `blocked_fifo` is explicitly acknowledged before enabling FIFO prefix settlement in the mutating script.
     - The report shows `transactionsSubmitted=false` and `secretsPrinted=false`.
 
-18. Hosted settlement/withdraw job wrapper
+19. Hosted settlement/withdraw job wrapper
     - `npm run bridge:job:settle-withdraw` dry-run succeeds before execute mode is considered.
     - `BRIDGE_SETTLE_WITHDRAW_EXECUTE=true` is set only for the approved mutating settlement/withdraw window.
     - The wrapper uses a fresh preflight report for the exact destination BridgeMint hash.
@@ -151,7 +158,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - `npm run bridge:job:index` or `npm run bridge:job:show` shows only non-secret job summaries.
     - The wrapper report shows `BRIDGE_DAEMON_MODE=paper` and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
 
-19. Hosted settlement/withdraw resume/recovery
+20. Hosted settlement/withdraw resume/recovery
     - `BRIDGE_SETTLE_WITHDRAW_RESUME=true` is used only for an existing partial/interrupted job.
     - `cd chains/solana && npm run bridge:recovery:snapshot` has been run before resume execution.
     - The snapshot report is written to `/data/bridge-results/recovery-snapshot-<destinationHash>.json`.
@@ -167,7 +174,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - The recovery report phase matches the job index phase and the latest read-only state.
     - Ambiguous recovery state is treated as a stop condition, not as permission to retry.
 
-20. Hosted dry-run evidence
+21. Hosted dry-run evidence
     - `cd chains/solana && npm run bridge:operator:bundle` has been run for the exact destination BridgeMint hash, or the equivalent manual status -> preflight -> recovery snapshot -> status -> dry-run job sequence has been run.
     - The bundle report exists at `/data/bridge-results/operator-bundle-<destinationHash>.json` when the bundled command is used.
     - The bundle report shows `BRIDGE_SETTLE_WITHDRAW_EXECUTE=false` behavior through `dryRunJob.execute=false` and `dryRunJob.wouldExecute=false`.
@@ -182,7 +189,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Manual leaf-index evidence is accepted only with explicit operator review and must still match the destination hash and commitment.
     - A blocked dry-run is acceptable only when it blocks with an exact, non-secret reason and the operator records that no transaction was submitted.
 
-21. Solana -> Base guarded approval readiness
+22. Solana -> Base guarded approval readiness
     - The operator runs `cd relayer && npm run bridge:solana-to-base:approval` against the exact paper daemon state path.
     - The approval command is run with `BRIDGE_DAEMON_MODE=paper` and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
     - The expected destination hash is the Base BridgeMint hash, not the Solana source BridgeOut hash.
@@ -194,7 +201,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - PR-013C re-signed the same destination hash with deployed Base signer-set keys; recovered signers `0x9A34F10F5b9AD7770C30A3B41d95C4Dcb0B88820` and `0xbd7d34e42352BCe888394263A84CF21c85608beC` match signer set version `1`, threshold `2`, and simulation passed.
     - Even after PR-013C, live destination submit still requires a separate explicit approval window and an immediate pre-submit rerun of this checklist.
 
-22. Solana -> Base guarded one-shot submit
+23. Solana -> Base guarded one-shot submit
     - The operator runs `cd relayer && npm run bridge:solana-to-base:submit-approved` only for the exact approved destination BridgeMint hash.
     - The command must be scoped to `BRIDGE_DAEMON_ROUTES=solana-devnet:base-sepolia:1`.
     - The command must include `BRIDGE_APPROVED_MESSAGE_HASHES=solana-devnet->base-sepolia|<destinationBridgeMintHash>`.
@@ -202,7 +209,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - The command must load the approval-ready paper state, rerun signer-set checks, rerun Base read-only checks, rerun simulation, and then submit at most one Base destination transaction.
     - PR-013D exact message status: the guarded command was added and attempted, but it blocked before any send because `/tmp/pr013a-solana-to-base-paper-state` was unavailable. No Base destination transaction was submitted.
 
-23. Solana -> Base durable approval state
+24. Solana -> Base durable approval state
     - Do not use `/tmp` for approval state that may feed a live submit.
     - The PR-013A fixture must be restored or reconstructed into `/data/bridge-results/solana-to-base-source-fixture-0x060b4eebabf5903359ce67a06587038e70857bca9533b7c33ff521777a9a64e2.json`.
     - The paper replay state must be written to `/data/bridge-results/solana-to-base-paper-state`.
@@ -212,7 +219,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - PR-013E local status: blocked before submit because `/data` was not mounted and neither durable nor old `/tmp` source fixture existed in this workspace.
     - PR-013F status: fixture reconstruction from the finalized source tx succeeds, but the original PR-013A message now replays as `expired_deadline`; do not submit it.
 
-24. Solana -> Base fresh durable source event
+25. Solana -> Base fresh durable source event
     - PR-013G Render status: complete; the fresh source event was generated, reconstructed into durable fixture storage, replayed into durable paper state, and approved in paper mode.
     - The command must run with `PR012Z_SOURCE_ONLY=true`, `BRIDGE_DAEMON_MODE=paper`, and `BRIDGE_ALLOW_LIVE_TESTNET_SUBMIT=false`.
     - The command must write directly to `/data/bridge-results` by setting `BRIDGE_SOLANA_SOURCE_FIXTURE_DIR=/data/bridge-results`.
@@ -228,7 +235,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Destination tx submitted is `false`; submit tx hash is `null`.
     - Rerun approval and simulation from durable state immediately before any future submit window.
 
-25. Solana -> Base PR-013H submit precheck
+26. Solana -> Base PR-013H submit precheck
     - PR-013H reran approval from durable state for destination hash `0x33c44d710e08d02ebd15492219ec1fd6a15682b69440351c850af017750df93b`.
     - Base read-only checks still passed: route enabled, route not paused, asset supported, cap passed, message not consumed, and message not frozen.
     - Final `acceptBridgeMint` simulation failed with `DeadlineExpired`.
@@ -236,7 +243,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - No Base destination transaction was submitted.
     - Do not submit this destination hash after `DeadlineExpired`; generate a fresh Solana source event and rerun the full durable paper replay and approval flow.
 
-26. Solana -> Base PR-013I timed submit
+27. Solana -> Base PR-013I timed submit
     - Render's 2 GB web service exceeded memory during source proof generation; use Codespace or a larger one-off worker for source-side proof generation.
     - PR-013I fresh source tx is `5VcEKPVobXRJrNTV6SP9PVQMYPHSCSKH4aaybqvbenyFdbLG62tHzwbTXvsgDgj7x6S3gZDpYamoBrJrMCKsKHyj`.
     - PR-013I destination BridgeMint hash is `0x67804661cc1d5fe7c0a54cc1c572a8c990d5ef5137580898d2c58f5b8e3c6865`.
@@ -246,7 +253,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Duplicate guarded submit blocks before sending because the paper state already has the submit tx hash and Base reports the message consumed.
     - Do not retry this destination hash after the successful submit.
 
-27. Solana -> Base destination withdraw preparation
+28. Solana -> Base destination withdraw preparation
     - Use `docs/runbooks/solana-to-base-destination-withdraw.md` before any Base destination withdraw attempt.
     - Run `cd chains/evm && npm run bridge:validate-base-note-state` for the exact source hash, destination BridgeMint hash, destination commitment, amount, and asset.
     - Run `cd chains/evm && npm run bridge:preflight-base-withdraw` to confirm the Base submit tx, consumed status, inserted commitment, Base root/next leaf state, vault balance, and note-state readiness.
@@ -256,7 +263,7 @@ Use this checklist before approving any bridge daemon message for a future live-
     - Do not generate a replacement destination note for the already-minted commitment.
     - Do not generate a withdraw proof, run withdraw simulation, or submit a withdraw until the exact destination note-state is recovered and durably backed up outside git and outside `/tmp`.
 
-28. Solana -> Base durable Base destination note-state gate
+29. Solana -> Base durable Base destination note-state gate
     - Future Solana -> Base live submits must set `BRIDGE_BASE_NOTE_STATE_BACKUP_DIR`, recommended hosted value `/data/base-destination-note-state`.
     - Fresh source fixture generation should set `BRIDGE_REQUIRE_BASE_NOTE_STATE_BACKUP=true` so the source-only runner fails closed if the Base destination note-state cannot be written durably.
     - `cd chains/evm && npm run bridge:export-base-note-state` must export the exact candidate note-state into the durable backup directory before live submit.
