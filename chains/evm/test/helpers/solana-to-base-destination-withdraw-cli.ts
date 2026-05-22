@@ -83,6 +83,7 @@ const BRIDGE_INBOX_ABI = parseAbi([
 
 const WHITE_PROTOCOL_ABI = parseAbi([
   "event BridgeMint(address indexed asset, uint256 amount, bytes32 indexed newCommitment)",
+  "event Withdrawal(uint256 indexed nullifierHash, address indexed recipient, address indexed relayer, uint256 amount, uint256 fee)",
   "function getLastRoot() view returns (uint256)",
   "function nextLeafIndex() view returns (uint256)",
   "function filledSubtrees(uint256) view returns (uint256)",
@@ -565,6 +566,10 @@ async function proofToBytes(proof: any, publicSignals: any[]): Promise<Hex> {
   return encodeAbiParameters([{ type: "uint256[8]" }], [flatProof]) as Hex;
 }
 
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function exportNoteState(env = process.env): Record<string, unknown> {
   const expected = expectedFromFixtureAndState(env);
   const input = env.BRIDGE_BASE_NOTE_STATE_INPUT || env.BRIDGE_NOTE_STATE_INPUT;
@@ -841,7 +846,7 @@ async function runBasePreflight(env = process.env): Promise<Record<string, unkno
       balanceWei: vaultBalance.toString(),
       requiredWei: expected.amount,
     },
-    recipientConfigured: Boolean(env.BRIDGE_WITHDRAW_RECIPIENT),
+    recipientConfigured: Boolean(env.BRIDGE_WITHDRAW_RECIPIENT || env.BASE_WITHDRAW_RECIPIENT),
     noteState: noteValidation,
     withdrawProofReadiness,
     withdrawSimulation: withdrawProofReadiness === "blocked_merkle_path_unavailable" ? "not_attempted_missing_merkle_path" : "not_attempted",
@@ -1591,16 +1596,37 @@ async function submitGuardedWithdraw(env = process.env): Promise<Record<string, 
     gas: (gasEstimate * 12n) / 10n,
   });
   const withdrawReceipt = await client.waitForTransactionReceipt({ hash: withdrawTx });
-  const [nullifierSpentAfter, vaultBalanceAfter, recipientBalanceAfter] = await Promise.all([
-    client.readContract({
-      address: whiteProtocol,
-      abi: WHITE_PROTOCOL_ABI,
-      functionName: "spentNullifiers",
-      args: [destinationNullifierHash],
-    }) as Promise<boolean>,
-    client.getBalance({ address: whiteProtocol }),
-    client.getBalance({ address: recipient }),
-  ]);
+  let eventNullifierHash: bigint | null = null;
+  let withdrawalEventRecipient: Address | null = null;
+  for (const log of withdrawReceipt.logs) {
+    try {
+      const decoded = decodeEventLog({ abi: WHITE_PROTOCOL_ABI, data: log.data, topics: log.topics });
+      if (decoded.eventName === "Withdrawal") {
+        eventNullifierHash = (decoded.args as any).nullifierHash as bigint;
+        withdrawalEventRecipient = getAddress((decoded.args as any).recipient);
+      }
+    } catch {
+      // Ignore logs from other contracts.
+    }
+  }
+  const postCheckNullifierHash = eventNullifierHash || destinationNullifierHash;
+  let nullifierSpentAfter = false;
+  let vaultBalanceAfter = vaultBalanceBefore;
+  let recipientBalanceAfter = recipientBalanceBefore;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    [nullifierSpentAfter, vaultBalanceAfter, recipientBalanceAfter] = await Promise.all([
+      client.readContract({
+        address: whiteProtocol,
+        abi: WHITE_PROTOCOL_ABI,
+        functionName: "spentNullifiers",
+        args: [postCheckNullifierHash],
+      }) as Promise<boolean>,
+      client.getBalance({ address: whiteProtocol }),
+      client.getBalance({ address: recipient }),
+    ]);
+    if (nullifierSpentAfter && recipientBalanceAfter > recipientBalanceBefore && vaultBalanceAfter < vaultBalanceBefore) break;
+    await sleep(1000);
+  }
 
   let duplicateRejected = false;
   let duplicateRejection: string | null = null;
@@ -1652,6 +1678,7 @@ async function submitGuardedWithdraw(env = process.env): Promise<Record<string, 
     blockNumber: withdrawReceipt.blockNumber.toString(),
     gasUsed: withdrawReceipt.gasUsed.toString(),
     nullifierSpentAfter,
+    withdrawalEventRecipient,
     vaultBalanceAfter: vaultBalanceAfter.toString(),
     recipientBalanceAfter: recipientBalanceAfter.toString(),
     recipientBalanceIncreased,

@@ -249,3 +249,24 @@ PR-013R explicit-recipient rerun:
 - Extra `acceptBridgeMint` submitted: `false`
 
 The guarded command also rejects invalid EVM addresses and the zero address. It must never default to deployer, submitter, operator, or pool authority as recipient.
+
+PR-013S guarded withdraw execution:
+
+- Reviewed recipient: `0xC520f5545dc9Af65FF91470721Ee986e94a717d0`
+- Recipient gate: passed.
+- Final note-state validation: passed.
+- Final Merkle path validation: passed.
+- Nullifier spent before: `false`
+- Vault balance before: `30099999999000000`
+- Recipient balance before: `0`
+- Withdraw proof generated: `true`
+- Withdraw simulation: passed.
+- Withdraw tx: `0x62e8047f599dacc5d4e8945336d5f134e3e3e438cd2a5f5119b545995ffe0095`
+- Confirmation: success, block `41835063`
+- Gas used: `352310`
+- Nullifier spent after: `true`
+- Vault balance after: `29099999999000000`
+- Recipient balance after: `1000000000000000`
+- Duplicate withdraw: blocked before a second send with `nullifierSpentBefore=true`
+
+Do not rerun withdraw for this destination note. Future operator status checks should classify this target as already withdrawn.

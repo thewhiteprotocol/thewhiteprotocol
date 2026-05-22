@@ -299,6 +299,22 @@
 - Withdraw simulation: `not_attempted_recipient_missing`
 - Withdraw tx submitted: `false`
 
+## PR-013S Guarded Base Withdraw
+
+- Explicit recipient configured: `true`
+- Recipient address: `0xC520f5545dc9Af65FF91470721Ee986e94a717d0`
+- Recipient gate: passed.
+- Final note-state validation: passed.
+- Final Merkle path validation: passed.
+- Withdraw proof generated: `true`
+- Withdraw simulation: passed.
+- Withdraw tx: `0x62e8047f599dacc5d4e8945336d5f134e3e3e438cd2a5f5119b545995ffe0095`
+- Confirmation: success, block `41835063`
+- Nullifier spent after: `true`
+- Recipient balance increased: `true`
+- Vault balance decreased: `true`
+- Duplicate withdraw rejected: `true`
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.
