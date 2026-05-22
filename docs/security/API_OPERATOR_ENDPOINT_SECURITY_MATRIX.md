@@ -2,6 +2,8 @@
 
 This matrix classifies relayer HTTP endpoints and operator commands from a production-readiness perspective. It is based on code inspection of `relayer/src/index.ts`, `relayer/src/bridge/status-api.ts`, and `relayer/src/api-extensions.ts`.
 
+The current limiter is in-process. Multi-instance production requires the shared limiter design in `docs/security/SHARED_RATE_LIMIT_DESIGN.md`.
+
 ## Relayer Core Endpoints
 
 | Endpoint | Method | Public / Protected | Auth Required | Rate Limit Status | Input Validation Status | Mutation / Read-only | Risk | Logging / Redaction | Required Remediation |
@@ -69,6 +71,6 @@ This matrix classifies relayer HTTP endpoints and operator commands from a produ
 
 - Protect or explicitly document public bridge status/message endpoints before mainnet.
 - Require auth for any endpoint that accepts note secrets or mutates local state; PR-014D hardened current token comparisons.
-- Add shared production rate limiting and proof-generation concurrency limits; PR-014D added in-process endpoint-category limits.
+- Add shared production rate limiting and proof-generation concurrency limits; PR-014D added in-process endpoint-category limits and PR-014E documented the shared Redis/edge migration design.
 - Keep expanding strict hash, route, enum, block-range, and path validation; PR-014D hardened bridge hash, status, severity, and pagination parameters.
 - Add CI no-secret scan and dependency audit gates.

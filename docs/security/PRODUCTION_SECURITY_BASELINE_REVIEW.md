@@ -4,7 +4,7 @@
 
 This review records the current backend, API, operator, and repository security posture before mainnet or public beta. It is based on code and documentation inspection only. No bridge flows, proof generation, or transactions were run for this review.
 
-Mainnet remains blocked. The current system has meaningful testnet controls and PR-014D added low-risk API hardening for public beta readiness, but production readiness still requires audit, custody, shared rate-limit infrastructure, dependency remediation, note-state custody, zkey ceremony, monitoring, and incident response.
+Mainnet remains blocked. The current system has meaningful testnet controls and PR-014D added low-risk API hardening for public beta readiness. PR-014E adds CI no-secret/artifact scanning and a shared rate-limit design, but production readiness still requires audit, custody, shared limiter implementation, dependency remediation, note-state custody, zkey ceremony, monitoring, and incident response.
 
 ## Scope
 
@@ -31,8 +31,8 @@ Out of scope:
 | Area | Current Status | Evidence | Risk | Remediation |
 | --- | --- | --- | --- | --- |
 | CORS policy | Implemented for beta, deployment review still required | `relayer/src/security.ts` centralizes `RELAYER_ALLOWED_ORIGINS` / `CORS_ORIGIN`; production defaults to no wildcard; local dev has explicit localhost origins | Production origin policy can still drift if hosted envs are changed outside review | Keep explicit local/staging/production origins and add deployment checks before mainnet |
-| Rate limiting and quotas | Implemented in-process for beta, production shared limiter still required | Public, operator, and expensive endpoint limiters are configured in `relayer/src/index.ts` and `relayer/src/api-extensions.ts`; env toggles are documented | In-memory limits are per process and do not cover multi-instance or edge traffic alone | Add shared Redis/edge limiter, concurrency caps, and staging load/cost tests |
-| Repo structure / `.gitignore` | Partially implemented | Root and relayer `.gitignore` cover env files, note-state, keypairs, zkeys, data dirs | Historical tracked artifacts exist; future generated artifacts need stricter ignore coverage | Keep artifact scan in CI and expand ignore patterns for witness/proof/operator-token outputs |
+| Rate limiting and quotas | Implemented in-process for beta, shared production design complete | Public, operator, and expensive endpoint limiters are configured in `relayer/src/index.ts` and `relayer/src/api-extensions.ts`; `docs/security/SHARED_RATE_LIMIT_DESIGN.md` defines Redis/edge migration | In-memory limits are per process and do not cover multi-instance or edge traffic alone | Implement shared Redis/edge limiter, concurrency caps, and staging load/cost tests |
+| Repo structure / `.gitignore` | Hardened for future artifacts | Root `.gitignore` covers env files, note-state, keypairs, zkeys, data dirs, witnesses, proof JSON, and generated tx JSON; CI scanner is in `.github/workflows/security.yml` | Historical public circuit artifacts and pre-existing path/type baseline findings are allowlisted; future generated artifacts need CI enforcement | Keep artifact scan required in CI, remove baseline findings, and review allowlisted public artifacts before mainnet |
 | Authentication middleware | Hardened for current operator mutations | Bridge watcher and daemon mutation endpoints require timing-safe `BRIDGE_OPERATOR_API_TOKEN`; API extension heavy/mutation routes use `SEQUENCER_AUTH_TOKEN` | Some read endpoints are intentionally public; production policy must decide if status/message endpoints leak operational data | Add protected/public endpoint policy review and deployment fail-closed checks |
 | Authorization / RLS-style ownership | Missing / N/A today | No database-backed user accounts or RLS are present | File-backed operator state has coarse service-level trust only | Define state ownership model before adding user accounts or database-backed operator jobs |
 | Input validation and sanitization | Partially implemented and hardened | Route names, chain params, addresses, note-state durability, proof inputs, bridge message hashes, status/severity enums, and pagination have targeted validators | Some CLI/env file-path inputs and block-range policies still need full production review | Add validation checklist and targeted tests for all path, range, route, and amount inputs |
@@ -41,9 +41,9 @@ Out of scope:
 | Frontend/backend boundary | Partially implemented | Operator submit/replay/freeze are backend commands or protected bridge endpoints | Future frontend integrations could accidentally expose operator endpoints or server secrets | Add frontend integration constraints and disallow `NEXT_PUBLIC` secrets |
 | JWT/session/cookie/CSRF | Not applicable today | Operator auth is bearer/header token; no cookie/JWT session auth in relayer | If browser-authenticated operator UI is introduced, CSRF/session controls will be required | Add future JWT/cookie/CSRF requirements before browser operator UI |
 | Security headers | Implemented for beta, production policy still required | `helmet()` plus explicit nosniff, no-referrer, and permissions-policy headers are installed in the relayer service | CSP/HSTS need deployment-specific validation to avoid breaking API clients | Define production CSP/HSTS policy and test deployed headers |
-| Dependency and supply chain | Partially implemented | Package manifests identify key dependencies; tests/typecheck/build run; `npm audit --audit-level=high --omit=dev` reports 30 vulnerabilities including 6 high; `docs/security/DEPENDENCY_RISK_REGISTER.md` tracks follow-up | Formal audit/SBOM/dependency review is not yet integrated and targeted dependency upgrades require compatibility testing | Add npm audit/SBOM/lockfile review CI and targeted dependency upgrade policy |
-| CI/CD and environment parity | Partially implemented | Existing workflows run tests; Render bootstrap documents zkey repair and fail-closed startup | CI no-secret scan and production security gates are not formalized | Add CI no-secret/artifact scan and hosted parity checks |
-| Cost controls | Partially implemented and hardened | Endpoint-category rate limits, bounded daemon configs, and explicit operator commands exist | Proof generation, replay scans, RPC-heavy endpoints, and watcher loops can still be costly under multi-instance/public traffic | Add shared quotas, block-range caps, concurrency controls, and public endpoint budgets |
+| Dependency and supply chain | Triage complete, remediation pending | Package manifests identify key dependencies; tests/typecheck/build run; production audit reports 30 vulnerabilities including 6 high; full audit reports 102 including dev-tooling criticals; `docs/security/DEPENDENCY_RISK_REGISTER.md` tracks follow-up | Targeted dependency upgrades require compatibility testing; force fixes are unsafe | Add SBOM/lockfile review and dedicated dependency remediation PRs |
+| CI/CD and environment parity | Partially implemented and hardened | Existing workflows run tests; Render bootstrap documents zkey repair and fail-closed startup; `.github/workflows/security.yml` runs no-secret/artifact scan and non-gating audit | Dependency audit is non-gating until tracked findings are remediated or accepted | Add SBOM, hosted parity checks, and eventually make dependency policy gating |
+| Cost controls | Partially implemented and design hardened | Endpoint-category rate limits, bounded daemon configs, explicit operator commands, and shared limiter design exist | Proof generation, replay scans, RPC-heavy endpoints, and watcher loops can still be costly under multi-instance/public traffic until shared limiter is implemented | Add shared quotas, block-range caps, concurrency controls, and public endpoint budgets |
 | Governance and operational guardrails | Partially implemented | Route matrix, approval checklist, blocker register, and roadmap exist | Owner assignments and production approval authority are TBD | Assign owners, approval authority, and launch gate criteria |
 
 ## CORS By Environment
@@ -73,6 +73,7 @@ Wildcard CORS is not approved for production.
 - Endpoint matrix: `docs/security/API_OPERATOR_ENDPOINT_SECURITY_MATRIX.md`
 - Secret/artifact policy: `docs/security/SECRET_AND_ARTIFACT_CONTROL_POLICY.md`
 - Dependency risk register: `docs/security/DEPENDENCY_RISK_REGISTER.md`
+- Shared rate-limit design: `docs/security/SHARED_RATE_LIMIT_DESIGN.md`
 - Mainnet blocker register: `docs/audit/MAINNET_BLOCKER_REGISTER.md`
 - Audit handoff package: `docs/audit/AUDIT_HANDOFF_PACKAGE.md`
 - Operator checklist: `docs/runbooks/bridge-operator-approval-checklist.md`
@@ -80,7 +81,7 @@ Wildcard CORS is not approved for production.
 ## Recommended PRs
 
 - PR-014D: production API policy and low-risk auth/rate-limit hardening completed for public beta readiness; shared production limiter and deployment gate follow-up remains.
-- PR-014E: dependency remediation plan, CI no-secret/artifact scan, and dependency audit gate.
+- PR-014E: dependency remediation triage, CI no-secret/artifact scan, and shared production rate-limit design completed; dependency remediation and shared limiter implementation remain.
 - PR-014F: production signer custody design.
 - PR-014G: incident response and watcher/freeze production policy.
 - PR-014H: circuit binding decision record.

@@ -27,6 +27,10 @@ Never commit:
 - private operator reports;
 - zkeys unless explicitly approved as public ceremony artifacts.
 
+PR-014E adds `npm run security:no-secret-scan` and the `Security Guards` GitHub Actions workflow. The scanner fails CI for forbidden tracked artifacts and prints only file path plus issue type.
+
+The scanner has a temporary baseline at `docs/security/no-secret-scan-baseline.json` for pre-existing tracked findings outside the PR-014E edit scope. Baseline entries contain only path and issue type, not values. New findings fail CI.
+
 ## Allowed Public Artifacts
 
 Allowed in git after review:
@@ -54,6 +58,8 @@ Local-only artifacts must remain ignored:
 - scratch transaction JSON;
 - temporary wallet files.
 
+The root `.gitignore` covers these categories, including note-state, bridge state, witness files, proof/public/input JSON, generated transaction JSON, operator result paths, private env files, and keypair/wallet JSON.
+
 ## Render Persistent Disk Artifacts
 
 Render persistent disk artifacts may be referenced by path in docs, but must not be committed:
@@ -72,6 +78,7 @@ These paths must be protected by platform access controls and should be backed u
 - Production zkey provenance must be formalized before mainnet.
 - Zkeys must not be copied into audit evidence bundles unless explicitly approved and labeled as public artifacts.
 - Witnesses and generated proofs must never be committed with zkeys.
+- Existing public circuit zkeys are explicitly allowlisted by the CI scanner only where they are already committed as public artifacts. New zkey paths fail the scan by default.
 
 ## Note-State Handling
 
@@ -134,3 +141,14 @@ Failed simulation logs may include public addresses, public hashes, function nam
 5. Audit logs for usage during the exposure window.
 6. Publish an internal incident report with scope, rotation evidence, and follow-up controls.
 7. Do not resume mainnet or public beta operations until remediation is reviewed.
+
+## Scanner Commands
+
+```bash
+npm run security:no-secret-scan:self-test
+npm run security:no-secret-scan
+```
+
+The scanner output policy is intentionally redacted. It reports `path` and `issue` only, never the matched value.
+
+Baseline cleanup is required before mainnet.

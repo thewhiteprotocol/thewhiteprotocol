@@ -186,6 +186,13 @@ services:
         value: "60000"
       - key: RELAYER_EXPENSIVE_RATE_LIMIT_MAX
         value: "5"
+      # Future shared limiter design (PR-014E):
+      # - keep memory for current single-instance hosted testnet/beta
+      # - set RELAYER_REDIS_URL only as a secret if a Redis-backed limiter is implemented
+      - key: RELAYER_RATE_LIMIT_STORE
+        value: memory
+      - key: RELAYER_RATE_LIMIT_FAIL_CLOSED
+        value: "false"
       - key: CORS_ORIGIN
         value: https://app.thewhiteprotocol.com
       # Stealth address scanner (Solana + Base only)

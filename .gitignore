@@ -39,7 +39,10 @@ chains/solana/tests/*.json
 chains/evm/test/*bridge-state*.json
 **/*bridge-state*.json
 **/*note-state*.json
+**/*bridge-note-state*.json
+**/*destination-note*.json
 **/base-destination-note-state/**
+**/operator-data/**
 **/operator-job-index.json
 **/preflight-*.json
 **/settle-withdraw-*.json
@@ -97,10 +100,16 @@ pool-authority-*.json
 past_commitments.json
 .secrets/
 *.wtns
+*.witness
+*.witness.json
 *_witness.wtns
 *_proof.json
+proof*.json
 *_public.json
+public*.json
 *_input.json
+input*.json
+*generated*tx*.json
 *operator-token*
 *private-key*
 *.private.json
