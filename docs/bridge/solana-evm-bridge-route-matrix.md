@@ -290,6 +290,15 @@
 - Withdraw tx submitted: `false`
 - Extra `acceptBridgeMint` submitted: `false`
 
+## PR-013R Explicit Recipient Gate
+
+- Explicit recipient configured: `false`
+- Recipient gate: `blocked_withdraw_recipient_missing`
+- Invalid and zero-address recipient blockers: enforced before proof generation.
+- Withdraw proof generated: `false`
+- Withdraw simulation: `not_attempted_recipient_missing`
+- Withdraw tx submitted: `false`
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.

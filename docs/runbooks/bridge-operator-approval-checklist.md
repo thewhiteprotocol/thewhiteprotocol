@@ -351,6 +351,7 @@ Do not approve live submission if any of these are true:
 - The live recovery snapshot cannot validate destination note-state for the exact destination hash.
 - Solana -> Base destination withdraw is attempted without an explicit reviewed `BRIDGE_WITHDRAW_RECIPIENT` or `BASE_WITHDRAW_RECIPIENT`.
 - `bridge:base:submit-withdraw` reports `blocked_withdraw_recipient_missing`.
+- `bridge:base:submit-withdraw` reports `blocked_withdraw_recipient_invalid` or `blocked_withdraw_recipient_zero_address`.
 
 ## Future Live-Testnet Approval Fields
 

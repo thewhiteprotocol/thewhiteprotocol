@@ -237,3 +237,15 @@ PR-013Q guarded-withdraw attempt:
 - Extra `acceptBridgeMint` submitted: `false`.
 
 Do not rerun the live withdraw command until an explicit Base Sepolia recipient address is configured and reviewed. After configuring it, rerun note-state validation, Merkle path validation, Base preflight, proof generation, and final simulation before enabling the guarded withdraw gates.
+
+PR-013R explicit-recipient rerun:
+
+- `BRIDGE_WITHDRAW_RECIPIENT`: not configured
+- `BASE_WITHDRAW_RECIPIENT`: not configured
+- Recipient gate: `blocked_withdraw_recipient_missing`
+- Proof generation: not attempted
+- Withdraw simulation: not attempted
+- Withdraw tx submitted: `false`
+- Extra `acceptBridgeMint` submitted: `false`
+
+The guarded command also rejects invalid EVM addresses and the zero address. It must never default to deployer, submitter, operator, or pool authority as recipient.

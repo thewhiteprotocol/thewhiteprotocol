@@ -15,6 +15,7 @@ import {
   parseAbi,
   type Address,
   type Hex,
+  zeroAddress,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -1322,6 +1323,28 @@ async function submitGuardedWithdraw(env = process.env): Promise<Record<string, 
       secretsPrinted: false,
     };
   }
+  let reviewedRecipient: Address;
+  try {
+    reviewedRecipient = getWithdrawRecipient(env);
+  } catch {
+    return {
+      ok: false,
+      status: "blocked_withdraw_recipient_invalid",
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+  if (reviewedRecipient.toLowerCase() === zeroAddress) {
+    return {
+      ok: false,
+      status: "blocked_withdraw_recipient_zero_address",
+      recipient: reviewedRecipient,
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
 
   const rpcUrl = env.BASE_SEPOLIA_RPC_URL || env.RPC_URL;
   if (!rpcUrl) {
@@ -1427,7 +1450,7 @@ async function submitGuardedWithdraw(env = process.env): Promise<Record<string, 
 
   const amount = BigInt(expected.amount);
   const token = getLocalAssetAddress(env);
-  const recipient = getWithdrawRecipient(env);
+  const recipient = reviewedRecipient;
   const relayer = "0x0000000000000000000000000000000000000000" as Address;
   const fee = 0n;
   const account = privateKeyToAccount(privateKey);
