@@ -315,6 +315,16 @@
 - Vault balance decreased: `true`
 - Duplicate withdraw rejected: `true`
 
+## PR-013T Final Lifecycle Archive
+
+- Solana -> Base lifecycle archived: `true`
+- Source txs: deposit `3eQHcgwXygwpBuo4i3976oArt6oArtW3g5LxoGZHB7TFjM2NzLKcLbz8GDKwm1thnABVnRYgQ29z8ks6Wh2wXbDLfaWGc`, settlement `5SGqmQVM94Bz2sd2DKtyrnrDD4e2D5kC5c1VfuLwMcvSahHtbi2uMiR4u9bARcToTq7vYouVLiYBrGaQm7qGGf9Y`, bridge out `54ErMCoDAw5Ed9vy5w1QyUzqCEpQB2bMmT1XuNmfZcQrby7kUinF3of59WK8Yk6nqQMrH1y6N3Wp53xSzHnAhvcr`
+- Base submit tx: `0x18b0d4a25ea9087630b0eed09d2399a33d16c8788290cad2d379619aedc96556`
+- Base withdraw tx: `0x62e8047f599dacc5d4e8945336d5f134e3e3e438cd2a5f5119b545995ffe0095`
+- Operator status: `no_action_already_complete`
+- Withdraw allowed: `false`
+- Testnet route status: complete
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.

@@ -793,11 +793,14 @@ async function runBasePreflight(env = process.env): Promise<Record<string, unkno
     leafIndex === null
       ? "blocked_leaf_index_unavailable"
       : "leaf_index_derived_from_submit_block_nextLeafIndex_delta";
+  const alreadyWithdrawn = nullifierSpent === true;
   const withdrawProofReadiness =
     !noteStateOk
       ? "blocked_note_state_missing"
       : leafIndex === null
         ? "blocked_leaf_index_unavailable"
+        : alreadyWithdrawn
+          ? "already_withdrawn"
         : "blocked_merkle_path_unavailable";
 
   const preflightChecksPassed =
@@ -806,19 +809,24 @@ async function runBasePreflight(env = process.env): Promise<Record<string, unkno
     messageConsumed &&
     commitmentInserted &&
     leafIndex !== null &&
-    nullifierSpent === false &&
+    (nullifierSpent === false || alreadyWithdrawn) &&
     vaultBalanceOk;
 
   return {
-    ok: preflightChecksPassed && withdrawProofReadiness === "withdraw_proof_ready",
+    ok: alreadyWithdrawn || (preflightChecksPassed && withdrawProofReadiness === "withdraw_proof_ready"),
     preflightChecksPassed,
     readiness: !noteStateOk
       ? "blocked_note_state_missing"
       : leafIndex === null
         ? "blocked_leaf_index_unavailable"
-        : nullifierSpent
-          ? "blocked_nullifier_already_spent"
+        : alreadyWithdrawn
+          ? "no_action_already_complete"
           : "blocked_merkle_path_unavailable",
+    alreadyWithdrawn,
+    noActionRequired: alreadyWithdrawn,
+    recommendedAction: alreadyWithdrawn ? "do_not_rerun_withdraw" : "recover_merkle_path_then_simulate",
+    withdrawAllowed: !alreadyWithdrawn && preflightChecksPassed,
+    duplicateWithdrawBlocked: alreadyWithdrawn,
     destinationCommitment: expected.destinationCommitment,
     sourceMessageHash: expected.sourceMessageHash,
     destinationBridgeMintHash: expected.destinationBridgeMintHash,
@@ -849,7 +857,11 @@ async function runBasePreflight(env = process.env): Promise<Record<string, unkno
     recipientConfigured: Boolean(env.BRIDGE_WITHDRAW_RECIPIENT || env.BASE_WITHDRAW_RECIPIENT),
     noteState: noteValidation,
     withdrawProofReadiness,
-    withdrawSimulation: withdrawProofReadiness === "blocked_merkle_path_unavailable" ? "not_attempted_missing_merkle_path" : "not_attempted",
+    withdrawSimulation: alreadyWithdrawn
+      ? "not_attempted_already_withdrawn"
+      : withdrawProofReadiness === "blocked_merkle_path_unavailable"
+        ? "not_attempted_missing_merkle_path"
+        : "not_attempted",
     withdrawTxSubmitted: false,
     secretsPrinted: false,
   };
@@ -1465,6 +1477,30 @@ async function submitGuardedWithdraw(env = process.env): Promise<Record<string, 
   ]);
   const vaultBalanceOk = vaultBalanceBefore >= amount;
 
+  if (nullifierSpentBefore) {
+    return {
+      ok: true,
+      status: "no_action_already_complete",
+      readiness: "already_withdrawn",
+      alreadyWithdrawn: true,
+      withdrawAllowed: false,
+      duplicateRejected: true,
+      duplicateRejection: "nullifier_already_spent",
+      baseSubmitTxConfirmed: Boolean(receipt && receipt.status === "success"),
+      messageConsumed,
+      commitmentInserted,
+      rootKnown,
+      nullifierSpentBefore,
+      vaultBalanceBefore: vaultBalanceBefore.toString(),
+      vaultBalanceOk,
+      recipientBalanceBefore: recipientBalanceBefore.toString(),
+      submitterBalanceBefore: submitterBalanceBefore.toString(),
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
   if (!receipt || receipt.status !== "success" || !messageConsumed || !commitmentInserted || !rootKnown || nullifierSpentBefore || !vaultBalanceOk) {
     return {
       ok: false,
@@ -1773,6 +1809,15 @@ function runSelfTest(): void {
 
   const alreadySpent = { nullifierSpent: true };
   assert.strictEqual(alreadySpent.nullifierSpent, true);
+  const alreadyWithdrawnStatus = {
+    readiness: "no_action_already_complete",
+    alreadyWithdrawn: true,
+    withdrawAllowed: false,
+    duplicateWithdrawBlocked: true,
+  };
+  assert.strictEqual(alreadyWithdrawnStatus.readiness, "no_action_already_complete");
+  assert.strictEqual(alreadyWithdrawnStatus.withdrawAllowed, false);
+  assert.strictEqual(alreadyWithdrawnStatus.duplicateWithdrawBlocked, true);
   const consumedPreflight = { messageConsumed: true };
   assert.strictEqual(consumedPreflight.messageConsumed, true);
   assert.strictEqual(deriveLeafIndexFromNextLeafDelta(42n, 43n, true, true), 42n);

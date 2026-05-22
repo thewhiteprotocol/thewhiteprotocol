@@ -270,3 +270,17 @@ PR-013S guarded withdraw execution:
 - Duplicate withdraw: blocked before a second send with `nullifierSpentBefore=true`
 
 Do not rerun withdraw for this destination note. Future operator status checks should classify this target as already withdrawn.
+
+PR-013T already-withdrawn operator status:
+
+- Preflight readiness: `no_action_already_complete`
+- Already withdrawn: `true`
+- No action required: `true`
+- Recommended action: `do_not_rerun_withdraw`
+- Withdraw allowed: `false`
+- Duplicate withdraw blocked: `true`
+- Nullifier spent: `true`
+- Guarded withdraw rerun status: `no_action_already_complete`
+- Transactions submitted during status/archive: `false`
+
+Use this status as the terminal operator state for this destination note.
