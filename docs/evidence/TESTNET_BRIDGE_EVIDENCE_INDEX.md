@@ -59,6 +59,9 @@ No mainnet readiness claim is made.
 - Mainnet blocker register: `docs/audit/MAINNET_BLOCKER_REGISTER.md`
 - Mainnet remediation roadmap: `docs/audit/MAINNET_REMEDIATION_ROADMAP.md`
 - Auditor question list: `docs/audit/AUDITOR_QUESTIONS.md`
+- Production security baseline: `docs/security/PRODUCTION_SECURITY_BASELINE_REVIEW.md`
+- API/operator endpoint matrix: `docs/security/API_OPERATOR_ENDPOINT_SECURITY_MATRIX.md`
+- Secret and artifact policy: `docs/security/SECRET_AND_ARTIFACT_CONTROL_POLICY.md`
 - Bridge message format: `docs/bridge/private-bridge-message-format.md`
 - Bridge production policy: `docs/bridge/bridge-production-policy.md`
 - Watcher/freeze design: `docs/bridge/bridge-watcher-challenge-freeze.md`

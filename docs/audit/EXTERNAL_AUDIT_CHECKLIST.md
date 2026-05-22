@@ -6,6 +6,9 @@ Related handoff docs:
 - `docs/audit/MAINNET_BLOCKER_REGISTER.md`
 - `docs/audit/MAINNET_REMEDIATION_ROADMAP.md`
 - `docs/audit/AUDITOR_QUESTIONS.md`
+- `docs/security/PRODUCTION_SECURITY_BASELINE_REVIEW.md`
+- `docs/security/API_OPERATOR_ENDPOINT_SECURITY_MATRIX.md`
+- `docs/security/SECRET_AND_ARTIFACT_CONTROL_POLICY.md`
 
 ## 1. Contracts
 
@@ -85,3 +88,4 @@ Related handoff docs:
 - Note-state custody and recovery process approved.
 - Circuit limitations remediated or explicitly accepted.
 - Blocker status reviewed against `docs/audit/MAINNET_BLOCKER_REGISTER.md`.
+- Backend/API production baseline reviewed against `docs/security/PRODUCTION_SECURITY_BASELINE_REVIEW.md`.

@@ -96,6 +96,16 @@ pool-authority*.json
 pool-authority-*.json
 past_commitments.json
 .secrets/
+*.wtns
+*_witness.wtns
+*_proof.json
+*_public.json
+*_input.json
+*operator-token*
+*private-key*
+*.private.json
+**/bridge-results/**
+**/base-merkle-paths/**
 
 # Environment files (never commit secrets)
 .env

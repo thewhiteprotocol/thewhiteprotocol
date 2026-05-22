@@ -150,6 +150,12 @@ Primary operator docs:
 - Zkey provenance and production artifact ceremony are not formalized.
 - Mainnet monitoring, alerting, dashboarding, and incident response remain incomplete.
 
+Internal security review docs:
+
+- `docs/security/PRODUCTION_SECURITY_BASELINE_REVIEW.md`
+- `docs/security/API_OPERATOR_ENDPOINT_SECURITY_MATRIX.md`
+- `docs/security/SECRET_AND_ARTIFACT_CONTROL_POLICY.md`
+
 ## Explicit Out Of Scope
 
 - Mainnet launch approval.
