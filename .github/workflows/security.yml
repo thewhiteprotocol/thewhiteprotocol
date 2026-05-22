@@ -16,6 +16,8 @@ jobs:
           node-version: 20
       - name: Scanner self-test
         run: npm run security:no-secret-scan:self-test
+      - name: Scanner unit tests
+        run: npm run security:no-secret-scan:test
       - name: No-secret/artifact scan
         run: npm run security:no-secret-scan
 

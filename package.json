@@ -29,6 +29,7 @@
     "download:circuits": "node tools/download-circuits.js",
     "security:no-secret-scan": "node scripts/no-secret-artifact-scan.js",
     "security:no-secret-scan:self-test": "node scripts/no-secret-artifact-scan.js --self-test",
+    "security:no-secret-scan:test": "node scripts/no-secret-artifact-scan.test.js",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
   },

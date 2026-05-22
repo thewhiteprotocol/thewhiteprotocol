@@ -27,9 +27,17 @@ Never commit:
 - private operator reports;
 - zkeys unless explicitly approved as public ceremony artifacts.
 
-PR-014E adds `npm run security:no-secret-scan` and the `Security Guards` GitHub Actions workflow. The scanner fails CI for forbidden tracked artifacts and prints only file path plus issue type.
+PR-014E adds `npm run security:no-secret-scan` and the `Security Guards` GitHub Actions workflow. PR-014F adds scanner unit tests and makes the baseline explicit. The scanner fails CI for forbidden tracked artifacts and prints only file path plus issue type.
 
-The scanner has a temporary baseline at `docs/security/no-secret-scan-baseline.json` for pre-existing tracked findings outside the PR-014E edit scope. Baseline entries contain only path and issue type, not values. New findings fail CI.
+The scanner has a temporary baseline at `docs/security/no-secret-scan-baseline.json` for pre-existing tracked findings outside the PR-014F edit scope. Baseline entries contain only path, issue type, classification, action, and status; they intentionally omit values. New findings fail CI.
+
+PR-014F triage status:
+
+- Initial baseline findings: 19.
+- Real secret indicators: 18 `rpc_url_with_key` findings. Referenced RPC credentials must be rotated if still active.
+- Forbidden artifacts: 1 tracked witness artifact. It must be removed in a dedicated cleanup PR because circuits are outside PR-014F scope.
+- Documentation false positives: 0.
+- Broad path allowlists: 0. The baseline is exact `path + issue` only.
 
 ## Allowed Public Artifacts
 
@@ -146,9 +154,10 @@ Failed simulation logs may include public addresses, public hashes, function nam
 
 ```bash
 npm run security:no-secret-scan:self-test
+npm run security:no-secret-scan:test
 npm run security:no-secret-scan
 ```
 
 The scanner output policy is intentionally redacted. It reports `path` and `issue` only, never the matched value.
 
-Baseline cleanup is required before mainnet.
+Baseline cleanup and credential rotation are required before mainnet.

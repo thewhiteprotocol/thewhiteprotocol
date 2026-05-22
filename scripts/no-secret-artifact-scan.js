@@ -11,7 +11,8 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.resolve(__dirname, '..');
+const DEFAULT_ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(process.env.NO_SECRET_SCAN_ROOT || DEFAULT_ROOT);
 const MAX_TEXT_BYTES = 1024 * 1024;
 const DEFAULT_BASELINE_PATH = 'docs/security/no-secret-scan-baseline.json';
 
@@ -143,7 +144,7 @@ function loadBaseline() {
   if (!fs.existsSync(absPath)) return new Set();
   const parsed = JSON.parse(fs.readFileSync(absPath, 'utf8'));
   const entries = Array.isArray(parsed.findings) ? parsed.findings : [];
-  return new Set(entries.map((finding) => `${finding.path}\0${finding.issue}`));
+  return new Set(entries.filter((finding) => finding && finding.status !== 'removed').map((finding) => `${finding.path}\0${finding.issue}`));
 }
 
 function splitBaseline(findings, baseline) {
@@ -207,4 +208,15 @@ function main() {
   console.log(JSON.stringify({ ok: true, scanned: true, findings: 0, baselineFindings: baselineCount }));
 }
 
-main();
+module.exports = {
+  contentIssues,
+  loadBaseline,
+  pathIssues,
+  printFindings,
+  scanFiles,
+  splitBaseline,
+};
+
+if (require.main === module) {
+  main();
+}

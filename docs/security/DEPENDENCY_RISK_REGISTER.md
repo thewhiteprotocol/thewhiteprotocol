@@ -72,3 +72,14 @@ No dependency was remediated in PR-014E because the safe non-forced path is bloc
 3. Avoid `npm audit fix --force` unless every resulting dependency change is reviewed.
 4. Add SBOM generation and audit review to CI.
 5. Run full validation after each dependency group update.
+
+## PR-014F Update
+
+PR-014F did not remediate dependency versions. The dependency risk posture remains the PR-014E posture above:
+
+- Production vulnerabilities remain tracked at 30 total / 6 high.
+- Full workspace vulnerabilities remain tracked at 102 total / 30 high / 5 critical.
+- No force upgrade was applied.
+- No dependency was accepted as mainnet-safe.
+
+PR-014F focused on no-secret baseline triage and CI scanner hardening. Dependency remediation remains a dedicated follow-up so package upgrades can be grouped by runtime surface and validated without mixing them into artifact-control cleanup.
