@@ -223,3 +223,17 @@ PR-013P withdraw-simulation status:
 - Gas estimate: `329772`
 - Withdraw tx submitted: `false`
 - Before any future withdraw execution, rerun path recovery/validation if Base `nextLeafIndex` has advanced beyond `43`.
+
+PR-013Q guarded-withdraw attempt:
+
+- Guarded command: `cd chains/evm && npm run bridge:base:submit-withdraw`
+- Required live gates: `BRIDGE_WITHDRAW_LIVE=true`, `BRIDGE_ALLOW_LIVE_TESTNET_WITHDRAW=true`, `BRIDGE_WITHDRAW_APPROVED_DESTINATION_HASH=<destinationBridgeMintHash>`.
+- Required recipient gate: set `BRIDGE_WITHDRAW_RECIPIENT` or `BASE_WITHDRAW_RECIPIENT` before any live withdraw.
+- Final note-state validation/readback: passed.
+- Final Merkle path validation: passed.
+- Base preflight: submit tx confirmed, message consumed, commitment inserted, leaf index `42`, nullifier spent `false`, vault balance sufficient.
+- PR-013Q blocker: `blocked_withdraw_recipient_missing`.
+- Withdraw tx submitted: `false`.
+- Extra `acceptBridgeMint` submitted: `false`.
+
+Do not rerun the live withdraw command until an explicit Base Sepolia recipient address is configured and reviewed. After configuring it, rerun note-state validation, Merkle path validation, Base preflight, proof generation, and final simulation before enabling the guarded withdraw gates.

@@ -6,14 +6,17 @@ import * as os from "os";
 import * as path from "path";
 import {
   createPublicClient,
+  createWalletClient,
   decodeEventLog,
   encodeAbiParameters,
+  formatEther,
   getAddress,
   http,
   parseAbi,
   type Address,
   type Hex,
 } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
 const snarkjs = require("snarkjs");
 const circomlibjs = require("circomlibjs");
@@ -1247,6 +1250,397 @@ async function generateProofAndSimulate(env = process.env): Promise<Record<strin
   };
 }
 
+function getWithdrawSubmitterPrivateKey(env = process.env): Hex | null {
+  const raw =
+    env.BRIDGE_WITHDRAW_SUBMITTER_PRIVATE_KEY ||
+    env.BASE_WITHDRAW_SUBMITTER_PRIVATE_KEY ||
+    env.BASE_SUBMITTER_PRIVATE_KEY ||
+    env.BASE_DEPLOYER_PRIVATE_KEY ||
+    env.DEPLOYER_PRIVATE_KEY ||
+    "";
+  const trimmed = raw.trim();
+  if (/^0x[0-9a-fA-F]{64}$/.test(trimmed)) return trimmed as Hex;
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) return `0x${trimmed}` as Hex;
+  return null;
+}
+
+function liveWithdrawGate(env = process.env): { ok: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (env.BRIDGE_WITHDRAW_LIVE !== "true") errors.push("BRIDGE_WITHDRAW_LIVE_must_be_true");
+  if (env.BRIDGE_ALLOW_LIVE_TESTNET_WITHDRAW !== "true") {
+    errors.push("BRIDGE_ALLOW_LIVE_TESTNET_WITHDRAW_must_be_true");
+  }
+  if (env.BRIDGE_DAEMON_MODE && env.BRIDGE_DAEMON_MODE !== "paper") {
+    errors.push("BRIDGE_DAEMON_MODE_must_remain_paper_for_withdraw_window");
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+async function submitGuardedWithdraw(env = process.env): Promise<Record<string, unknown>> {
+  const expected = expectedFromFixtureAndState(env);
+  const liveGate = liveWithdrawGate(env);
+  if (!liveGate.ok) {
+    return {
+      ok: false,
+      status: "blocked_live_withdraw_guard",
+      errors: liveGate.errors,
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const approvedHash = normalizeHash(env.BRIDGE_WITHDRAW_APPROVED_DESTINATION_HASH);
+  if (!approvedHash || approvedHash !== expected.destinationBridgeMintHash) {
+    return {
+      ok: false,
+      status: "blocked_approved_destination_hash_mismatch",
+      destinationBridgeMintHash: expected.destinationBridgeMintHash,
+      approvedDestinationHashPresent: Boolean(approvedHash),
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const privateKey = getWithdrawSubmitterPrivateKey(env);
+  if (!privateKey) {
+    return {
+      ok: false,
+      status: "blocked_withdraw_submitter_key_missing",
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+  if (!env.BRIDGE_WITHDRAW_RECIPIENT && !env.BASE_WITHDRAW_RECIPIENT) {
+    return {
+      ok: false,
+      status: "blocked_withdraw_recipient_missing",
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const rpcUrl = env.BASE_SEPOLIA_RPC_URL || env.RPC_URL;
+  if (!rpcUrl) {
+    return {
+      ok: false,
+      status: "blocked_base_rpc_missing",
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const pathValidation = await validateMerklePath(env);
+  if (!(pathValidation as any).ok) {
+    return {
+      ok: false,
+      status: "blocked_merkle_path_invalid",
+      pathValidation,
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const noteValidation = validateNoteState(env);
+  const noteSummary = (noteValidation as any).validation as NoteStateSummary | null;
+  const noteState = loadValidNoteState(noteSummary);
+  if (!noteState) {
+    return {
+      ok: false,
+      status: "blocked_note_state_missing",
+      noteValidation,
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const client = createPublicClient({ transport: http(rpcUrl) });
+  const chainId = await client.getChainId();
+  if (chainId !== 84532) {
+    return {
+      ok: false,
+      status: "blocked_wrong_chain",
+      chainId,
+      expectedChainId: 84532,
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const bridgeInbox = getBridgeInboxAddress(env);
+  const whiteProtocol = getWhiteProtocolAddress(env);
+  const receipt = await client.getTransactionReceipt({ hash: expected.submitTxHash }).catch(() => null);
+  const evidence = readJson(resolveMerklePathEvidencePath(expected, env));
+  const leafIndex = BigInt(String(evidence.leafIndex));
+  const root = BigInt(String(evidence.root));
+  const destinationNullifierHash = await computeDestinationNullifierHash(noteState, leafIndex);
+  if (destinationNullifierHash === null) {
+    return {
+      ok: false,
+      status: "blocked_nullifier_hash_unavailable",
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const [
+    messageConsumed,
+    commitmentInserted,
+    rootKnown,
+    nullifierSpentBefore,
+    vaultBalanceBefore,
+  ] = await Promise.all([
+    client.readContract({
+      address: bridgeInbox,
+      abi: BRIDGE_INBOX_ABI,
+      functionName: "consumedMessageHashes",
+      args: [expected.destinationBridgeMintHash],
+    }) as Promise<boolean>,
+    client.readContract({
+      address: whiteProtocol,
+      abi: WHITE_PROTOCOL_ABI,
+      functionName: "bridgeCommitments",
+      args: [BigInt(expected.destinationCommitment)],
+    }) as Promise<boolean>,
+    client.readContract({
+      address: whiteProtocol,
+      abi: WHITE_PROTOCOL_ABI,
+      functionName: "isKnownRoot",
+      args: [root],
+    }) as Promise<boolean>,
+    client.readContract({
+      address: whiteProtocol,
+      abi: WHITE_PROTOCOL_ABI,
+      functionName: "spentNullifiers",
+      args: [destinationNullifierHash],
+    }) as Promise<boolean>,
+    client.getBalance({ address: whiteProtocol }),
+  ]);
+
+  const amount = BigInt(expected.amount);
+  const token = getLocalAssetAddress(env);
+  const recipient = getWithdrawRecipient(env);
+  const relayer = "0x0000000000000000000000000000000000000000" as Address;
+  const fee = 0n;
+  const account = privateKeyToAccount(privateKey);
+  const [recipientBalanceBefore, submitterBalanceBefore] = await Promise.all([
+    client.getBalance({ address: recipient }),
+    client.getBalance({ address: account.address }),
+  ]);
+  const vaultBalanceOk = vaultBalanceBefore >= amount;
+
+  if (!receipt || receipt.status !== "success" || !messageConsumed || !commitmentInserted || !rootKnown || nullifierSpentBefore || !vaultBalanceOk) {
+    return {
+      ok: false,
+      status: "blocked_final_precheck_failed",
+      baseSubmitTxConfirmed: Boolean(receipt && receipt.status === "success"),
+      messageConsumed,
+      commitmentInserted,
+      rootKnown,
+      nullifierSpentBefore,
+      vaultBalanceBefore: vaultBalanceBefore.toString(),
+      vaultBalanceOk,
+      recipientBalanceBefore: recipientBalanceBefore.toString(),
+      submitterBalanceBefore: submitterBalanceBefore.toString(),
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const assetId = BigInt(expected.destinationLocalAssetId);
+  const withdrawInput = {
+    secret: normalizeScalar(noteState.destSecret ?? noteState.secret),
+    nullifier: normalizeScalar(noteState.destNullifier ?? noteState.nullifier),
+    amount: amount.toString(),
+    asset_id: assetId.toString(),
+    leaf_index: leafIndex.toString(),
+    merkle_root: root.toString(),
+    nullifier_hash: destinationNullifierHash.toString(),
+    merkle_path: (evidence.pathElements as string[]).map((entry) => BigInt(entry).toString()),
+    merkle_path_indices: (evidence.pathIndices as string[]).map((entry) => BigInt(entry).toString()),
+    recipient: BigInt(recipient).toString(),
+    relayer: "0",
+    relayer_fee: "0",
+    public_data_hash: "0",
+  };
+  const circuitDir = withdrawCircuitDir(env);
+  const wasmPath = path.join(circuitDir, "withdraw_js", "withdraw.wasm");
+  const zkeyPath = path.join(circuitDir, "withdraw.zkey");
+  if (!fs.existsSync(wasmPath) || !fs.existsSync(zkeyPath)) {
+    return {
+      ok: false,
+      status: "blocked_withdraw_circuit_artifact_missing",
+      missingArtifacts: {
+        wasm: !fs.existsSync(wasmPath),
+        zkey: !fs.existsSync(zkeyPath),
+      },
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const proofResult = await snarkjs.groth16.fullProve(withdrawInput, wasmPath, zkeyPath);
+  const proofBytes = await proofToBytes(proofResult.proof, proofResult.publicSignals);
+  const publicSignals = proofResult.publicSignals.map((entry: unknown) => BigInt(String(entry)).toString());
+  const publicInputChecks = {
+    root: publicSignals[0] === root.toString(),
+    nullifierHash: publicSignals[1] === destinationNullifierHash.toString(),
+    asset: publicSignals[2] === assetId.toString(),
+    recipient: publicSignals[3] === BigInt(recipient).toString(),
+    amount: publicSignals[4] === amount.toString(),
+    relayer: publicSignals[5] === "0",
+    relayerFee: publicSignals[6] === "0",
+  };
+  if (!Object.values(publicInputChecks).every(Boolean)) {
+    return {
+      ok: false,
+      status: "blocked_public_input_mismatch",
+      publicInputChecks,
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  let gasEstimate: bigint;
+  try {
+    await client.simulateContract({
+      address: whiteProtocol,
+      abi: WHITE_PROTOCOL_ABI,
+      functionName: "withdraw",
+      args: [proofBytes, destinationNullifierHash, root, recipient, token, amount, fee, relayer],
+      account: account.address,
+    });
+    gasEstimate = await client.estimateContractGas({
+      address: whiteProtocol,
+      abi: WHITE_PROTOCOL_ABI,
+      functionName: "withdraw",
+      args: [proofBytes, destinationNullifierHash, root, recipient, token, amount, fee, relayer],
+      account: account.address,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      status: "blocked_withdraw_simulation_failed",
+      simulationError: err instanceof Error ? err.message.replace(/https?:\/\/\S+/g, "[redacted-url]") : String(err),
+      nullifierSpentBefore,
+      vaultBalanceBefore: vaultBalanceBefore.toString(),
+      recipientBalanceBefore: recipientBalanceBefore.toString(),
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const gasCostBuffer = gasEstimate * 2n;
+  if (submitterBalanceBefore <= gasCostBuffer) {
+    return {
+      ok: false,
+      status: "blocked_submitter_balance_low",
+      gasEstimate: gasEstimate.toString(),
+      submitterBalanceBefore: submitterBalanceBefore.toString(),
+      submitterBalanceBeforeEth: formatEther(submitterBalanceBefore),
+      withdrawSubmitted: false,
+      withdrawTxSubmitted: false,
+      secretsPrinted: false,
+    };
+  }
+
+  const walletClient = createWalletClient({
+    account,
+    transport: http(rpcUrl),
+  });
+  const withdrawTx = await walletClient.writeContract({
+    address: whiteProtocol,
+    abi: WHITE_PROTOCOL_ABI,
+    functionName: "withdraw",
+    args: [proofBytes, destinationNullifierHash, root, recipient, token, amount, fee, relayer],
+    gas: (gasEstimate * 12n) / 10n,
+  });
+  const withdrawReceipt = await client.waitForTransactionReceipt({ hash: withdrawTx });
+  const [nullifierSpentAfter, vaultBalanceAfter, recipientBalanceAfter] = await Promise.all([
+    client.readContract({
+      address: whiteProtocol,
+      abi: WHITE_PROTOCOL_ABI,
+      functionName: "spentNullifiers",
+      args: [destinationNullifierHash],
+    }) as Promise<boolean>,
+    client.getBalance({ address: whiteProtocol }),
+    client.getBalance({ address: recipient }),
+  ]);
+
+  let duplicateRejected = false;
+  let duplicateRejection: string | null = null;
+  if (nullifierSpentAfter) {
+    duplicateRejected = true;
+    duplicateRejection = "nullifier_already_spent";
+  } else {
+    try {
+      await client.simulateContract({
+        address: whiteProtocol,
+        abi: WHITE_PROTOCOL_ABI,
+        functionName: "withdraw",
+        args: [proofBytes, destinationNullifierHash, root, recipient, token, amount, fee, relayer],
+        account: account.address,
+      });
+      duplicateRejected = false;
+      duplicateRejection = "duplicate_simulation_unexpectedly_passed";
+    } catch (err) {
+      duplicateRejected = true;
+      duplicateRejection = err instanceof Error ? err.message.replace(/https?:\/\/\S+/g, "[redacted-url]") : String(err);
+    }
+  }
+
+  const recipientBalanceIncreased = recipientBalanceAfter > recipientBalanceBefore;
+  const vaultBalanceDecreased = vaultBalanceAfter < vaultBalanceBefore;
+  const ok =
+    withdrawReceipt.status === "success" &&
+    nullifierSpentAfter &&
+    recipientBalanceIncreased &&
+    vaultBalanceDecreased &&
+    duplicateRejected;
+
+  return {
+    ok,
+    status: ok ? "withdraw_submitted" : "blocked_post_submit_check_failed",
+    destinationBridgeMintHash: expected.destinationBridgeMintHash,
+    destinationCommitment: expected.destinationCommitment,
+    leafIndex: leafIndex.toString(),
+    merkleRoot: root.toString(),
+    nullifierSpentBefore,
+    vaultBalanceBefore: vaultBalanceBefore.toString(),
+    recipientBalanceBefore: recipientBalanceBefore.toString(),
+    proofGenerated: true,
+    simulation: "passed",
+    gasEstimate: gasEstimate.toString(),
+    withdrawSubmitted: true,
+    withdrawTx,
+    confirmation: withdrawReceipt.status,
+    blockNumber: withdrawReceipt.blockNumber.toString(),
+    gasUsed: withdrawReceipt.gasUsed.toString(),
+    nullifierSpentAfter,
+    vaultBalanceAfter: vaultBalanceAfter.toString(),
+    recipientBalanceAfter: recipientBalanceAfter.toString(),
+    recipientBalanceIncreased,
+    vaultBalanceDecreased,
+    duplicateRejected,
+    duplicateRejection,
+    extraAcceptBridgeMintSubmitted: false,
+    withdrawTxSubmitted: true,
+    secretsPrinted: false,
+  };
+}
+
 function writeFixture(dir: string, overrides: JsonRecord = {}): string {
   const fixture = {
     sourceMessageHash: PR013I_SOURCE_HASH,
@@ -1386,6 +1780,11 @@ async function main(): Promise<void> {
   }
   if (command === "simulate-withdraw" || command === "withdraw-simulation") {
     const result = await generateProofAndSimulate();
+    print(result);
+    process.exit((result as any).ok ? 0 : 1);
+  }
+  if (command === "submit-withdraw" || command === "guarded-withdraw") {
+    const result = await submitGuardedWithdraw();
     print(result);
     process.exit((result as any).ok ? 0 : 1);
   }

@@ -349,6 +349,8 @@ Do not approve live submission if any of these are true:
 - Leaf-index evidence is missing, mismatched, or manually supplied without explicit operator review.
 - The live recovery snapshot reports `tx_failed`, `tx_unknown`, `blocked_ambiguous_state`, or a destination hash mismatch.
 - The live recovery snapshot cannot validate destination note-state for the exact destination hash.
+- Solana -> Base destination withdraw is attempted without an explicit reviewed `BRIDGE_WITHDRAW_RECIPIENT` or `BASE_WITHDRAW_RECIPIENT`.
+- `bridge:base:submit-withdraw` reports `blocked_withdraw_recipient_missing`.
 
 ## Future Live-Testnet Approval Fields
 

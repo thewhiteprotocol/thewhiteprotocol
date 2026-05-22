@@ -278,6 +278,18 @@
 - Gas estimate: `329772`
 - Withdraw tx submitted: `false`
 
+## PR-013Q Guarded Base Withdraw Attempt
+
+- Final note-state validation/readback: passed.
+- Final Merkle path validation: passed.
+- Leaf index: `42`
+- Nullifier spent before: `false`
+- Vault balance before: `30099999999000000`
+- Recipient configured: `false`
+- Guarded withdraw command status: `blocked_withdraw_recipient_missing`
+- Withdraw tx submitted: `false`
+- Extra `acceptBridgeMint` submitted: `false`
+
 ## Production Relayer Policy
 
 - For Solana source routes, production relayers must only relay events produced by `bridge_out_v1_with_proof`.

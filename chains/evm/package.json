@@ -53,6 +53,7 @@
     "bridge:base:recover-merkle-path": "tsx test/helpers/solana-to-base-destination-withdraw-cli.ts recover-merkle-path",
     "bridge:base:validate-merkle-path": "tsx test/helpers/solana-to-base-destination-withdraw-cli.ts validate-merkle-path",
     "bridge:base:simulate-withdraw": "tsx test/helpers/solana-to-base-destination-withdraw-cli.ts simulate-withdraw",
+    "bridge:base:submit-withdraw": "tsx test/helpers/solana-to-base-destination-withdraw-cli.ts submit-withdraw",
     "bridge:test-base-withdraw-prep": "tsx test/helpers/solana-to-base-destination-withdraw-cli.ts self-test"
   },
   "dependencies": {
