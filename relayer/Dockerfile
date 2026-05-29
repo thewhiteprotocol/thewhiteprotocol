@@ -8,7 +8,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Builder
 # -----------------------------------------------------------------------------
-FROM node:18.20-slim AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ RUN npm run build
 # -----------------------------------------------------------------------------
 # Stage 2: Production
 # -----------------------------------------------------------------------------
-FROM node:18.20-slim AS production
+FROM node:20-slim AS production
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -42,6 +42,7 @@ ENV PORT=3000
 # Create app directory and set non-root user
 WORKDIR /app
 RUN chown -R node:node /app
+RUN mkdir -p /home/node/.npm && chown -R node:node /home/node/.npm
 USER node
 
 # Copy the BUILT core package so the file: dependency resolves correctly
